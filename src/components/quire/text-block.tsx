@@ -130,10 +130,15 @@ export function TextBlock({
     fresh.current = false;
     const focus = focusRef.current;
     if (focus && focus.block_id === blockId) {
-      ta.focus({ preventScroll: false });
+      // preventScroll stays ON. The editor stretches to fill the sheet, so on a
+      // phone "scroll the focused element into view" reveals its bottom edge —
+      // that is the jump to the bottom people see after tapping New sheet.
+      // The caret is placed by hand instead, which we can do precisely.
+      ta.focus({ preventScroll: true });
       const pos = Math.min(focus.start, ta.value.length);
       const end = Math.min(focus.end, ta.value.length);
       ta.setSelectionRange(pos, end);
+      revealCaret(ta);
       focusRef.current = null;
       onSelection(pos, end);
     }
@@ -247,6 +252,17 @@ export function TextBlock({
       />
     </div>
   );
+}
+
+/** Brings the top of the editor into view without letting the page scroll. */
+function revealCaret(ta: HTMLTextAreaElement) {
+  const sheet = ta.closest(".sheet");
+  if (!sheet) return;
+  const box = ta.getBoundingClientRect();
+  const view = sheet.getBoundingClientRect();
+  if (box.top < view.top || box.top > view.bottom - 24) {
+    sheet.scrollTop += box.top - view.top - 12;
+  }
 }
 
 function fit(ta: HTMLTextAreaElement, wrap: boolean) {
