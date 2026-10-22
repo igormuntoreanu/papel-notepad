@@ -1,13 +1,14 @@
 import type { SkinId } from "@/lib/quire/text";
 
 export type StoredBlock =
-  | { kind: "text"; text: string }
+  | { kind: "text"; text: string; marks?: number[] }
   | { kind: "image"; mime: string; bytes: ArrayBuffer };
 
 export type StoredNote = {
   id: string;
   title: string;
   wrap: boolean;
+  edited?: number;
   language: string;
   eol: string;
   encoding: string;
@@ -20,10 +21,13 @@ export type Persisted = {
   activeId: string | null;
 };
 
+export type SortMode = "manual" | "recent" | "title";
+
 export type Prefs = {
   skin: SkinId;
-  mode: "day" | "night";
   zoom: number;
+  autocorrect: boolean;
+  sort: SortMode;
 };
 
 const DB = "papel";
@@ -48,12 +52,12 @@ function request<T>(req: IDBRequest<T>): Promise<T> {
   });
 }
 
-export async function loadPersisted(): Promise<{ doc: Persisted | null; prefs: Prefs | null }> {
+export async function loadPersisted(): Promise<{ doc: Persisted | null; prefs: Partial<Prefs> | null }> {
   const db = await openDb();
   const tx = db.transaction(STORE, "readonly");
   const store = tx.objectStore(STORE);
   const doc = (await request(store.get("doc"))) as Persisted | undefined;
-  const prefs = (await request(store.get("prefs"))) as Prefs | undefined;
+  const prefs = (await request(store.get("prefs"))) as Partial<Prefs> | undefined;
   db.close();
   return { doc: doc ?? null, prefs: prefs ?? null };
 }

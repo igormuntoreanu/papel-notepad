@@ -10,8 +10,10 @@ mod encoding;
 mod format;
 mod highlight;
 mod lang;
+pub mod marks;
 mod textutil;
 
 pub use document::{Caret, Document, OutlineItem};
 pub use encoding::{Encoding, Eol};
 pub use lang::{Lang, LangMode};
+pub use marks::{Run, Style, StyleChange};

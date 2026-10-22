@@ -14,19 +14,10 @@ function Home() {
 
 function Boot() {
   return (
-    <div className="desk" data-skin="paper" data-mode="day">
-      <header className="toolbar">
-        <span className="brand-name">Papel</span>
-      </header>
-      <div className="body">
-        <main className="stage">
-          <div className="sheet-frame" data-edge="torn">
-            <div className="sheet">
-              <p className="boot-line">Opening a fresh sheet…</p>
-            </div>
-          </div>
-        </main>
-      </div>
+    <div className="desk" data-skin="paper">
+      <main className="desk-body">
+        <p className="boot-line">Opening a fresh sheet…</p>
+      </main>
     </div>
   );
 }
