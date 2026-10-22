@@ -1,0 +1,9 @@
+[package]
+name = "quire-core"
+version = "0.1.0"
+edition = "2021"
+description = "Notepad document core. No UI, no WASM — a native shell can depend on this crate directly."
+publish = false
+
+[dependencies]
+serde_json = "1"
