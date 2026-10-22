@@ -21,6 +21,7 @@ import type { Session } from "@/lib/quire/engine";
 import { HIGHLIGHTERS, INKS, type FlagName } from "@/lib/quire/marks";
 import { tornClip } from "@/lib/quire/torn";
 import { TextBlock } from "./text-block";
+import { DropMenu } from "./drop-menu";
 import { imageUrl, outlineOf, type NoteMeta, type Place } from "./store";
 
 const SHEET_CLIP = tornClip("papel-sheet", 6, undefined, 40);
@@ -66,7 +67,7 @@ export type SheetActions = {
   date: () => void;
   image: () => void;
   wrap: () => void;
-  save: (asText: boolean) => void;
+  save: (ext?: string) => void;
   close: () => void;
   deleteImage: (id: number) => void;
 };
@@ -120,6 +121,8 @@ export function Sheet({
   onImage,
   styles,
   find,
+  saveExt,
+  saveExts,
   actions,
 }: {
   note: NoteMeta;
@@ -136,6 +139,10 @@ export function Sheet({
   onImage: (file: File) => void;
   styles: StyleState;
   find: FindState;
+  /** Default extension for Ctrl+S, e.g. `papel` or `json`. */
+  saveExt: string;
+  /** Every extension this note can be written as, default first. */
+  saveExts: string[];
   actions: SheetActions;
 }) {
   const [renaming, setRenaming] = useState(false);
@@ -183,12 +190,21 @@ export function Sheet({
             )}
             {session.is_dirty() && <span className="dirty" role="img" aria-label="Unsaved" title="Not saved to a file" />}
             <span className="spacer" />
-            <Keep label="Save" title="Save (Ctrl+S)" onPress={() => actions.save(false)}>
+            <Keep label="Save" title={`Save as .${saveExt} (Ctrl+S)`} onPress={() => actions.save()}>
               <Save />
             </Keep>
-            <Keep label="Save text only" className="tool text-only" onPress={() => actions.save(true)}>
-              <span>.txt</span>
-            </Keep>
+            <DropMenu
+              className="tool text-only"
+              align="end"
+              ariaLabel={`Save as .${saveExt}`}
+              title={`Save as .${saveExt}`}
+              label={<span>.{saveExt}</span>}
+              items={saveExts.map((ext) => (
+                <button key={ext} type="button" className="menu-item" onClick={() => actions.save(ext)}>
+                  Save as .{ext}
+                </button>
+              ))}
+            />
             <Keep label="Close sheet" onPress={actions.close}>
               <X />
             </Keep>
