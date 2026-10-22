@@ -5,6 +5,23 @@ import { paint, readMarks } from "@/lib/quire/marks";
 import { diffText } from "@/lib/quire/text";
 import type { Place } from "./store";
 
+/**
+ * Notes up to this size repaint their highlight on every keystroke. That covers
+ * roughly sixteen pages of prose, comfortably past the ten-page target.
+ *
+ * The repaint is linear in note size: measured at ~0.9 µs per character, so
+ * 50k costs about 36 ms of blocking work and 250k about 227 ms — several
+ * dropped frames per key. Above the limit the words stay live and the colours
+ * wait for a pause.
+ */
+const EXACT_LIMIT = 50_000;
+/**
+ * A large note still gets its colours once when opened, and again when the
+ * field loses focus — but only up to this size. Past it a repaint costs
+ * seconds, which is worse than leaving the note plain.
+ */
+const COLOUR_LIMIT = 500_000;
+
 export function TextBlock({
   noteId,
   blockId,
@@ -36,13 +53,44 @@ export function TextBlock({
   const lastAt = useRef(0);
   const composing = useRef(false);
   const fresh = useRef(false);
+  /** Above EXACT_LIMIT the overlay has already shown its colours for a block. */
+  const exactShown = useRef<{ block: number; done: boolean }>({ block: -1, done: false });
 
-  const paintNow = () => {
+  const paintExact = () => {
     const ta = taRef.current;
     const pre = preRef.current;
     if (!ta || !pre) return;
     pre.innerHTML = paint(ta.value, session.highlight(blockId), readMarks(session.marks(blockId)));
     fit(ta, wrap);
+  };
+
+  const paintNow = () => {
+    const ta = taRef.current;
+    const pre = preRef.current;
+    if (!ta || !pre) return;
+    const size = ta.value.length;
+    if (size > EXACT_LIMIT) {
+      // Large note: the words stay live, the colours wait. Above COLOUR_LIMIT a
+      // repaint costs seconds, so it is not even offered automatically.
+      if (exactShown.current.block !== blockId) exactShown.current = { block: blockId, done: false };
+      if (!exactShown.current.done && size <= COLOUR_LIMIT) {
+        exactShown.current.done = true;
+        paintExact();
+        return;
+      }
+      pre.textContent = ta.value;
+      fit(ta, wrap);
+      return;
+    }
+    paintExact();
+  };
+
+  /** Leaving the field is the one moment colour can come back for a large note. */
+  const paintOnBlur = () => {
+    const ta = taRef.current;
+    if (!ta) return;
+    const size = ta.value.length;
+    if (size > EXACT_LIMIT && size <= COLOUR_LIMIT) paintExact();
   };
 
   const report = () => {
@@ -134,6 +182,7 @@ export function TextBlock({
         autoCorrect="off"
         defaultValue={prev.current}
         onFocus={report}
+        onBlur={paintOnBlur}
         onSelect={report}
         onKeyUp={report}
         onClick={report}
