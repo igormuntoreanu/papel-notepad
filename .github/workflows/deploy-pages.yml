@@ -1,0 +1,61 @@
+name: Deploy to GitHub Pages
+
+# Papel is a client-only app, but its default build goes through Nitro (a Node
+# server) for Vercel. GitHub Pages cannot run a server, so this workflow builds
+# the static variant enabled by `PAPEL_PAGES=1` in vite.config.ts: prerendered
+# index.html + hashed assets, rebased onto the project-site path.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; never cancel a run that is already publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          # Playwright is a dev dependency only used for local smoke checks.
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      - name: Build static site
+        run: npx vite build
+        env:
+          PAPEL_PAGES: "1"
+          # Project sites are served from /<repo>/. Change this if the
+          # repository is renamed or a custom domain is attached.
+          PAPEL_PAGES_BASE: /papel-notepad/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/client
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

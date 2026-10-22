@@ -142,10 +142,26 @@ function authPopupPlugin(): Plugin {
   };
 }
 
+/**
+ * GitHub Pages build (opt-in): a static, prerendered site at a repository
+ * subpath.
+ *
+ * Pages cannot run the Nitro server, so this mode prerenders the routes and
+ * drops the Nitro plugin, leaving plain `index.html` + hashed assets. `base`
+ * must match the Pages URL path, because GitHub serves project sites from
+ * `/<repo>/` and every emitted asset URL is rebased onto it.
+ *
+ * Unset by default: `npm run dev`, `vite preview` and the Vercel build follow
+ * the original path unchanged.
+ */
+const pagesMode = process.env.PAPEL_PAGES === "1";
+const pagesBase = process.env.PAPEL_PAGES_BASE ?? "/papel-notepad/";
+
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
 export default defineConfig(({ command, isPreview }) => ({
+  base: pagesMode ? pagesBase : undefined,
   server: {
     host: "0.0.0.0",
     port: 8080,
@@ -163,11 +179,23 @@ export default defineConfig(({ command, isPreview }) => ({
     authPopupPlugin(),
     // Dev-only /__app-env, read by scripts/check-auth-invariant.mjs.
     appEnvPlugin(),
-    // PWA head + ?install=1 tutorial page; runs before Start/Nitro.
-    grokPwaPlugin(),
+    // PWA head + ?install=1 tutorial page; runs before Start/Nitro. Skipped on
+    // Pages: it is a runtime-server feature and would inject /__grok links that
+    // nothing serves there.
+    ...(pagesMode ? [] : [grokPwaPlugin()]),
     tailwindcss(),
-    tanstackStart(),
-    ...(command === "build" || isPreview
+    tanstackStart(
+      pagesMode
+        ? {
+            // Static prerendering, not `spa`: the SPA shell is an empty
+            // document, which makes React hydrate `<Boot/>` against nothing
+            // (error #418) and shows a blank page until JS lands. Prerendering
+            // `/` writes the real boot markup into index.html instead.
+            prerender: { enabled: true },
+          }
+        : undefined,
+    ),
+    ...(!pagesMode && (command === "build" || isPreview)
       ? [
           nitro({
             preset: "vercel",
