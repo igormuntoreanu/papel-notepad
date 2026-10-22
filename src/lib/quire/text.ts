@@ -101,6 +101,52 @@ export function canOpenFile(name: string): boolean {
   return lower.endsWith(".papel") || lower.endsWith(".quire") || langFromFilename(name) !== null;
 }
 
+/**
+ * Language id → the extension a saved file should carry. The reverse of `EXT`,
+ * with the canonical extension chosen for each language (`.js`, not `.mjs`).
+ */
+const LANG_EXT: Record<string, string> = {
+  json: "json",
+  xml: "xml",
+  html: "html",
+  css: "css",
+  javascript: "js",
+  sql: "sql",
+  markdown: "md",
+  rust: "rs",
+  java: "java",
+  c: "c",
+  cpp: "cpp",
+  python: "py",
+  abap: "abap",
+};
+
+export function extForLanguage(lang: string): string {
+  return LANG_EXT[lang] ?? "txt";
+}
+
+export function mimeForExtension(ext: string): string {
+  switch (ext) {
+    case "papel":
+    case "json":
+      return "application/json";
+    case "xml":
+      return "application/xml";
+    case "html":
+      return "text/html";
+    case "css":
+      return "text/css";
+    case "js":
+      return "text/javascript";
+    case "sql":
+      return "application/sql";
+    case "md":
+      return "text/markdown";
+    default:
+      return "text/plain";
+  }
+}
+
 export function langLabel(id: string): string {
   return LANGUAGES.find((l) => l.id === id)?.label ?? id;
 }
