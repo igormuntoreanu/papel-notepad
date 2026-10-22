@@ -7,10 +7,12 @@ import {
   Highlighter,
   ImagePlus,
   Italic,
+  List,
   Redo2,
   Save,
   Search,
   Strikethrough,
+  Table2,
   Underline,
   Undo2,
   WrapText,
@@ -26,6 +28,40 @@ import { imageUrl, outlineOf, type NoteMeta, type Place } from "./store";
 
 const SHEET_CLIP = tornClip("papel-sheet", 6, undefined, 40);
 const SHEET_UNDER = tornClip("papel-sheet-under", 8, undefined, 40);
+
+/** 5 × 5 grid of rows/cols, built once: the picker only mounts while open. */
+const PICKER_CELLS = Array.from({ length: 25 }, (_, i) => ({
+  rows: Math.floor(i / 5) + 1,
+  cols: (i % 5) + 1,
+}));
+
+function TablePicker({ onPick }: { onPick: (rows: number, cols: number) => void }) {
+  const [size, setSize] = useState({ rows: 3, cols: 3 });
+  return (
+    <div className="table-picker">
+      <p className="table-picker-size">
+        {size.rows} × {size.cols}
+      </p>
+      <div className="table-picker-grid" onMouseLeave={() => setSize({ rows: 3, cols: 3 })}>
+        {PICKER_CELLS.map(({ rows, cols }) => {
+          const on = rows <= size.rows && cols <= size.cols;
+          return (
+            <button
+              key={`${rows}-${cols}`}
+              type="button"
+              className={on ? "pick-cell is-on" : "pick-cell"}
+              aria-label={`Insert a ${rows} by ${cols} table`}
+              onMouseEnter={() => setSize({ rows, cols })}
+              onFocus={() => setSize({ rows, cols })}
+              onClick={() => onPick(rows, cols)}
+            />
+          );
+        })}
+      </div>
+      <p className="table-picker-hint">Insert table</p>
+    </div>
+  );
+}
 
 export type FindState = {
   open: boolean;
@@ -70,6 +106,8 @@ export type SheetActions = {
   save: (ext?: string) => void;
   close: () => void;
   deleteImage: (id: number) => void;
+  table: (rows: number, cols: number) => void;
+  bullets: () => void;
 };
 
 /** Toolbar buttons that must not steal focus (and the selection) from the editor. */
@@ -273,6 +311,17 @@ export function Sheet({
               <Keep label="Insert date and time" title="Insert date (F5)" onPress={actions.date}>
                 <Clock />
               </Keep>
+              <Keep label="Bulleted list" title="Bulleted list" onPress={actions.bullets}>
+                <List />
+              </Keep>
+              <DropMenu
+                className="tool"
+                align="end"
+                ariaLabel="Insert table"
+                title="Insert table"
+                label={<Table2 />}
+                items={<TablePicker onPick={actions.table} />}
+              />
               <Keep label="Insert image" onPress={actions.image}>
                 <ImagePlus />
               </Keep>

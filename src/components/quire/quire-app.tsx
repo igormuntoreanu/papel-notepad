@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createSession, type Session } from "@/lib/quire/engine";
+import { tableSkeleton, toggleBullets } from "@/lib/quire/blocks";
 import { MIN_QUERY, searchNotes } from "@/lib/quire/fuzzy";
 import { FLAG, rangeHas, readMarks, type FlagName } from "@/lib/quire/marks";
 import { savePersisted, type Prefs, type SortMode } from "@/lib/quire/persist";
@@ -387,6 +388,34 @@ export function QuireApp() {
     bump({ block_id: blockId, start: pos, end: pos });
   }
 
+  /** Inserts a monospace table skeleton as text: one edit, one undo step. */
+  function insertTable(rows: number, cols: number) {
+    if (!session) return;
+    const { blockId: b, start, end } = selRef.current;
+    const blockId = b || session.first_text_id();
+    const body = session.text_of(blockId);
+    const lead = start > 0 && body[start - 1] !== "\n" ? "\n" : "";
+    const insert = `${lead}${tableSkeleton(rows, cols)}\n`;
+    session.edit(blockId, start, end, insert, false);
+    const pos = start + insert.length;
+    setSel({ blockId, start: pos, end: pos });
+    touch(activeId);
+    bump({ block_id: blockId, start: pos, end: pos });
+  }
+
+  /** Adds or removes `• ` on the lines the selection covers. */
+  function toggleBulletList() {
+    if (!session) return;
+    const { blockId: b, start, end } = selRef.current;
+    const blockId = b || session.first_text_id();
+    const change = toggleBullets(session.text_of(blockId), start, end);
+    session.edit(blockId, change.start, change.end, change.insert, false);
+    const pos = change.start + change.insert.length;
+    setSel({ blockId, start: pos, end: pos });
+    touch(activeId);
+    bump({ block_id: blockId, start: pos, end: pos });
+  }
+
   function runFormat() {
     if (!session) return;
     const msg = session.format_all();
@@ -692,6 +721,8 @@ export function QuireApp() {
     image: () => imageRef.current?.click(),
     wrap: toggleWrap,
     save: (ext) => saveNote(activeId, ext),
+    table: insertTable,
+    bullets: toggleBulletList,
     close: () => activeId && closeNote(activeId),
     deleteImage,
   };

@@ -1,8 +1,68 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { correctionAt } from "./autocorrect.ts";
+import { continueBullet, tableSkeleton, toggleBullets } from "./blocks.ts";
 import { distance, searchNotes } from "./fuzzy.ts";
 import { FLAG, paint, rangeHas, readMarks } from "./marks.ts";
+
+describe("tableSkeleton", () => {
+  it("draws a box with one row per requested row", () => {
+    const lines = tableSkeleton(3, 3).split("\n");
+    assert.equal(lines.length, 7, "top rule, then a row and a rule three times");
+    assert.equal(lines[0], "+---------+---------+---------+");
+    assert.equal(lines[1], "|         |         |         |");
+    assert.equal(lines[6], lines[0], "the last rule closes the box");
+    for (const line of lines) assert.equal(line.length, lines[0]!.length, "every line is the same width");
+  });
+
+  it("clamps to something drawable", () => {
+    assert.equal(tableSkeleton(0, 0).split("\n").length, 3);
+    assert.equal(tableSkeleton(999, 999).split("\n").length, 41);
+  });
+});
+
+describe("toggleBullets", () => {
+  it("marks every selected line", () => {
+    assert.deepEqual(toggleBullets("a\nb", 0, 3), { start: 0, end: 3, insert: "• a\n• b", allBulleted: false });
+  });
+
+  it("removes the marks when they are all already there", () => {
+    assert.deepEqual(toggleBullets("• a\n• b", 0, 7), { start: 0, end: 7, insert: "a\nb", allBulleted: true });
+  });
+
+  it("only touches the lines the selection covers", () => {
+    const change = toggleBullets("one\ntwo\nthree", 4, 7);
+    assert.equal(change.start, 4);
+    assert.equal(change.insert, "• two");
+  });
+
+  it("leaves blank lines alone inside a selection", () => {
+    assert.equal(toggleBullets("a\n\nb", 0, 4).insert, "• a\n\n• b");
+  });
+
+  it("starts a list from an empty line", () => {
+    assert.equal(toggleBullets("", 0, 0).insert, "• ");
+  });
+});
+
+describe("continueBullet", () => {
+  it("carries the bullet to the next line", () => {
+    assert.deepEqual(continueBullet("• hello", 7), { start: 7, end: 7, insert: "\n• " });
+  });
+
+  it("keeps the indent", () => {
+    assert.equal(continueBullet("  • hello", 9)?.insert, "\n  • ");
+  });
+
+  it("ends the list when the bullet is empty", () => {
+    assert.deepEqual(continueBullet("• ", 2), { start: 0, end: 2, insert: "" });
+  });
+
+  it("ignores lines that are not bullets", () => {
+    assert.equal(continueBullet("hello", 5), null);
+    assert.equal(continueBullet("• a\nhello", 9), null);
+  });
+});
 
 describe("paint", () => {
   it("escapes markup in plain text", () => {
