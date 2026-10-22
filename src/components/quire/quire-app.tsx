@@ -4,7 +4,7 @@ import { MIN_QUERY, searchNotes } from "@/lib/quire/fuzzy";
 import { FLAG, rangeHas, readMarks, type FlagName } from "@/lib/quire/marks";
 import { savePersisted, type Prefs, type SortMode } from "@/lib/quire/persist";
 import { installTextures } from "@/lib/quire/textures";
-import { download, fileStamp, langFromFilename, langLabel, safeName, SKINS, type SkinId } from "@/lib/quire/text";
+import { canOpenFile, download, FILE_ACCEPT, fileStamp, langFromFilename, langLabel, safeName, SKINS, type SkinId } from "@/lib/quire/text";
 import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
@@ -298,6 +298,10 @@ export function QuireApp() {
   async function openFiles(files: FileList | File[]) {
     let first: string | null = null;
     for (const file of [...files]) {
+      if (!canOpenFile(file.name)) {
+        setMessage(`${file.name}: not a type Papel can open.`);
+        continue;
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
       const id = crypto.randomUUID();
       const s = createSession();
@@ -840,6 +844,7 @@ export function QuireApp() {
         type="file"
         hidden
         multiple
+        accept={FILE_ACCEPT}
         onChange={(e) => {
           if (e.target.files) void openFiles(e.target.files);
           e.target.value = "";

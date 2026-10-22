@@ -105,6 +105,54 @@
   --selection: rgb(31 111 91 / 0.22);
 }
 
+.desk[data-skin="sulphite"] {
+  --paper: #ffffff;
+  --paper-2: #f3f3f1;
+  --paper-edge: transparent;
+  --rule: transparent;
+  --syn-key: #1c1c1c;
+  --syn-str: #4a4a4a;
+  --syn-com: #9a9a9a;
+  --syn-type: #1c1c1c;
+  --selection: rgb(0 0 0 / 0.1);
+  --kraft: #ededeb;
+  --field: #ffffff;
+  /* No texture at all: this is the one skin that is just paper. */
+  --fibers: none;
+  --noise: none;
+  --grain: none;
+  --mottle: none;
+  --shadow: rgb(0 0 0 / 0.14);
+  --shadow-soft: rgb(0 0 0 / 0.07);
+  background: var(--kraft);
+}
+
+.desk[data-skin="sulphite"] .strip {
+  filter: none;
+}
+
+/* The torn header and footer edges are inline clip-paths on their background
+   layers, so this skin removes those layers and paints flat rules instead. */
+.desk[data-skin="sulphite"] .strip-bg,
+.desk[data-skin="sulphite"] .status-bg {
+  display: none;
+}
+
+.desk[data-skin="sulphite"] .strip-paper {
+  background: #f3f3f1;
+  border-bottom: 1px solid rgb(0 0 0 / 0.08);
+}
+
+.desk[data-skin="sulphite"] .status {
+  background: #f3f3f1;
+  border-top: 1px solid rgb(0 0 0 / 0.08);
+}
+
+.desk[data-skin="sulphite"] .sheet-frame,
+.desk[data-skin="sulphite"] .card-bg {
+  border: 1px solid rgb(0 0 0 / 0.09);
+}
+
 /* ---------- Desk ---------- */
 
 .desk {
@@ -473,13 +521,14 @@
   position: relative;
 }
 
+/* The popover is portalled to `.desk` and fixed against the viewport, so no
+   ancestor stacking context or `overflow` can clip it. Position comes from
+   DropMenu; only shape and colour live here. */
 .popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 40;
+  position: fixed;
+  z-index: 1000;
   min-width: 13rem;
-  max-width: min(22rem, 90vw);
+  max-width: min(22rem, calc(100vw - 16px));
   max-height: min(64dvh, 460px);
   overflow: auto;
   padding: 6px;
@@ -488,22 +537,6 @@
   border: 1px solid rgb(60 36 12 / 0.18);
   border-radius: var(--radius-xs);
   box-shadow: 0 14px 30px var(--shadow);
-}
-
-.popover[data-align="end"] {
-  left: auto;
-  right: 0;
-}
-
-.popover[data-align="up"],
-.popover[data-align="up-end"] {
-  top: auto;
-  bottom: calc(100% + 6px);
-}
-
-.popover[data-align="up-end"] {
-  left: auto;
-  right: 0;
 }
 
 .menu-item {
@@ -638,6 +671,13 @@
     linear-gradient(#d3dfd8 1px, transparent 1px) 0 0 / 8px 8px,
     #eef3ef;
   border-radius: 2px;
+}
+
+.swatch[data-skin="sulphite"] {
+  background: #ffffff;
+  border: 1px solid rgb(0 0 0 / 0.16);
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 }
 
 /* ---------- Board & cards ---------- */

@@ -20,6 +20,13 @@ export const SKINS = [
     pattern: "grid",
     blurb: "Drafting card, grid, perforated edge.",
   },
+  {
+    id: "sulphite",
+    name: "Sulphite",
+    edge: "clean",
+    pattern: "blank",
+    blurb: "Bare white sheet, a hairline, nothing else.",
+  },
 ] as const;
 
 export type SkinId = (typeof SKINS)[number]["id"];
@@ -74,6 +81,24 @@ const EXT: Record<string, string> = {
 export function langFromFilename(name: string): string | null {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   return EXT[ext] ?? null;
+}
+
+/**
+ * What the Open picker offers. Derived from the same table that hints a
+ * language, so the two cannot drift apart.
+ */
+export const OPENABLE_EXTENSIONS: string[] = [
+  ".papel",
+  ".quire",
+  ...[...new Set(Object.keys(EXT))].map((ext) => `.${ext}`),
+];
+
+export const FILE_ACCEPT = OPENABLE_EXTENSIONS.join(",");
+
+/** True for the note formats Papel can actually open. */
+export function canOpenFile(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.endsWith(".papel") || lower.endsWith(".quire") || langFromFilename(name) !== null;
 }
 
 export function langLabel(id: string): string {
