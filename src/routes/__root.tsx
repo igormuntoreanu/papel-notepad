@@ -5,6 +5,19 @@ import appCss from "../styles.css?url";
 
 const APP_NAME = "Papel";
 
+/**
+ * Vite's `base`. `/` everywhere except the GitHub Pages build, which is served
+ * from `/<repo>/`. Asset hrefs below must go through it, or they 404 off-root.
+ */
+const BASE = import.meta.env.BASE_URL;
+
+/**
+ * The `/__grok/*` manifest and touch icon are served at runtime by the platform
+ * PWA plugin, which is not part of the static Pages build. Linking them there
+ * would only produce 404s.
+ */
+const hasPlatformChrome = BASE === "/";
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -18,10 +31,14 @@ export const Route = createRootRoute({
       },
     ],
     links: [
-      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+      { rel: "icon", type: "image/svg+xml", href: `${BASE}favicon.svg` },
       { rel: "stylesheet", href: appCss },
-      { rel: "manifest", href: "/__grok/manifest.webmanifest" },
-      { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
+      ...(hasPlatformChrome
+        ? [
+            { rel: "manifest", href: "/__grok/manifest.webmanifest" },
+            { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
+          ]
+        : []),
     ],
   }),
   component: () => (
