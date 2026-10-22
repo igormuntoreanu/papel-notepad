@@ -608,30 +608,40 @@ impl Document {
         if query.is_empty() {
             return 0;
         }
-        let before = self.blocks.clone();
-        let mut count = 0u32;
-        for block in &mut self.blocks {
-            if let Block::Text { body, marks: m, .. } = block {
-                let matches = all_matches(body, query, case_sensitive);
-                if matches.is_empty() {
-                    continue;
-                }
-                let ins = utf16_len(replacement) as u32;
-                for (start, end) in matches.iter().rev() {
-                    splice_utf16(body, *start, *end, replacement);
-                    if !m.is_empty() {
-                        *m = marks::shift(m, *start as u32, *end as u32, ins);
-                    }
-                }
-                count += matches.len() as u32;
-            }
-        }
-        if count == 0 {
+        // Find every match up front: one scan per block, and a no-match Replace
+        // All no longer clones the whole document.
+        let per_block: Vec<Vec<(usize, usize)>> = self
+            .blocks
+            .iter()
+            .map(|b| match b {
+                Block::Text { body, .. } => all_matches(body, query, case_sensitive),
+                _ => Vec::new(),
+            })
+            .collect();
+        let total: usize = per_block.iter().map(Vec::len).sum();
+        if total == 0 {
             return 0;
+        }
+
+        let before = self.blocks.clone();
+        for (block, matches) in self.blocks.iter_mut().zip(per_block.iter()) {
+            if matches.is_empty() {
+                continue;
+            }
+            let Block::Text { body, marks: m, .. } = block else { continue };
+            let ins = utf16_len(replacement) as u32;
+            if !m.is_empty() {
+                // Descending order keeps earlier coordinates valid; styles are
+                // rare and few, so this stays cheap next to the text rebuild.
+                for (start, end) in matches.iter().rev() {
+                    *m = marks::shift(m, *start as u32, *end as u32, ins);
+                }
+            }
+            *body = splice_many(body, matches, replacement);
         }
         let caret = self.fallback_caret();
         self.push_structure(before, caret, caret);
-        count
+        total as u32
     }
 
     pub fn highlight(&self, id: u32) -> Vec<u32> {
@@ -872,6 +882,33 @@ fn all_matches(hay: &str, needle: &str, case_sensitive: bool) -> Vec<(usize, usi
     out
 }
 
+/// Rebuilds `body` with every match replaced in one forward pass.
+///
+/// The old implementation spliced each match in place, which advanced a
+/// UTF-16→byte cursor from the start of the block and memmoved the tail once
+/// per match: O(matches × length). Copying the untouched spans between matches
+/// makes it O(length + matches).
+fn splice_many(body: &str, matches: &[(usize, usize)], replacement: &str) -> String {
+    let mut out = String::with_capacity(body.len() + matches.len() * replacement.len());
+    let mut copy_from = 0usize;
+    let mut unit = 0usize;
+    let mut next_match = 0usize;
+    for (byte, ch) in body.char_indices() {
+        let after = unit + ch.len_utf16();
+        if next_match < matches.len() && unit == matches[next_match].0 {
+            out.push_str(&body[copy_from..byte]);
+            out.push_str(replacement);
+        }
+        if next_match < matches.len() && after == matches[next_match].1 && after > unit {
+            copy_from = byte + ch.len_utf8();
+            next_match += 1;
+        }
+        unit = after;
+    }
+    out.push_str(&body[copy_from..]);
+    out
+}
+
 fn fold_eq(a: char, b: char) -> bool {
     if a == b {
         return true;
@@ -1096,5 +1133,87 @@ mod tests {
         assert_eq!(m[1], 1, "col");
         let caret = doc.line_to_caret(2);
         assert_eq!(caret.start, 3);
+    }
+
+    #[test]
+    fn replace_all_shifts_style_runs_once_per_match() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa bbb aaa", false);
+        assert!(doc.apply_style(id, 4, 7, StyleChange::Flag(marks::BOLD, true)));
+
+        assert_eq!(doc.replace_all("aaa", "x", true), 2);
+        assert_eq!(doc.text_of(id), "x bbb x");
+        let runs = doc.marks_of(id);
+        assert_eq!(runs.len(), 1);
+        assert_eq!((runs[0].start, runs[0].end), (2, 5), "styled run follows the text");
+
+        doc.undo();
+        assert_eq!(doc.text_of(id), "aaa bbb aaa");
+        assert_eq!(doc.marks_of(id)[0].start, 4);
+    }
+
+    /// Regression: Replace All used to splice each match in place, which is
+    /// O(matches × length). On this input that took minutes; linear work is
+    /// milliseconds. The bound is deliberately loose so it only catches
+    /// quadratic behaviour, not a slow machine.
+    #[test]
+    fn replace_all_is_not_quadratic() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        let line = "the quick brown fox jumps over the lazy dog\n";
+        doc.edit(id, 0, 0, &line.repeat(20_000), false);
+
+        let started = std::time::Instant::now();
+        let replaced = doc.replace_all("the", "a", true);
+        let elapsed = started.elapsed();
+
+        assert_eq!(replaced, 40_000);
+        assert!(
+            elapsed < std::time::Duration::from_secs(10),
+            "replace_all took {elapsed:?} for 20k lines; expected linear time"
+        );
+        assert!(doc.text_of(id).starts_with("a quick brown fox jumps over a lazy dog\n"));
+    }
+
+    /// Timing benchmark, not an assertion. Run with:
+    /// `cargo test -p quire-core --release -- --ignored --nocapture`
+    /// It separates the core's share of a keystroke from the UI's repaint, which
+    /// is what actually costs seconds on a multi-megabyte note.
+    #[test]
+    #[ignore = "timing benchmark"]
+    fn perf_profile_large_notes() {
+        let line = "the quick brown fox jumps over the lazy dog\n";
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, &line.repeat(50_000), false);
+        let size = doc.text_of(id).len();
+
+        let started = std::time::Instant::now();
+        for _ in 0..50 {
+            let end = doc.text_of(id).len() as u32;
+            doc.edit(id, end, end, "x", true);
+        }
+        let edit = started.elapsed() / 50;
+
+        let started = std::time::Instant::now();
+        for _ in 0..10 {
+            let _ = doc.text_of(id);
+        }
+        let read = started.elapsed() / 10;
+
+        let started = std::time::Instant::now();
+        for _ in 0..10 {
+            let _ = doc.highlight(id);
+        }
+        let highlight = started.elapsed() / 10;
+
+        let started = std::time::Instant::now();
+        let replaced = doc.replace_all("the", "a", true);
+        let replace = started.elapsed();
+
+        eprintln!(
+            "size={size}B edit={edit:?} text_of={read:?} highlight={highlight:?} replace_all({replaced})={replace:?}"
+        );
     }
 }
