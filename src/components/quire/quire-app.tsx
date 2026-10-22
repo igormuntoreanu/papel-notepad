@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import { createSession, type Session } from "@/lib/quire/engine";
+﻿import { useEffect, useRef, useState } from "react";
+import { createSession } from "@/lib/quire/engine";
 import { tableSkeleton, toggleBullets } from "@/lib/quire/blocks";
 import { MIN_QUERY, searchNotes } from "@/lib/quire/fuzzy";
 import { FLAG, rangeHas, readMarks, type FlagName } from "@/lib/quire/marks";
 import { savePersisted, type Prefs, type SortMode } from "@/lib/quire/persist";
 import { installTextures } from "@/lib/quire/textures";
-import { canOpenFile, download, extForLanguage, FILE_ACCEPT, fileStamp, langFromFilename, langLabel, mimeForExtension, safeName, SKINS, type SkinId } from "@/lib/quire/text";
+import { canOpenFile, download, FILE_ACCEPT, fileStamp, langFromFilename, langLabel, safeName, SKINS, type SkinId } from "@/lib/quire/text";
 import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
@@ -28,11 +28,6 @@ import {
 
 type Ask = { title: string; body: string; confirm: string; tone?: "danger"; run: () => void };
 type Sel = { blockId: number; start: number; end: number };
-
-/** Holds anything a plain text file cannot: images or inline styles. */
-function isRich(session: Session): boolean {
-  return outlineOf(session).some((item) => item.kind === "image") || session.has_marks();
-}
 
 export function QuireApp() {
   const [ready, setReady] = useState(false);
@@ -147,7 +142,7 @@ export function QuireApp() {
 
   useEffect(() => {
     const dirty = session?.is_dirty() ? "*" : "";
-    document.title = view === "focus" && note ? `${dirty}${note.title} — Papel` : "Papel";
+    document.title = view === "focus" && note ? `${dirty}${note.title} â€” Papel` : "Papel";
   }, [note, view, tick, session]);
 
   function bump(next?: Place | null) {
@@ -263,48 +258,16 @@ export function QuireApp() {
     setNotes((list) => list.map((n) => (n.id === activeId ? { ...n, wrap: !n.wrap } : n)));
   }
 
-  /**
-   * Saves the note. Without an explicit extension it writes the note's default
-   * format: `.papel` when there are images or styles (nothing else can hold
-   * them), otherwise the extension of its language.
-   */
-  function saveNote(id: string | null, requested?: string) {
+  /** `.papel` is the only format Papel writes: text, images, styles, tables. */
+  function saveNote(id: string | null) {
     const s = id ? sessions.get(id) : null;
     const meta = notesRef.current.find((n) => n.id === id);
     if (!s || !meta) return;
-    const rich = isRich(s);
-    const ext = requested ?? (rich ? "papel" : extForLanguage(s.effective_language(s.first_text_id())));
-    if (rich && ext !== "papel") {
-      setAsk({
-        title: `Save a .${ext} copy?`,
-        body: `A .${ext} file cannot keep pasted images, colors or highlights. The words are saved; everything else stays on this sheet.`,
-        confirm: `Save .${ext}`,
-        run: () => writeText(ext),
-      });
-      return;
-    }
-    if (ext === "papel") writePapel();
-    else writeText(ext);
-
-    function writeText(as: string) {
-      if (!s || !meta) return;
-      try {
-        const name = safeName(meta.title, as);
-        download(name, s.export_bytes(), mimeForExtension(as));
-        s.mark_clean();
-        setMessage(`Saved ${name}`);
-        setTick((n) => n + 1);
-      } catch (err) {
-        setMessage(err instanceof Error ? err.message : "Could not encode this file.");
-      }
-    }
-    function writePapel() {
-      if (!s || !meta) return;
-      download(safeName(meta.title, "papel"), toPapel(s), "application/json");
-      s.mark_clean();
-      setMessage(`Saved ${safeName(meta.title, "papel")}`);
-      setTick((n) => n + 1);
-    }
+    const name = safeName(meta.title, "papel");
+    download(name, toPapel(s), "application/json");
+    s.mark_clean();
+    setMessage(`Saved ${name}`);
+    setTick((n) => n + 1);
   }
 
   async function openFiles(files: FileList | File[]) {
@@ -403,7 +366,7 @@ export function QuireApp() {
     bump({ block_id: blockId, start: pos, end: pos });
   }
 
-  /** Adds or removes `• ` on the lines the selection covers. */
+  /** Adds or removes `â€¢ ` on the lines the selection covers. */
   function toggleBulletList() {
     if (!session) return;
     const { blockId: b, start, end } = selRef.current;
@@ -620,7 +583,7 @@ export function QuireApp() {
     return (
       <div className="desk" data-skin={skin}>
         <main className="desk-body">
-          <p className="boot-line">Opening a fresh sheet…</p>
+          <p className="boot-line">Opening a fresh sheetâ€¦</p>
         </main>
       </div>
     );
@@ -664,13 +627,7 @@ export function QuireApp() {
   const metrics = session ? session.metrics(blockId, sel.start) : [1, 1, 1, 0];
   const langSetting = session?.language() ?? "auto";
   const effective = session ? session.effective_language(blockId) : "plain";
-  const langText = langSetting === "auto" ? `Auto · ${langLabel(effective)}` : langLabel(langSetting);
-  // What this note can be saved as: the language's extension always, plus
-  // `.papel` whenever the note holds images or styles.
-  const richNow = session ? isRich(session) : false;
-  const langExt = extForLanguage(effective);
-  const saveExts = richNow ? ["papel", langExt] : [langExt];
-  const saveExt = saveExts[0]!;
+  const langText = langSetting === "auto" ? `Auto Â· ${langLabel(effective)}` : langLabel(langSetting);
   const marksNow = session && sel.end > sel.start ? readMarks(session.marks(blockId)) : [];
   const at = marksNow.find((m) => m.start <= sel.start && m.end > sel.start);
   const styles: StyleState = {
@@ -720,7 +677,7 @@ export function QuireApp() {
     date: insertDate,
     image: () => imageRef.current?.click(),
     wrap: toggleWrap,
-    save: (ext) => saveNote(activeId, ext),
+    save: () => saveNote(activeId),
     table: insertTable,
     bullets: toggleBulletList,
     close: () => activeId && closeNote(activeId),
@@ -816,7 +773,7 @@ export function QuireApp() {
             <div className="empty-sheet">
               <h2>Nothing matches.</h2>
               <p>
-                No sheet fits {applied ? <>“{applied}”</> : "this filter"}
+                No sheet fits {applied ? <>â€œ{applied}â€</> : "this filter"}
                 {langFilter ? ` in ${langFilter}` : ""}. Try fewer letters, or clear the filters.
               </p>
               <button
@@ -859,8 +816,6 @@ export function QuireApp() {
                 onImage={(file) => void insertImageFile(file)}
                 styles={styles}
                 find={find}
-                saveExt={saveExt}
-                saveExts={saveExts}
                 actions={sheetActions}
               />
             ) : (
@@ -946,3 +901,5 @@ export function QuireApp() {
     </div>
   );
 }
+
+

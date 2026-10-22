@@ -29,7 +29,7 @@ import { imageUrl, outlineOf, type NoteMeta, type Place } from "./store";
 const SHEET_CLIP = tornClip("papel-sheet", 6, undefined, 40);
 const SHEET_UNDER = tornClip("papel-sheet-under", 8, undefined, 40);
 
-/** 5 × 5 grid of rows/cols, built once: the picker only mounts while open. */
+/** 5 Ã— 5 grid of rows/cols, built once: the picker only mounts while open. */
 const PICKER_CELLS = Array.from({ length: 25 }, (_, i) => ({
   rows: Math.floor(i / 5) + 1,
   cols: (i % 5) + 1,
@@ -40,7 +40,7 @@ function TablePicker({ onPick }: { onPick: (rows: number, cols: number) => void 
   return (
     <div className="table-picker">
       <p className="table-picker-size">
-        {size.rows} × {size.cols}
+        {size.rows} Ã— {size.cols}
       </p>
       <div className="table-picker-grid" onMouseLeave={() => setSize({ rows: 3, cols: 3 })}>
         {PICKER_CELLS.map(({ rows, cols }) => {
@@ -103,7 +103,7 @@ export type SheetActions = {
   date: () => void;
   image: () => void;
   wrap: () => void;
-  save: (ext?: string) => void;
+  save: () => void;
   close: () => void;
   deleteImage: (id: number) => void;
   table: (rows: number, cols: number) => void;
@@ -159,8 +159,6 @@ export function Sheet({
   onImage,
   styles,
   find,
-  saveExt,
-  saveExts,
   actions,
 }: {
   note: NoteMeta;
@@ -177,10 +175,6 @@ export function Sheet({
   onImage: (file: File) => void;
   styles: StyleState;
   find: FindState;
-  /** Default extension for Ctrl+S, e.g. `papel` or `json`. */
-  saveExt: string;
-  /** Every extension this note can be written as, default first. */
-  saveExts: string[];
   actions: SheetActions;
 }) {
   const [renaming, setRenaming] = useState(false);
@@ -228,21 +222,12 @@ export function Sheet({
             )}
             {session.is_dirty() && <span className="dirty" role="img" aria-label="Unsaved" title="Not saved to a file" />}
             <span className="spacer" />
-            <Keep label="Save" title={`Save as .${saveExt} (Ctrl+S)`} onPress={() => actions.save()}>
+            <Keep label="Save" title="Save as .papel (Ctrl+S)" onPress={() => actions.save()}>
               <Save />
             </Keep>
-            <DropMenu
-              className="tool text-only"
-              align="end"
-              ariaLabel={`Save as .${saveExt}`}
-              title={`Save as .${saveExt}`}
-              label={<span>.{saveExt}</span>}
-              items={saveExts.map((ext) => (
-                <button key={ext} type="button" className="menu-item" onClick={() => actions.save(ext)}>
-                  Save as .{ext}
-                </button>
-              ))}
-            />
+            <Keep label="Save as .papel" title="Papel is the only format" className="tool text-only" onPress={() => actions.save()}>
+              <span>.papel</span>
+            </Keep>
             <Keep label="Close sheet" onPress={actions.close}>
               <X />
             </Keep>
@@ -431,3 +416,4 @@ function FindBar({ find }: { find: FindState }) {
     </div>
   );
 }
+
