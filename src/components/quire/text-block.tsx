@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, type MutableRefObject } from "react";
 import type { Session } from "@/lib/quire/engine";
 import { correctionAt } from "@/lib/quire/autocorrect";
+import { continueBullet } from "@/lib/quire/blocks";
 import { paint, readMarks } from "@/lib/quire/marks";
 import { diffText } from "@/lib/quire/text";
 import type { Place } from "./store";
@@ -211,6 +212,27 @@ export function TextBlock({
           sync(burst && small, native.inputType === "insertText" ? native.data : null);
         }}
         onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            const ta = e.currentTarget;
+            const at = ta.selectionStart ?? 0;
+            if (at !== (ta.selectionEnd ?? at)) return;
+            // `ta.value` is the block text already: reading it here avoids a
+            // full copy out of WASM on every Enter press.
+            const text = ta.value;
+            const change = continueBullet(text, at);
+            if (!change) return;
+            e.preventDefault();
+            session.edit(blockId, change.start, change.end, change.insert, false);
+            const next = text.slice(0, change.start) + change.insert + text.slice(change.end);
+            const pos = change.start + change.insert.length;
+            ta.value = next;
+            prev.current = next;
+            ta.setSelectionRange(pos, pos);
+            paintNow();
+            report();
+            onEdited();
+            return;
+          }
           if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             const ta = e.currentTarget;
