@@ -71,6 +71,21 @@ export class Session {
         wasm.__wbg_session_free(ptr, 0);
     }
     /**
+     * `kind`: bold | italic | underline | strike (value 0/1), ink | hl (palette index, 0 = none), clear.
+     * @param {number} id
+     * @param {number} start
+     * @param {number} end
+     * @param {string} kind
+     * @param {number} value
+     * @returns {boolean}
+     */
+    apply_style(id, start, end, kind, value) {
+        const ptr0 = passStringToWasm0(kind, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.session_apply_style(this.__wbg_ptr, id, start, end, ptr0, len0, value);
+        return ret !== 0;
+    }
+    /**
      * @returns {boolean}
      */
     can_redo() {
@@ -263,6 +278,13 @@ export class Session {
         }
     }
     /**
+     * @returns {boolean}
+     */
+    has_marks() {
+        const ret = wasm.session_has_marks(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
      * @param {number} id
      * @returns {Uint32Array}
      */
@@ -345,6 +367,17 @@ export class Session {
     }
     mark_clean() {
         wasm.session_mark_clean(this.__wbg_ptr);
+    }
+    /**
+     * Flat `[start, end, flags, ink, hl]*` style runs for a text block.
+     * @param {number} id
+     * @returns {Uint32Array}
+     */
+    marks(id) {
+        const ret = wasm.session_marks(this.__wbg_ptr, id);
+        var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
     }
     /**
      * @param {number} id
@@ -462,6 +495,15 @@ export class Session {
         const len1 = WASM_VECTOR_LEN;
         const ret = wasm.session_restore_image(this.__wbg_ptr, ptr0, len0, ptr1, len1);
         return ret >>> 0;
+    }
+    /**
+     * @param {number} id
+     * @param {Uint32Array} flat
+     */
+    restore_marks(id, flat) {
+        const ptr0 = passArray32ToWasm0(flat, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.session_restore_marks(this.__wbg_ptr, id, ptr0, len0);
     }
     /**
      * @param {string} text
@@ -596,6 +638,13 @@ function getUint8ArrayMemory0() {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function passArray32ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 4, 4) >>> 0;
+    getUint32ArrayMemory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passArray8ToWasm0(arg, malloc) {

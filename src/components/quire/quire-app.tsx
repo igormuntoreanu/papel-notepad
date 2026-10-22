@@ -1,156 +1,32 @@
+import { useEffect, useRef, useState } from "react";
+import { createSession } from "@/lib/quire/engine";
+import { MIN_QUERY, searchNotes } from "@/lib/quire/fuzzy";
+import { FLAG, rangeHas, readMarks, type FlagName } from "@/lib/quire/marks";
+import { savePersisted, type Prefs, type SortMode } from "@/lib/quire/persist";
+import { installTextures } from "@/lib/quire/textures";
+import { download, fileStamp, langFromFilename, langLabel, safeName, SKINS, type SkinId } from "@/lib/quire/text";
+import { Board, type CardActions } from "./board";
+import { HeaderStrip } from "./header-strip";
+import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
+import { StatusBar } from "./status-bar";
 import {
-  Braces,
-  Clock,
-  FilePlus,
-  FolderOpen,
-  Hash,
-  ImagePlus,
-  Menu,
-  Moon,
-  Plus,
-  Redo2,
-  Save,
-  Search,
-  Sun,
-  Undo2,
-  WrapText,
-  X,
-} from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
-import { bootEngine, createSession, type Session } from "@/lib/quire/engine";
-import { loadPersisted, savePersisted, type Persisted, type Prefs, type StoredBlock } from "@/lib/quire/persist";
-import {
-  base64ToBytes,
-  bytesToBase64,
-  copyBytes,
-  diffText,
-  download,
-  fileStamp,
-  langFromFilename,
-  langLabel,
-  LANGUAGES,
-  paint,
-  safeName,
-  SKINS,
-  type SkinId,
-} from "@/lib/quire/text";
+  blankNote,
+  cardInfo,
+  dropUrls,
+  ensureLoaded,
+  forgetCard,
+  fromPapel,
+  imageUrl,
+  outlineOf,
+  sessions,
+  snapshot,
+  toPapel,
+  type NoteMeta,
+  type Place,
+} from "./store";
 
-type NoteMeta = { id: string; title: string; wrap: boolean };
-type OutlineItem = { id: number; kind: string; mime: string };
-type Place = { block_id: number; start: number; end: number };
 type Ask = { title: string; body: string; confirm: string; tone?: "danger"; run: () => void };
-type Loaded = { notes: NoteMeta[]; order: string[]; activeId: string | null; prefs: Prefs };
-
-const sessions = new Map<string, Session>();
-const urls = new Map<string, string>();
-let loadedCache: Loaded | null = null;
-let loading: Promise<Loaded> | null = null;
-
-function outlineOf(session: Session): OutlineItem[] {
-  return JSON.parse(session.outline()) as OutlineItem[];
-}
-
-function imageUrl(noteId: string, imageId: number, session: Session): string {
-  const key = `${noteId}:${imageId}`;
-  const hit = urls.get(key);
-  if (hit) return hit;
-  const bytes = session.image_of(imageId);
-  const mime = session.mime_of(imageId) || "image/png";
-  const url = URL.createObjectURL(new Blob([bytes.slice()], { type: mime }));
-  urls.set(key, url);
-  return url;
-}
-
-function nextTitle(titles: string[]): string {
-  if (!titles.includes("Untitled")) return "Untitled";
-  let n = 2;
-  while (titles.includes(`Untitled ${n}`)) n += 1;
-  return `Untitled ${n}`;
-}
-
-function blankNote(titles: string[]): NoteMeta {
-  const id = crypto.randomUUID();
-  sessions.set(id, createSession());
-  return { id, title: nextTitle(titles), wrap: true };
-}
-
-async function ensureLoaded() {
-  if (loadedCache) return loadedCache;
-  if (!loading) {
-    loading = (async () => {
-      await bootEngine();
-      const { doc, prefs } = await loadPersisted();
-      const notes: NoteMeta[] = [];
-      const order: string[] = [];
-      if (doc && doc.notes.length > 0) {
-        const byId = new Map(doc.notes.map((n) => [n.id, n]));
-        const ids = doc.order.length ? doc.order : doc.notes.map((n) => n.id);
-        for (const id of ids) {
-          const stored = byId.get(id);
-          if (!stored) continue;
-          const session = createSession();
-          session.restore_begin();
-          for (const block of stored.blocks) {
-            if (block.kind === "text") session.restore_text(block.text);
-            else session.restore_image(block.mime, new Uint8Array(block.bytes));
-          }
-          session.restore_end(stored.language, stored.eol, stored.encoding);
-          sessions.set(id, session);
-          notes.push({ id, title: stored.title, wrap: stored.wrap });
-          order.push(id);
-        }
-      }
-      if (notes.length === 0) {
-        const note = blankNote([]);
-        notes.push(note);
-        order.push(note.id);
-      }
-      const mode =
-        prefs?.mode ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "night" : "day");
-      loadedCache = {
-        notes,
-        order,
-        activeId: doc?.activeId && order.includes(doc.activeId) ? doc.activeId : order[0]!,
-        prefs: {
-          skin: prefs?.skin ?? "paper",
-          mode,
-          zoom: prefs?.zoom && prefs.zoom >= 12 && prefs.zoom <= 28 ? prefs.zoom : 16,
-        },
-      };
-      return loadedCache;
-    })();
-  }
-  return loading;
-}
-
-function snapshot(notes: NoteMeta[], order: string[], activeId: string | null): Persisted {
-  return {
-    activeId,
-    order,
-    notes: order
-      .map((id) => {
-        const meta = notes.find((n) => n.id === id);
-        const session = sessions.get(id);
-        if (!meta || !session) return null;
-        const blocks: StoredBlock[] = outlineOf(session).map((item) => {
-          if (item.kind === "image") {
-            return { kind: "image", mime: item.mime || "image/png", bytes: copyBytes(session.image_of(item.id)) };
-          }
-          return { kind: "text", text: session.text_of(item.id) };
-        });
-        return {
-          id,
-          title: meta.title,
-          wrap: meta.wrap,
-          language: session.language(),
-          eol: session.eol(),
-          encoding: session.encoding(),
-          blocks,
-        };
-      })
-      .filter((n): n is Persisted["notes"][number] => n !== null),
-  };
-}
+type Sel = { blockId: number; start: number; end: number };
 
 export function QuireApp() {
   const [ready, setReady] = useState(false);
@@ -158,53 +34,60 @@ export function QuireApp() {
   const [notes, setNotes] = useState<NoteMeta[]>([]);
   const [order, setOrder] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [view, setView] = useState<"board" | "focus">("board");
   const [skin, setSkin] = useState<SkinId>("paper");
-  const [mode, setMode] = useState<"day" | "night">("day");
   const [zoom, setZoom] = useState(16);
+  const [autocorrect, setAutocorrect] = useState(true);
+  const [sort, setSort] = useState<SortMode>("manual");
   const [tick, setTick] = useState(0);
-  const [caret, setCaret] = useState({ blockId: 0, pos: 0 });
-  const [drawer, setDrawer] = useState(false);
+  const [sel, setSel] = useState<Sel>({ blockId: 0, start: 0, end: 0 });
   const [findOpen, setFindOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [findQuery, setFindQuery] = useState("");
   const [repl, setRepl] = useState("");
   const [matchCase, setMatchCase] = useState(false);
-  const [gotoOpen, setGotoOpen] = useState(false);
-  const [gotoVal, setGotoVal] = useState("");
+  const [line, setLine] = useState("");
+  const [findStatus, setFindStatus] = useState("");
   const [message, setMessage] = useState("");
   const [ask, setAsk] = useState<Ask | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
+  const [committed, setCommitted] = useState("");
+  const [langFilter, setLangFilter] = useState("");
+  const [now, setNow] = useState(() => Date.now());
   const focusRef = useRef<Place | null>(null);
   const anchor = useRef<Place | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const findRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef(notes);
   const orderRef = useRef(order);
   const activeRef = useRef(activeId);
-  const caretRef = useRef(caret);
+  const selRef = useRef(sel);
   notesRef.current = notes;
   orderRef.current = order;
   activeRef.current = activeId;
-  caretRef.current = caret;
+  selRef.current = sel;
 
-  const session = activeId ? sessions.get(activeId) ?? null : null;
+  const session = activeId ? (sessions.get(activeId) ?? null) : null;
   const note = notes.find((n) => n.id === activeId) ?? null;
   const skinMeta = SKINS.find((s) => s.id === skin) ?? SKINS[0];
+  // Cards refresh once typing pauses, so the side column does not repaint on every keystroke.
+  const [cardTick, setCardTick] = useState(0);
 
   useEffect(() => {
+    installTextures();
     let cancel = false;
     void ensureLoaded()
       .then((data) => {
-        if (cancel || !data) return;
+        if (cancel) return;
         setNotes(data.notes);
         setOrder(data.order);
         setActiveId(data.activeId);
         setSkin(data.prefs.skin);
-        setMode(data.prefs.mode);
         setZoom(data.prefs.zoom);
-        const s = data.activeId ? sessions.get(data.activeId) : null;
-        if (s) setCaret({ blockId: s.first_text_id(), pos: 0 });
+        setAutocorrect(data.prefs.autocorrect);
+        setSort(data.prefs.sort);
         setReady(true);
       })
       .catch((err: unknown) => {
@@ -218,13 +101,13 @@ export function QuireApp() {
   useEffect(() => {
     if (!ready) return;
     const handle = window.setTimeout(() => {
-      const prefs: Prefs = { skin, mode, zoom };
+      const prefs: Prefs = { skin, zoom, autocorrect, sort };
       void savePersisted(snapshot(notes, order, activeId), prefs).catch(() => {
         setMessage("Could not autosave this sheet.");
       });
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [ready, notes, order, activeId, skin, mode, zoom, tick]);
+  }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, tick]);
 
   useEffect(() => {
     const onLeave = (e: BeforeUnloadEvent) => {
@@ -238,38 +121,77 @@ export function QuireApp() {
     };
     window.addEventListener("beforeunload", onLeave);
     return () => window.removeEventListener("beforeunload", onLeave);
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setCardTick(tick), 500);
+    return () => window.clearTimeout(id);
   }, [tick]);
 
   useEffect(() => {
-    const current = notes.find((n) => n.id === activeId);
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!message) return;
+    const id = window.setTimeout(() => setMessage(""), 6000);
+    return () => window.clearTimeout(id);
+  }, [message]);
+
+  useEffect(() => {
     const dirty = session?.is_dirty() ? "*" : "";
-    document.title = current ? `${dirty}${current.title} — Papel` : "Papel";
-  }, [notes, activeId, tick, session]);
+    document.title = view === "focus" && note ? `${dirty}${note.title} — Papel` : "Papel";
+  }, [note, view, tick, session]);
 
   function bump(next?: Place | null) {
     if (next) focusRef.current = next;
     setTick((n) => n + 1);
   }
 
+  function touch(id: string | null) {
+    if (!id) return;
+    const at = Date.now();
+    setNotes((list) => {
+      const meta = list.find((n) => n.id === id);
+      if (!meta || at - meta.edited < 15_000) return list;
+      return list.map((n) => (n.id === id ? { ...n, edited: at } : n));
+    });
+  }
+
   function edited() {
+    touch(activeRef.current);
     setTick((n) => n + 1);
   }
 
-  function activate(id: string) {
-    setActiveId(id);
-    setSelectedImage(null);
-    setDrawer(false);
+  function activate(id: string, caretAtEnd = false) {
     const s = sessions.get(id);
-    if (s) setCaret({ blockId: s.first_text_id(), pos: 0 });
+    setActiveId(id);
+    setView("focus");
+    setSelectedImage(null);
     anchor.current = null;
+    if (s) {
+      const items = outlineOf(s).filter((i) => i.kind === "text");
+      const target = caretAtEnd ? items[items.length - 1] : items[0];
+      const blockId = target?.id ?? s.first_text_id();
+      const pos = caretAtEnd ? s.text_of(blockId).length : 0;
+      setSel({ blockId, start: pos, end: pos });
+      focusRef.current = { block_id: blockId, start: pos, end: pos };
+    }
+    setTick((n) => n + 1);
+  }
+
+  function toBoard() {
+    setView("board");
+    setFindOpen(false);
+    setSelectedImage(null);
   }
 
   function createNote() {
-    const note = blankNote(notesRef.current.map((n) => n.title));
-    setNotes((list) => [...list, note]);
-    setOrder((list) => [...list, note.id]);
-    activate(note.id);
-    bump();
+    const fresh = blankNote(notesRef.current.map((n) => n.title));
+    setNotes((list) => [...list, fresh]);
+    setOrder((list) => [...list, fresh.id]);
+    activate(fresh.id);
   }
 
   function closeNote(id: string) {
@@ -277,30 +199,21 @@ export function QuireApp() {
     const meta = notesRef.current.find((n) => n.id === id);
     const run = () => {
       sessions.delete(id);
-      for (const [key, url] of urls) {
-        if (key.startsWith(`${id}:`)) {
-          URL.revokeObjectURL(url);
-          urls.delete(key);
-        }
-      }
+      dropUrls(id);
+      forgetCard(id);
       const nextOrder = orderRef.current.filter((item) => item !== id);
-      const nextNotes = notesRef.current.filter((item) => item.id !== id);
-      setNotes(nextNotes);
+      setNotes((list) => list.filter((item) => item.id !== id));
       setOrder(nextOrder);
       if (activeRef.current === id) {
-        const fallback = nextOrder[0] ?? null;
-        setActiveId(fallback);
-        if (fallback) {
-          const fs = sessions.get(fallback);
-          if (fs) setCaret({ blockId: fs.first_text_id(), pos: 0 });
-        }
+        setActiveId(nextOrder[0] ?? null);
+        toBoard();
       }
       setTick((n) => n + 1);
     };
     if (s?.is_dirty()) {
       setAsk({
         title: "Discard this sheet?",
-        body: `${meta?.title ?? "This note"} has edits that were not saved to a file. Autosave on this device will drop it too.`,
+        body: `${meta?.title ?? "This sheet"} has edits that were not saved to a file. Autosave on this device will drop it too.`,
         confirm: "Discard",
         tone: "danger",
         run,
@@ -313,7 +226,30 @@ export function QuireApp() {
   function rename(id: string, title: string) {
     const next = title.trim() || "Untitled";
     setNotes((list) => list.map((n) => (n.id === id ? { ...n, title: next } : n)));
-    setRenaming(null);
+  }
+
+  function moveNote(id: string, delta: number) {
+    setOrder((list) => {
+      const from = list.indexOf(id);
+      const to = Math.max(0, Math.min(list.length - 1, from + delta));
+      if (from < 0 || from === to) return list;
+      const copy = list.slice();
+      copy.splice(from, 1);
+      copy.splice(to, 0, id);
+      return copy;
+    });
+  }
+
+  function reorder(id: string, beforeId: string) {
+    setOrder((list) => {
+      const from = list.indexOf(id);
+      const to = list.indexOf(beforeId);
+      if (from < 0 || to < 0 || from === to) return list;
+      const copy = list.slice();
+      copy.splice(from, 1);
+      copy.splice(to, 0, id);
+      return copy;
+    });
   }
 
   function toggleWrap() {
@@ -321,88 +257,63 @@ export function QuireApp() {
     setNotes((list) => list.map((n) => (n.id === activeId ? { ...n, wrap: !n.wrap } : n)));
   }
 
-  function saveNote(asText: boolean) {
-    if (!session || !note) return;
-    const items = outlineOf(session);
-    const hasImage = items.some((item) => item.kind === "image");
-    if (hasImage && asText) {
+  function saveNote(id: string | null, asText: boolean) {
+    const s = id ? sessions.get(id) : null;
+    const meta = notesRef.current.find((n) => n.id === id);
+    if (!s || !meta) return;
+    const hasImage = outlineOf(s).some((item) => item.kind === "image");
+    const rich = hasImage || s.has_marks();
+    if (rich && asText) {
       setAsk({
         title: "Save text only?",
-        body: "A plain text file cannot keep pasted images. The words are saved; the pictures stay on this sheet.",
+        body: "A plain text file cannot keep pasted images, colors or highlights. The words are saved; everything else stays on this sheet.",
         confirm: "Save text",
-        run: () => writeText(),
+        run: writeText,
       });
       return;
     }
-    if (hasImage) writeQuire();
+    if (rich) writePapel();
     else writeText();
 
     function writeText() {
-      if (!session || !note) return;
+      if (!s || !meta) return;
       try {
-        const bytes = session.export_bytes();
-        download(safeName(note.title, "txt"), bytes, "text/plain");
-        session.mark_clean();
-        setMessage(`Saved ${safeName(note.title, "txt")}`);
+        download(safeName(meta.title, "txt"), s.export_bytes(), "text/plain");
+        s.mark_clean();
+        setMessage(`Saved ${safeName(meta.title, "txt")}`);
         setTick((n) => n + 1);
       } catch (err) {
         setMessage(err instanceof Error ? err.message : "Could not encode this file.");
       }
     }
-    function writeQuire() {
-      if (!session || !note) return;
-      const file = {
-        format: "papel",
-        version: 1,
-        language: session.language(),
-        eol: session.eol(),
-        encoding: session.encoding(),
-        blocks: items.map((item) =>
-          item.kind === "image"
-            ? { type: "image", mime: item.mime || "image/png", data: bytesToBase64(session.image_of(item.id)) }
-            : { type: "text", text: session.text_of(item.id) },
-        ),
-      };
-      download(safeName(note.title, "papel"), JSON.stringify(file), "application/json");
-      session.mark_clean();
-      setMessage(`Saved ${safeName(note.title, "papel")}`);
+    function writePapel() {
+      if (!s || !meta) return;
+      download(safeName(meta.title, "papel"), toPapel(s), "application/json");
+      s.mark_clean();
+      setMessage(`Saved ${safeName(meta.title, "papel")}`);
       setTick((n) => n + 1);
     }
   }
 
   async function openFiles(files: FileList | File[]) {
-    const list = [...files];
     let first: string | null = null;
-    for (const file of list) {
+    for (const file of [...files]) {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const id = crypto.randomUUID();
-      const session = createSession();
-      if (file.name.toLowerCase().endsWith(".papel") || file.name.toLowerCase().endsWith(".quire")) {
-        let parsed: {
-          language?: string;
-          eol?: string;
-          encoding?: string;
-          blocks?: Array<{ type: string; text?: string; mime?: string; data?: string }>;
-        };
-        try {
-          parsed = JSON.parse(new TextDecoder().decode(bytes)) as typeof parsed;
-        } catch {
+      const s = createSession();
+      const lower = file.name.toLowerCase();
+      if (lower.endsWith(".papel") || lower.endsWith(".quire")) {
+        if (!fromPapel(s, bytes)) {
           setMessage(`${file.name} is not a Papel file.`);
           continue;
         }
-        session.restore_begin();
-        for (const block of parsed.blocks ?? []) {
-          if (block.type === "image" && block.data) session.restore_image(block.mime || "image/png", base64ToBytes(block.data));
-          else session.restore_text(block.text ?? "");
-        }
-        session.restore_end(parsed.language || "auto", parsed.eol || "lf", parsed.encoding || "utf-8");
       } else {
-        session.open_bytes(bytes);
+        s.open_bytes(bytes);
         const hinted = langFromFilename(file.name);
-        if (hinted && hinted !== "plain") session.force_language(hinted);
+        if (hinted && hinted !== "plain") s.force_language(hinted);
       }
-      sessions.set(id, session);
-      const meta = { id, title: file.name, wrap: true };
+      sessions.set(id, s);
+      const meta: NoteMeta = { id, title: file.name, wrap: true, edited: file.lastModified || Date.now() };
       setNotes((curr) => [...curr, meta]);
       setOrder((curr) => [...curr, id]);
       first = first ?? id;
@@ -421,8 +332,8 @@ export function QuireApp() {
       return;
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const blockId = caretRef.current.blockId || session.first_text_id();
-    const at = caretRef.current.pos;
+    const blockId = selRef.current.blockId || session.first_text_id();
+    const at = selRef.current.start;
     const before = new Set(outlineOf(session).filter((i) => i.kind === "image").map((i) => i.id));
     const next = session.insert_image_caret(blockId, at, file.type, bytes);
     if (!next) {
@@ -431,23 +342,34 @@ export function QuireApp() {
     }
     const added = outlineOf(session).find((i) => i.kind === "image" && !before.has(i.id));
     if (added) imageUrl(activeId, added.id, session);
-    focusRef.current = next;
-    setCaret({ blockId: next.block_id, pos: next.start });
+    setSel({ blockId: next.block_id, start: next.start, end: next.start });
     setMessage("Image pasted onto the sheet.");
-    setTick((n) => n + 1);
+    touch(activeId);
+    bump({ block_id: next.block_id, start: next.start, end: next.end });
+  }
+
+  function deleteImage(imageId: number) {
+    if (!session || !activeId) return;
+    const next = session.delete_image(imageId);
+    dropUrls(activeId, imageId);
+    setSelectedImage(null);
+    touch(activeId);
+    if (next) {
+      setSel({ blockId: next.block_id, start: next.start, end: next.start });
+      bump({ block_id: next.block_id, start: next.start, end: next.end });
+    } else bump();
   }
 
   function insertDate() {
     if (!session) return;
-    const blockId = caretRef.current.blockId || session.first_text_id();
-    const at = caretRef.current.pos;
+    const { blockId: b, start, end } = selRef.current;
+    const blockId = b || session.first_text_id();
     const stamp = fileStamp();
-    session.edit(blockId, at, at, stamp, false);
-    const pos = at + stamp.length;
-    const next = { block_id: blockId, start: pos, end: pos };
-    focusRef.current = next;
-    setCaret({ blockId, pos });
-    setTick((n) => n + 1);
+    session.edit(blockId, start, end, stamp, false);
+    const pos = start + stamp.length;
+    setSel({ blockId, start: pos, end: pos });
+    touch(activeId);
+    bump({ block_id: blockId, start: pos, end: pos });
   }
 
   function runFormat() {
@@ -456,7 +378,10 @@ export function QuireApp() {
     const ok = msg.startsWith("ok:");
     const text = msg.slice(ok ? 3 : 4);
     setMessage(text);
-    if (ok && text !== "Already formatted.") bump();
+    if (ok && text !== "Already formatted.") {
+      touch(activeId);
+      bump();
+    }
   }
 
   function doUndo(redo: boolean) {
@@ -464,40 +389,42 @@ export function QuireApp() {
     const next = redo ? session.redo() : session.undo();
     if (!next) return;
     anchor.current = null;
-    setCaret({ blockId: next.block_id, pos: next.start });
-    bump(next);
+    setSel({ blockId: next.block_id, start: next.start, end: next.start });
+    bump({ block_id: next.block_id, start: next.start, end: next.end });
   }
 
   function findMove(back: boolean) {
-    if (!session || !query) {
-      setMessage("Type something to find.");
+    if (!session || !findQuery) {
+      setFindStatus("Type something to find.");
       return;
     }
-    const block = anchor.current?.block_id || caretRef.current.blockId || session.first_text_id();
-    const pos = anchor.current ? (back ? anchor.current.start : anchor.current.end) : caretRef.current.pos;
-    let hit = session.find(query, matchCase, block, pos, back);
+    const cur = selRef.current;
+    const block = anchor.current?.block_id || cur.blockId || session.first_text_id();
+    const pos = anchor.current ? (back ? anchor.current.start : anchor.current.end) : back ? cur.start : cur.end;
+    let hit = session.find(findQuery, matchCase, block, pos, back);
     if (!hit) {
       const ids = outlineOf(session).filter((i) => i.kind === "text");
       const edge = back ? ids[ids.length - 1] : ids[0];
       if (edge) {
         const from = back ? session.text_of(edge.id).length : 0;
-        hit = session.find(query, matchCase, edge.id, from, back);
+        hit = session.find(findQuery, matchCase, edge.id, from, back);
       }
     }
-    const count = session.find_count(query, matchCase);
+    const count = session.find_count(findQuery, matchCase);
     if (!hit || count === 0) {
       anchor.current = null;
-      setMessage("No matches.");
+      setFindStatus("No matches.");
       return;
     }
-    anchor.current = hit;
-    setCaret({ blockId: hit.block_id, pos: hit.start });
-    setMessage(`${count} found`);
-    bump(hit);
+    const place = { block_id: hit.block_id, start: hit.start, end: hit.end };
+    anchor.current = place;
+    setSel({ blockId: hit.block_id, start: hit.start, end: hit.end });
+    setFindStatus(`${count} found`);
+    bump(place);
   }
 
   function replaceOne() {
-    if (!session || !query) return;
+    if (!session || !findQuery) return;
     const hit = anchor.current;
     if (!hit) {
       findMove(false);
@@ -505,68 +432,116 @@ export function QuireApp() {
     }
     session.edit(hit.block_id, hit.start, hit.end, repl, false);
     anchor.current = { block_id: hit.block_id, start: hit.start, end: hit.start + repl.length };
-    setCaret({ blockId: hit.block_id, pos: hit.start });
+    touch(activeId);
     bump(anchor.current);
     findMove(false);
   }
 
   function replaceAll() {
-    if (!session || !query) return;
-    const count = session.replace_all(query, repl, matchCase);
+    if (!session || !findQuery) return;
+    const count = session.replace_all(findQuery, repl, matchCase);
     anchor.current = null;
-    setMessage(count ? `Replaced ${count}.` : "No matches.");
+    setFindStatus(count ? `Replaced ${count}.` : "No matches.");
+    if (count) touch(activeId);
     bump();
   }
 
   function jumpLine() {
     if (!session) return;
-    const line = Number.parseInt(gotoVal, 10);
-    if (!Number.isFinite(line)) return;
-    const next = session.line_to_caret(line);
-    setCaret({ blockId: next.block_id, pos: next.start });
-    setGotoOpen(false);
-    bump(next);
+    const n = Number.parseInt(line, 10);
+    if (!Number.isFinite(n)) return;
+    const next = session.line_to_caret(n);
+    setSel({ blockId: next.block_id, start: next.start, end: next.start });
+    bump({ block_id: next.block_id, start: next.start, end: next.end });
+  }
+
+  function openFind() {
+    setFindOpen(true);
+    window.setTimeout(() => findRef.current?.focus(), 0);
+  }
+
+  function applyStyle(kind: string, value: number) {
+    const { blockId, start, end } = selRef.current;
+    if (!session || end <= start) {
+      setMessage("Select some text first.");
+      return;
+    }
+    if (session.apply_style(blockId, start, end, kind, value)) touch(activeId);
+    bump({ block_id: blockId, start, end });
+  }
+
+  function toggleFlag(flag: FlagName) {
+    if (!session) return;
+    const { blockId, start, end } = selRef.current;
+    const on = rangeHas(readMarks(session.marks(blockId)), start, end, FLAG[flag]);
+    applyStyle(flag, on ? 0 : 1);
   }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      const field = el?.tagName === "INPUT" || (el?.tagName === "TEXTAREA" && !el.classList.contains("editor"));
+      const inEditor = el?.tagName === "TEXTAREA" && el.classList.contains("editor");
+      const field = el?.tagName === "INPUT" || el?.tagName === "SELECT" || (el?.tagName === "TEXTAREA" && !inEditor);
       const meta = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
       if (e.key === "Escape") {
-        setFindOpen(false);
-        setGotoOpen(false);
-        setDrawer(false);
-        setAsk(null);
+        if (ask) setAsk(null);
+        else if (findOpen) setFindOpen(false);
+        else if (view === "focus" && !field) toBoard();
         return;
       }
-      if (field && !(meta && ["s", "f", "n", "o", "h"].includes(e.key.toLowerCase()))) return;
-      if (meta && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        saveNote(false);
-      } else if (meta && e.key.toLowerCase() === "o") {
-        e.preventDefault();
-        fileRef.current?.click();
-      } else if (meta && e.key.toLowerCase() === "n") {
+      if (meta && key === "n") {
         e.preventDefault();
         createNote();
-      } else if (meta && e.key.toLowerCase() === "f") {
+        return;
+      }
+      if (meta && key === "o") {
         e.preventDefault();
-        setFindOpen(true);
-        window.setTimeout(() => findRef.current?.focus(), 0);
-      } else if (meta && e.key.toLowerCase() === "h") {
+        fileRef.current?.click();
+        return;
+      }
+      if (meta && key === "f") {
         e.preventDefault();
-        setFindOpen(true);
-      } else if (meta && e.key.toLowerCase() === "g") {
+        if (view === "focus") openFind();
+        else searchRef.current?.focus();
+        return;
+      }
+      if (view !== "focus") return;
+      if (meta && key === "s") {
         e.preventDefault();
-        setGotoOpen(true);
-      } else if (e.key === "F5") {
+        saveNote(activeRef.current, false);
+        return;
+      }
+      if (meta && (key === "h" || key === "g")) {
+        e.preventDefault();
+        openFind();
+        return;
+      }
+      if (field) return;
+      if (inEditor && meta && !e.altKey) {
+        const flag: FlagName | null =
+          key === "b" && !e.shiftKey
+            ? "bold"
+            : key === "i" && !e.shiftKey
+              ? "italic"
+              : key === "u" && !e.shiftKey
+                ? "underline"
+                : key === "x" && e.shiftKey
+                  ? "strike"
+                  : null;
+        if (flag) {
+          e.preventDefault();
+          toggleFlag(flag);
+          return;
+        }
+      }
+      if (e.key === "F5") {
         e.preventDefault();
         insertDate();
-      } else if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
+      } else if (meta && key === "z" && !e.shiftKey) {
         e.preventDefault();
         doUndo(false);
-      } else if (meta && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) {
+      } else if (meta && (key === "y" || (key === "z" && e.shiftKey))) {
         e.preventDefault();
         doUndo(true);
       } else if (meta && (e.key === "=" || e.key === "+")) {
@@ -584,49 +559,13 @@ export function QuireApp() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  function onDragStart(id: string, event: { button: number; clientY: number; target: EventTarget | null }) {
-    if (event.button !== 0) return;
-    const startY = event.clientY;
-    const start = orderRef.current.slice();
-    const from = start.indexOf(id);
-    let dragging = false;
-    const move = (ev: globalThis.PointerEvent) => {
-      const dy = ev.clientY - startY;
-      if (!dragging && Math.abs(dy) < 8) return;
-      dragging = true;
-      const shift = Math.round(dy / 44);
-      const to = Math.max(0, Math.min(start.length - 1, from + shift));
-      if (to === from) return;
-      const copy = start.slice();
-      const [item] = copy.splice(from, 1);
-      if (!item) return;
-      copy.splice(to, 0, item);
-      setOrder(copy);
-    };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  }
-
-  const metrics = session ? session.metrics(caret.blockId || session.first_text_id(), caret.pos) : [1, 1, 1, 0];
-  const langSetting = session?.language() ?? "auto";
-  const effective = session ? session.effective_language(caret.blockId || session.first_text_id()) : "plain";
-  const langText = langSetting === "auto" ? `Auto · ${langLabel(effective)}` : langLabel(langSetting);
-
   if (failed) {
     return (
-      <div className="desk" data-skin="paper" data-mode="day">
-        <main className="stage">
-          <div className="sheet-frame" data-edge="torn">
-            <div className="sheet">
-              <div className="empty">
-                <h2>The sheet did not open</h2>
-                <p>{failed}</p>
-              </div>
-            </div>
+      <div className="desk" data-skin="paper">
+        <main className="desk-body">
+          <div className="empty-sheet">
+            <h2>The sheet did not open</h2>
+            <p>{failed}</p>
           </div>
         </main>
       </div>
@@ -635,29 +574,140 @@ export function QuireApp() {
 
   if (!ready) {
     return (
-      <div className="desk" data-skin={skin} data-mode={mode}>
-        <header className="toolbar">
-          <span className="brand-name">Papel</span>
-        </header>
-        <div className="body">
-          <main className="stage">
-            <div className="sheet-frame" data-edge={skinMeta.edge}>
-              <div className="sheet">
-                <p className="boot-line">Opening a fresh sheet…</p>
-              </div>
-            </div>
-          </main>
-        </div>
+      <div className="desk" data-skin={skin}>
+        <main className="desk-body">
+          <p className="boot-line">Opening a fresh sheet…</p>
+        </main>
       </div>
     );
   }
+
+  const metaById = new Map(notes.map((n) => [n.id, n]));
+  const infoFor = (id: string) => cardInfo(id, id === activeId ? `a:${cardTick}` : `s:${metaById.get(id)?.edited ?? 0}`);
+  const trimmed = query.trim();
+  const applied = trimmed.length >= MIN_QUERY ? trimmed : committed;
+  const hits = applied
+    ? searchNotes(
+        applied,
+        order.map((id) => ({ id, title: metaById.get(id)?.title ?? "", text: infoFor(id)?.text ?? "" })),
+      )
+    : null;
+  const snippets = new Map(hits?.filter((h) => h.snippet).map((h) => [h.id, h.snippet]) ?? []);
+  let visible = hits ? hits.map((h) => h.id) : order.slice();
+  if (langFilter) visible = visible.filter((id) => infoFor(id)?.lang === langFilter);
+  if (!hits && sort === "recent") visible.sort((a, b) => (metaById.get(b)?.edited ?? 0) - (metaById.get(a)?.edited ?? 0));
+  if (!hits && sort === "title") visible.sort((a, b) => (metaById.get(a)?.title ?? "").localeCompare(metaById.get(b)?.title ?? ""));
+  const canReorder = sort === "manual" && !hits && !langFilter;
+  const langs = [...new Set(order.map((id) => infoFor(id)?.lang).filter((l): l is string => Boolean(l)))].sort();
+  const unsaved = order.filter((id) => sessions.get(id)?.is_dirty()).length;
+  const hint =
+    trimmed && trimmed.length < MIN_QUERY && !committed
+      ? `Type ${MIN_QUERY}+ letters or press Go`
+      : hits
+        ? `${visible.length} ${visible.length === 1 ? "match" : "matches"}`
+        : "";
+
+  const cardActions: CardActions = {
+    open: (id) => activate(id),
+    rename,
+    save: (id) => saveNote(id, false),
+    close: closeNote,
+    move: moveNote,
+    reorder,
+  };
+
+  const blockId = sel.blockId || session?.first_text_id() || 0;
+  const metrics = session ? session.metrics(blockId, sel.start) : [1, 1, 1, 0];
+  const langSetting = session?.language() ?? "auto";
+  const effective = session ? session.effective_language(blockId) : "plain";
+  const langText = langSetting === "auto" ? `Auto · ${langLabel(effective)}` : langLabel(langSetting);
+  const marksNow = session && sel.end > sel.start ? readMarks(session.marks(blockId)) : [];
+  const at = marksNow.find((m) => m.start <= sel.start && m.end > sel.start);
+  const styles: StyleState = {
+    hasSelection: sel.end > sel.start,
+    active: {
+      bold: rangeHas(marksNow, sel.start, sel.end, FLAG.bold),
+      italic: rangeHas(marksNow, sel.start, sel.end, FLAG.italic),
+      underline: rangeHas(marksNow, sel.start, sel.end, FLAG.underline),
+      strike: rangeHas(marksNow, sel.start, sel.end, FLAG.strike),
+    },
+    ink: at?.ink ?? 0,
+    hl: at?.hl ?? 0,
+    toggle: toggleFlag,
+    setInk: (ink) => applyStyle("ink", ink),
+    setHl: (hl) => applyStyle("hl", hl),
+    clear: () => applyStyle("clear", 0),
+  };
+  const find: FindState = {
+    open: findOpen,
+    query: findQuery,
+    setQuery: (v) => {
+      setFindQuery(v);
+      anchor.current = null;
+      setFindStatus("");
+    },
+    repl,
+    setRepl,
+    matchCase,
+    setMatchCase,
+    line,
+    setLine,
+    status: findStatus,
+    inputRef: findRef,
+    move: findMove,
+    replaceOne,
+    replaceAll,
+    jump: jumpLine,
+    close: () => setFindOpen(false),
+  };
+  const sheetActions: SheetActions = {
+    back: toBoard,
+    rename: (title) => activeId && rename(activeId, title),
+    undo: () => doUndo(false),
+    redo: () => doUndo(true),
+    format: runFormat,
+    find: () => (findOpen ? setFindOpen(false) : openFind()),
+    date: insertDate,
+    image: () => imageRef.current?.click(),
+    wrap: toggleWrap,
+    save: (asText) => saveNote(activeId, asText),
+    close: () => activeId && closeNote(activeId),
+    deleteImage,
+  };
+
+  const boardStamp = [
+    cardTick,
+    visible.join(","),
+    view === "focus" ? activeId : "",
+    skinMeta.edge,
+    canReorder,
+    now,
+    notes.map((n) => `${n.title}:${n.edited}`).join("|"),
+    [...snippets.values()].join("|"),
+    unsaved,
+  ].join("?");
+
+  const board = (compact: boolean) => (
+    <Board
+      stamp={`${compact}?${boardStamp}`}
+      ids={visible}
+      notes={metaById}
+      info={infoFor}
+      snippets={snippets}
+      activeId={view === "focus" ? activeId : null}
+      compact={compact}
+      edge={skinMeta.edge}
+      canReorder={canReorder}
+      actions={cardActions}
+      now={now}
+    />
+  );
 
   return (
     <div
       className="desk"
       data-skin={skin}
-      data-mode={mode}
-      data-drawer={drawer ? "open" : "closed"}
+      data-view={view}
       style={{ ["--editor-size" as string]: `${zoom}px` }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
@@ -665,358 +715,125 @@ export function QuireApp() {
         if (e.dataTransfer.files.length) void openFiles(e.dataTransfer.files);
       }}
     >
-      <header className="toolbar">
-        <button type="button" className="tool rail-only" aria-label="Notes" onClick={() => setDrawer(true)}>
-          <Menu />
-        </button>
-        <span className="brand">
-          <span className="brand-mark" aria-hidden="true" />
-          <span className="brand-name">Papel</span>
-        </span>
-        <button type="button" className="tool" onClick={createNote} aria-label="New note">
-          <FilePlus />
-          <span className="rail-only">New</span>
-        </button>
-        <button type="button" className="tool" aria-label="Open" onClick={() => fileRef.current?.click()}>
-          <FolderOpen />
-        </button>
-        <button type="button" className="tool" aria-label="Save" onClick={() => saveNote(false)} disabled={!session}>
-          <Save />
-        </button>
-        <button type="button" className="tool" aria-label="Save text only" onClick={() => saveNote(true)} disabled={!session}>
-          <span>Text</span>
-        </button>
-        <button type="button" className="tool" aria-label="Undo" disabled={!session?.can_undo()} onClick={() => doUndo(false)}>
-          <Undo2 />
-        </button>
-        <button type="button" className="tool" aria-label="Redo" disabled={!session?.can_redo()} onClick={() => doUndo(true)}>
-          <Redo2 />
-        </button>
-        <button type="button" className="tool" aria-label="Autoformat" onClick={runFormat} disabled={!session}>
-          <Braces />
-        </button>
-        <button
-          type="button"
-          className="tool"
-          aria-label="Find and replace"
-          aria-pressed={findOpen}
-          onClick={() => {
-            setFindOpen((v) => !v);
-            window.setTimeout(() => findRef.current?.focus(), 0);
-          }}
-        >
-          <Search />
-        </button>
-        <button type="button" className="tool" aria-label="Go to line" aria-pressed={gotoOpen} onClick={() => setGotoOpen((v) => !v)}>
-          <Hash />
-        </button>
-        <button type="button" className="tool" aria-label="Insert date and time" onClick={insertDate} disabled={!session}>
-          <Clock />
-        </button>
-        <button type="button" className="tool" aria-label="Insert image" onClick={() => imageRef.current?.click()} disabled={!session}>
-          <ImagePlus />
-        </button>
-        <button
-          type="button"
-          className={note?.wrap ? "tool is-on" : "tool"}
-          aria-pressed={note?.wrap ?? false}
-          aria-label="Word wrap"
-          onClick={toggleWrap}
-          disabled={!note}
-        >
-          <WrapText />
-        </button>
-        <span className="spacer" />
-        <DropMenu
-          label="Skin"
-          align="end"
-          items={
-            <div>
-              {SKINS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={item.id === skin ? "skin-card is-on" : "skin-card"}
-                  onClick={() => setSkin(item.id)}
-                >
-                  <span className="swatch" data-skin={item.id} aria-hidden="true" />
-                  <span>
-                    <strong>{item.name}</strong>
-                    <em>{item.blurb}</em>
-                  </span>
-                </button>
-              ))}
+      <HeaderStrip
+        view={view}
+        current={view === "focus" && note ? note.title : "Board"}
+        currentId={view === "focus" ? activeId : null}
+        items={order.map((id) => ({
+          id,
+          title: metaById.get(id)?.title ?? "Untitled",
+          dirty: sessions.get(id)?.is_dirty() ?? false,
+        }))}
+        onBoard={toBoard}
+        onSwitch={(id) => activate(id)}
+        query={query}
+        setQuery={(v) => {
+          setQuery(v);
+          setCommitted("");
+        }}
+        onGo={() => {
+          setCommitted(trimmed);
+          if (!trimmed) setLangFilter("");
+        }}
+        searchRef={searchRef}
+        hint={hint}
+        langs={langs}
+        lang={langFilter}
+        setLang={setLangFilter}
+        sort={sort}
+        setSort={setSort}
+        onNew={createNote}
+        onOpen={() => fileRef.current?.click()}
+        skin={skin}
+        setSkin={setSkin}
+        autocorrect={autocorrect}
+        setAutocorrect={setAutocorrect}
+      />
+
+      <main className="desk-body">
+        {view === "board" ? (
+          order.length === 0 ? (
+            <div className="empty-sheet">
+              <h2>A blank sheet.</h2>
+              <p>Start a sheet, open a file, or drop one anywhere on the desk.</p>
+              <button type="button" className="btn primary" onClick={createNote}>
+                New sheet
+              </button>
             </div>
-          }
-        />
-        <button
-          type="button"
-          className="tool"
-          aria-label={mode === "day" ? "Switch to night" : "Switch to day"}
-          onClick={() => setMode((m) => (m === "day" ? "night" : "day"))}
-        >
-          {mode === "day" ? <Moon /> : <Sun />}
-        </button>
-      </header>
-
-      {findOpen && (
-        <div className="findbar">
-          <input
-            ref={findRef}
-            aria-label="Find"
-            placeholder="Find"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              anchor.current = null;
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                findMove(e.shiftKey);
-              }
-            }}
-          />
-          <input
-            aria-label="Replace"
-            placeholder="Replace"
-            value={repl}
-            onChange={(e) => setRepl(e.target.value)}
-          />
-          <button type="button" className={matchCase ? "tool is-on" : "tool"} aria-pressed={matchCase} onClick={() => setMatchCase((v) => !v)}>
-            Aa
-          </button>
-          <button type="button" className="tool" onClick={() => findMove(true)}>
-            Prev
-          </button>
-          <button type="button" className="tool" onClick={() => findMove(false)}>
-            Next
-          </button>
-          <button type="button" className="tool" onClick={replaceOne}>
-            Replace
-          </button>
-          <button type="button" className="tool" onClick={replaceAll}>
-            All
-          </button>
-          {message && <span className="find-count">{message}</span>}
-        </div>
-      )}
-      {gotoOpen && (
-        <form
-          className="findbar goto"
-          onSubmit={(e) => {
-            e.preventDefault();
-            jumpLine();
-          }}
-        >
-          <input
-            aria-label="Line number"
-            inputMode="numeric"
-            placeholder="Line"
-            value={gotoVal}
-            autoFocus
-            onChange={(e) => setGotoVal(e.target.value)}
-          />
-          <button type="submit" className="tool">
-            Go
-          </button>
-        </form>
-      )}
-
-      <div className="body">
-        <button type="button" className="scrim" aria-label="Close notes" onClick={() => setDrawer(false)} />
-        <nav className="rail" aria-label="Open notes">
-          <div className="rail-scroll">
-            {order.map((id) => {
-              const meta = notes.find((n) => n.id === id);
-              if (!meta) return null;
-              const dirty = sessions.get(id)?.is_dirty() ?? false;
-              const active = id === activeId;
-              return (
-                <div
-                  key={id}
-                  className={active ? "tab is-active" : "tab"}
-                  onPointerDown={(e) => {
-                    if ((e.target as HTMLElement).closest(".tab-x")) return;
-                    onDragStart(id, e);
-                  }}
-                >
-                  {renaming === id ? (
-                    <input
-                      aria-label="Note name"
-                      defaultValue={meta.title}
-                      autoFocus
-                      onBlur={(e) => rename(id, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") rename(id, e.currentTarget.value);
-                        if (e.key === "Escape") setRenaming(null);
-                      }}
-                    />
-                  ) : (
-                    <button type="button" className="tab-title" onClick={() => activate(id)} onDoubleClick={() => setRenaming(id)}>
-                      {meta.title}
-                    </button>
-                  )}
-                  {dirty && <span className="dirty" aria-label="Unsaved" />}
-                  <button type="button" className="tab-x" aria-label={`Close ${meta.title}`} onClick={() => closeNote(id)}>
-                    <X size={14} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-          <button type="button" className="tool" onClick={createNote}>
-            <Plus />
-            New sheet
-          </button>
-        </nav>
-        <main className="stage">
-          <div className="sheet-frame" data-edge={skinMeta.edge}>
-            <div className="sheet">
-              {session && note && activeId ? (
-                <div className="page" data-pattern={skinMeta.pattern} data-wrap={note.wrap ? "on" : "off"}>
-                  {outlineOf(session).map((item, index, all) =>
-                    item.kind === "image" ? (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={selectedImage === item.id ? "picture is-selected" : "picture"}
-                        onClick={() => setSelectedImage(item.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Backspace" || e.key === "Delete") {
-                            e.preventDefault();
-                            const next = session.delete_image(item.id);
-                            const url = urls.get(`${activeId}:${item.id}`);
-                            if (url) URL.revokeObjectURL(url);
-                            urls.delete(`${activeId}:${item.id}`);
-                            setSelectedImage(null);
-                            if (next) setCaret({ blockId: next.block_id, pos: next.start });
-                            bump(next);
-                          }
-                        }}
-                      >
-                        <img src={imageUrl(activeId, item.id, session)} alt="" />
-                      </button>
-                    ) : (
-                      <TextBlock
-                        key={item.id}
-                        noteId={activeId}
-                        blockId={item.id}
-                        session={session}
-                        wrap={note.wrap}
-                        grow={index === all.length - 1}
-                        tick={tick}
-                        focusRef={focusRef}
-                        onCaret={(pos) => {
-                          setSelectedImage(null);
-                          setCaret({ blockId: item.id, pos });
-                        }}
-                        onEdited={edited}
-                        onImage={(file) => void insertImageFile(file)}
-                        onStructure={(next) => {
-                          if (next) setCaret({ blockId: next.block_id, pos: next.start });
-                          bump(next);
-                        }}
-                      />
-                    ),
-                  )}
-                </div>
-              ) : (
-                <div className="empty">
-                  <h2>A blank sheet</h2>
-                  <p>Open a file, or start a sheet. Tabs sit down the side. Night and day are a separate switch from the skin.</p>
-                  <button type="button" className="btn primary" onClick={createNote}>
-                    New sheet
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </main>
-      </div>
-
-      <footer className="status">
-        <span>
-          Ln {metrics[0]}, Col {metrics[1]}
-        </span>
-        <span>{metrics[3]} chars</span>
-        <DropMenu
-          label={langText}
-          items={
-            <>
-              {LANGUAGES.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={item.id === langSetting ? "menu-item is-on" : "menu-item"}
-                  onClick={() => {
-                    session?.set_language(item.id);
-                    setTick((n) => n + 1);
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </>
-          }
-        />
-        <DropMenu
-          label={session?.encoding_label() ?? "UTF-8"}
-          items={
-            <>
-              {[
-                ["utf-8", "UTF-8"],
-                ["utf-8-bom", "UTF-8 BOM"],
-                ["utf-16le", "UTF-16 LE"],
-                ["windows-1252", "Windows-1252"],
-              ].map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className="menu-item"
-                  onClick={() => {
-                    const result = session?.set_encoding(id) ?? "";
-                    if (result.startsWith("err:")) setMessage(result.slice(4));
-                    else setMessage(label);
-                    setTick((n) => n + 1);
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </>
-          }
-        />
-        <DropMenu
-          label={session?.eol_label() ?? "LF"}
-          items={
-            <>
+          ) : visible.length === 0 ? (
+            <div className="empty-sheet">
+              <h2>Nothing matches.</h2>
+              <p>
+                No sheet fits {applied ? <>“{applied}”</> : "this filter"}
+                {langFilter ? ` in ${langFilter}` : ""}. Try fewer letters, or clear the filters.
+              </p>
               <button
                 type="button"
-                className="menu-item"
+                className="btn"
                 onClick={() => {
-                  session?.set_eol("lf");
-                  setTick((n) => n + 1);
+                  setQuery("");
+                  setCommitted("");
+                  setLangFilter("");
                 }}
               >
-                Unix (LF)
+                Clear filters
               </button>
-              <button
-                type="button"
-                className="menu-item"
-                onClick={() => {
-                  session?.set_eol("crlf");
-                  setTick((n) => n + 1);
-                }}
-              >
-                Windows (CRLF)
-              </button>
-            </>
-          }
-        />
-        <span>{Math.round((zoom / 16) * 100)}%</span>
-        {!findOpen && message && <span className="status-msg">{message}</span>}
-      </footer>
+            </div>
+          ) : (
+            board(false)
+          )
+        ) : (
+          <div className="focus">
+            <aside className="side" aria-label="Sheets">
+              {visible.length ? board(true) : <p className="side-empty">No sheet matches the search.</p>}
+            </aside>
+            {session && note ? (
+              <Sheet
+                note={note}
+                session={session}
+                edge={skinMeta.edge}
+                pattern={skinMeta.pattern}
+                tick={tick}
+                focusRef={focusRef}
+                autocorrect={autocorrect}
+                selectedImage={selectedImage}
+                setSelectedImage={setSelectedImage}
+                onSelection={(b, start, end) =>
+                  setSel((prev) =>
+                    prev.blockId === b && prev.start === start && prev.end === end ? prev : { blockId: b, start, end },
+                  )
+                }
+                onEdited={edited}
+                onImage={(file) => void insertImageFile(file)}
+                styles={styles}
+                find={find}
+                actions={sheetActions}
+              />
+            ) : (
+              <div className="empty-sheet">
+                <h2>A blank sheet.</h2>
+                <button type="button" className="btn primary" onClick={createNote}>
+                  New sheet
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      <StatusBar
+        view={view}
+        session={session}
+        metrics={metrics}
+        langText={langText}
+        zoom={zoom}
+        message={message}
+        total={order.length}
+        unsaved={unsaved}
+        shown={visible.length}
+        onChanged={() => bump()}
+        onMessage={setMessage}
+      />
 
       <input
         ref={fileRef}
@@ -1057,7 +874,8 @@ export function QuireApp() {
               </button>
               <button
                 type="button"
-                className="btn primary"
+                className={ask.tone === "danger" ? "btn danger" : "btn primary"}
+                autoFocus
                 onClick={() => {
                   const run = ask.run;
                   setAsk(null);
@@ -1072,200 +890,4 @@ export function QuireApp() {
       )}
     </div>
   );
-}
-
-function DropMenu({ label, items, align }: { label: string; items: ReactNode; align?: "end" }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("mousedown", close);
-    window.addEventListener("keydown", esc);
-    return () => {
-      window.removeEventListener("mousedown", close);
-      window.removeEventListener("keydown", esc);
-    };
-  }, [open]);
-  return (
-    <div className="menu" ref={ref}>
-      <button type="button" className="tool" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        {label}
-      </button>
-      {open && (
-        <div className="popover" data-align={align ?? "start"} role="menu" onClick={() => setOpen(false)}>
-          {items}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TextBlock({
-  noteId,
-  blockId,
-  session,
-  wrap,
-  grow,
-  tick,
-  focusRef,
-  onCaret,
-  onEdited,
-  onImage,
-  onStructure,
-}: {
-  noteId: string;
-  blockId: number;
-  session: Session;
-  wrap: boolean;
-  grow: boolean;
-  tick: number;
-  focusRef: MutableRefObject<Place | null>;
-  onCaret: (pos: number) => void;
-  onEdited: () => void;
-  onImage: (file: File) => void;
-  onStructure: (caret: Place | null | undefined) => void;
-}) {
-  const taRef = useRef<HTMLTextAreaElement>(null);
-  const preRef = useRef<HTMLPreElement>(null);
-  const prev = useRef(session.text_of(blockId));
-  const lastAt = useRef(0);
-  const composing = useRef(false);
-
-  const paintNow = () => {
-    const ta = taRef.current;
-    const pre = preRef.current;
-    if (!ta || !pre) return;
-    pre.innerHTML = paint(ta.value, session.highlight(blockId));
-    fit(ta, wrap);
-  };
-
-  useLayoutEffect(() => {
-    const ta = taRef.current;
-    if (!ta) return;
-    const next = session.text_of(blockId);
-    if (ta.value !== next) {
-      ta.value = next;
-      prev.current = next;
-    }
-    paintNow();
-    const focus = focusRef.current;
-    if (focus && focus.block_id === blockId) {
-      ta.focus();
-      const pos = Math.min(focus.start, ta.value.length);
-      const end = Math.min(focus.end, ta.value.length);
-      ta.setSelectionRange(pos, end);
-      focusRef.current = null;
-      onCaret(pos);
-    }
-  }, [tick, wrap, blockId]);
-
-  function sync(coalesce: boolean) {
-    const ta = taRef.current;
-    if (!ta || composing.current) return;
-    const next = ta.value;
-    const was = prev.current;
-    if (next === was) {
-      paintNow();
-      return;
-    }
-    const d = diffText(was, next);
-    session.edit(blockId, d.start, d.end, d.inserted, coalesce);
-    prev.current = next;
-    paintNow();
-    onCaret(ta.selectionStart ?? 0);
-    onEdited();
-  }
-
-  return (
-    <div className={grow ? "block grow" : "block"} data-note={noteId}>
-      <pre ref={preRef} className="hl" aria-hidden="true" />
-      <textarea
-        ref={taRef}
-        className="editor"
-        aria-label="Note"
-        spellCheck={false}
-        autoCapitalize="off"
-        autoCorrect="off"
-        defaultValue={prev.current}
-        onFocus={(e) => onCaret(e.currentTarget.selectionStart ?? 0)}
-        onKeyUp={(e) => onCaret(e.currentTarget.selectionStart ?? 0)}
-        onClick={(e) => onCaret(e.currentTarget.selectionStart ?? 0)}
-        onCompositionStart={() => {
-          composing.current = true;
-        }}
-        onCompositionEnd={() => {
-          composing.current = false;
-          sync(false);
-        }}
-        onInput={(e) => {
-          const native = e.nativeEvent as InputEvent;
-          if (native.isComposing || composing.current) return;
-          const now = performance.now();
-          const burst = now - lastAt.current < 700;
-          lastAt.current = now;
-          const small =
-            native.inputType === "insertText" ||
-            native.inputType === "deleteContentBackward" ||
-            native.inputType === "deleteContentForward";
-          sync(burst && small);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Tab" && !e.shiftKey) {
-            e.preventDefault();
-            const ta = e.currentTarget;
-            const start = ta.selectionStart ?? 0;
-            const end = ta.selectionEnd ?? start;
-            session.edit(blockId, start, end, "\t", false);
-            const next = session.text_of(blockId);
-            ta.value = next;
-            prev.current = next;
-            ta.setSelectionRange(start + 1, start + 1);
-            paintNow();
-            onCaret(start + 1);
-            onEdited();
-          }
-        }}
-        onPaste={(e) => {
-          const items = e.clipboardData?.items;
-          if (!items) return;
-          for (const item of items) {
-            if (item.type.startsWith("image/")) {
-              const file = item.getAsFile();
-              if (!file) return;
-              e.preventDefault();
-              const ta = e.currentTarget;
-              const start = ta.selectionStart ?? 0;
-              const end = ta.selectionEnd ?? start;
-              if (start !== end) {
-                session.edit(blockId, start, end, "", false);
-                const next = session.text_of(blockId);
-                ta.value = next;
-                prev.current = next;
-              }
-              onCaret(start);
-              onImage(file);
-              return;
-            }
-          }
-        }}
-      />
-    </div>
-  );
-}
-
-function fit(ta: HTMLTextAreaElement, wrap: boolean) {
-  ta.style.height = "0px";
-  if (!wrap) {
-    ta.style.width = "0px";
-    ta.style.width = `${Math.max(ta.scrollWidth, ta.parentElement?.clientWidth ?? 0)}px`;
-  } else {
-    ta.style.width = "100%";
-  }
-  ta.style.height = `${ta.scrollHeight}px`;
 }

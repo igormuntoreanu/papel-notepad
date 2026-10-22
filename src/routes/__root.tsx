@@ -11,10 +11,10 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      { name: "theme-color", content: "#3A3128" },
+      { name: "theme-color", content: "#B5844F" },
       {
         name: "description",
-        content: "A paper notepad with vertical tabs, day and night skins, and a Rust editor core.",
+        content: "A paper notepad: torn-paper cards on a kraft desk, fuzzy search, styled text, and a Rust editor core.",
       },
     ],
     links: [

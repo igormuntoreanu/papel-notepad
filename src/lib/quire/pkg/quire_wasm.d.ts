@@ -13,6 +13,10 @@ export class Caret {
 export class Session {
     free(): void;
     [Symbol.dispose](): void;
+    /**
+     * `kind`: bold | italic | underline | strike (value 0/1), ink | hl (palette index, 0 = none), clear.
+     */
+    apply_style(id: number, start: number, end: number, kind: string, value: number): boolean;
     can_redo(): boolean;
     can_undo(): boolean;
     delete_image(image_id: number): Caret | undefined;
@@ -29,6 +33,7 @@ export class Session {
     first_text_id(): number;
     force_language(lang: string): void;
     format_all(): string;
+    has_marks(): boolean;
     highlight(id: number): Uint32Array;
     image_of(id: number): Uint8Array;
     insert_image(id: number, at: number, mime: string, bytes: Uint8Array): number;
@@ -40,6 +45,10 @@ export class Session {
     language(): string;
     line_to_caret(line: number): Caret;
     mark_clean(): void;
+    /**
+     * Flat `[start, end, flags, ink, hl]*` style runs for a text block.
+     */
+    marks(id: number): Uint32Array;
     metrics(id: number, pos: number): Uint32Array;
     mime_of(id: number): string;
     constructor();
@@ -50,6 +59,7 @@ export class Session {
     restore_begin(): void;
     restore_end(language: string, eol: string, encoding: string): void;
     restore_image(mime: string, bytes: Uint8Array): number;
+    restore_marks(id: number, flat: Uint32Array): void;
     restore_text(text: string): number;
     set_encoding(enc: string): string;
     set_eol(eol: string): boolean;
@@ -70,6 +80,7 @@ export interface InitOutput {
     readonly __wbg_set_caret_block_id: (a: number, b: number) => void;
     readonly __wbg_set_caret_end: (a: number, b: number) => void;
     readonly __wbg_set_caret_start: (a: number, b: number) => void;
+    readonly session_apply_style: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly session_can_redo: (a: number) => number;
     readonly session_can_undo: (a: number) => number;
     readonly session_delete_image: (a: number, b: number) => number;
@@ -86,6 +97,7 @@ export interface InitOutput {
     readonly session_first_text_id: (a: number) => number;
     readonly session_force_language: (a: number, b: number, c: number) => void;
     readonly session_format_all: (a: number) => [number, number];
+    readonly session_has_marks: (a: number) => number;
     readonly session_highlight: (a: number, b: number) => [number, number];
     readonly session_image_of: (a: number, b: number) => [number, number];
     readonly session_insert_image: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
@@ -94,6 +106,7 @@ export interface InitOutput {
     readonly session_language: (a: number) => [number, number];
     readonly session_line_to_caret: (a: number, b: number) => number;
     readonly session_mark_clean: (a: number) => void;
+    readonly session_marks: (a: number, b: number) => [number, number];
     readonly session_metrics: (a: number, b: number, c: number) => [number, number];
     readonly session_mime_of: (a: number, b: number) => [number, number];
     readonly session_new: () => number;
@@ -104,6 +117,7 @@ export interface InitOutput {
     readonly session_restore_begin: (a: number) => void;
     readonly session_restore_end: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly session_restore_image: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly session_restore_marks: (a: number, b: number, c: number, d: number) => void;
     readonly session_restore_text: (a: number, b: number, c: number) => number;
     readonly session_set_encoding: (a: number, b: number, c: number) => [number, number];
     readonly session_set_eol: (a: number, b: number, c: number) => number;

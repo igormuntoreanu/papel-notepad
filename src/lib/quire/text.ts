@@ -95,31 +95,6 @@ export function diffText(prev: string, next: string): { start: number; end: numb
   return { start, end: prev.length - tail, inserted: next.slice(start, next.length - tail) };
 }
 
-const KIND = ["", "k", "t", "s", "c", "n", "f", "g", "a", "b", "m"];
-
-export function paint(text: string, spans: Uint32Array): string {
-  let html = "";
-  let cursor = 0;
-  for (let i = 0; i + 2 < spans.length; i += 3) {
-    const s = spans[i] ?? 0;
-    const e = Math.min(spans[i + 1] ?? 0, text.length);
-    const k = spans[i + 2] ?? 0;
-    if (s > cursor) html += esc(text.slice(cursor, Math.min(s, text.length)));
-    if (e > s) {
-      const cls = KIND[k] ?? "";
-      const body = esc(text.slice(s, e));
-      html += cls ? `<span class="${cls}">${body}</span>` : body;
-    }
-    cursor = Math.max(cursor, e);
-  }
-  if (cursor < text.length) html += esc(text.slice(cursor));
-  return html;
-}
-
-function esc(s: string): string {
-  return s.replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
-}
-
 export function download(name: string, data: Uint8Array | string, mime: string) {
   const blob =
     typeof data === "string" ? new Blob([data], { type: mime }) : new Blob([data.slice()], { type: mime });

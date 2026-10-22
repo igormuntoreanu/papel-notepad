@@ -1,4 +1,4 @@
-use quire_core::{Caret as CoreCaret, Document, Encoding, Eol, LangMode};
+use quire_core::{Caret as CoreCaret, Document, Encoding, Eol, LangMode, StyleChange};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -50,6 +50,25 @@ impl Session {
 
     pub fn restore_end(&mut self, language: &str, eol: &str, encoding: &str) {
         self.doc.restore_end(language, eol, encoding);
+    }
+
+    pub fn restore_marks(&mut self, id: u32, flat: &[u32]) {
+        self.doc.restore_marks(id, flat);
+    }
+
+    /// Flat `[start, end, flags, ink, hl]*` style runs for a text block.
+    pub fn marks(&self, id: u32) -> Vec<u32> {
+        quire_core::marks::flatten(&self.doc.marks_of(id))
+    }
+
+    pub fn has_marks(&self) -> bool {
+        self.doc.has_marks()
+    }
+
+    /// `kind`: bold | italic | underline | strike (value 0/1), ink | hl (palette index, 0 = none), clear.
+    pub fn apply_style(&mut self, id: u32, start: u32, end: u32, kind: &str, value: u32) -> bool {
+        let Some(change) = StyleChange::parse(kind, value) else { return false };
+        self.doc.apply_style(id, start, end, change)
     }
 
     pub fn edit(&mut self, id: u32, start: u32, end: u32, text: &str, coalesce: bool) {

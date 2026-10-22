@@ -3,6 +3,7 @@ use crate::encoding::{self, decode, encode, Encoding, Eol};
 use crate::format::format_source;
 use crate::highlight::highlight_text;
 use crate::lang::{Lang, LangMode};
+use crate::marks::{self, Run, StyleChange};
 use crate::textutil::{count_lines, line_col, offset_of_line, slice_utf16, splice_utf16, utf16_len};
 
 const HISTORY_LIMIT: usize = 200;
@@ -10,8 +11,12 @@ const MAX_IMAGE: usize = 12_000_000;
 
 #[derive(Clone, Debug)]
 enum Block {
-    Text { id: u32, body: String },
+    Text { id: u32, body: String, marks: Vec<Run> },
     Image { id: u32, mime: String, data: Vec<u8> },
+}
+
+fn text_block(id: u32, body: String) -> Block {
+    Block::Text { id, body, marks: Vec::new() }
 }
 
 impl Block {
@@ -31,7 +36,15 @@ struct Meta {
 
 #[derive(Clone, Debug)]
 enum StepKind {
-    Replace { id: u32, at: u32, deleted: String, inserted: String },
+    Replace {
+        id: u32,
+        at: u32,
+        deleted: String,
+        inserted: String,
+        marks_before: Vec<Run>,
+        marks_after: Vec<Run>,
+    },
+    Marks { id: u32, before: Vec<Run>, after: Vec<Run> },
     Structure { before: Vec<Block>, after: Vec<Block> },
     Meta { before: Meta, after: Meta },
 }
@@ -80,7 +93,7 @@ impl Default for Document {
 impl Document {
     pub fn new() -> Self {
         Self {
-            blocks: vec![Block::Text { id: 1, body: String::new() }],
+            blocks: vec![text_block(1, String::new())],
             next_id: 2,
             undo: Vec::new(),
             redo: Vec::new(),
@@ -167,7 +180,7 @@ impl Document {
         let (text, enc, eol) = decode(bytes);
         self.blocks.clear();
         let id = self.alloc_id();
-        self.blocks.push(Block::Text { id, body: text });
+        self.blocks.push(text_block(id, text));
         self.encoding = enc;
         self.eol = eol;
         self.lang = LangMode::Auto;
@@ -187,8 +200,16 @@ impl Document {
 
     pub fn restore_text(&mut self, text: &str) -> u32 {
         let id = self.alloc_id();
-        self.blocks.push(Block::Text { id, body: encoding::normalize_eol(text) });
+        self.blocks.push(text_block(id, encoding::normalize_eol(text)));
         id
+    }
+
+    /// Restores style runs for a text block (flat `[start, end, flags, ink, hl]*`).
+    pub fn restore_marks(&mut self, id: u32, flat: &[u32]) {
+        let Some(len) = self.text_len(id) else { return };
+        if let Some(Block::Text { marks: m, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
+            *m = marks::clamp(marks::unflatten(flat), len);
+        }
     }
 
     pub fn restore_image(&mut self, mime: &str, data: Vec<u8>) -> u32 {
@@ -200,7 +221,7 @@ impl Document {
     pub fn restore_end(&mut self, lang: &str, eol: &str, encoding_name: &str) {
         if self.blocks.is_empty() || !self.blocks.iter().any(|b| matches!(b, Block::Text { .. })) {
             let id = self.alloc_id();
-            self.blocks.push(Block::Text { id, body: String::new() });
+            self.blocks.push(text_block(id, String::new()));
         }
         self.lang = LangMode::parse(lang);
         self.eol = Eol::parse(eol).unwrap_or(Eol::Lf);
@@ -228,20 +249,31 @@ impl Document {
         if coalesce && self.try_coalesce(id, start, end, text) {
             return;
         }
-        let deleted = {
-            let body = self.text_body_mut(id).expect("text");
-            splice_utf16(body, start as usize, end as usize, text)
-        };
+        let (deleted, marks_before, marks_after) = self.splice_block(id, start, end, text);
         let rev_before = self.revision;
         self.revision += 1;
         let after = start + utf16_len(text) as u32;
         self.push(Step {
-            kind: StepKind::Replace { id, at: start, deleted, inserted: text.to_string() },
+            kind: StepKind::Replace { id, at: start, deleted, inserted: text.to_string(), marks_before, marks_after },
             caret_before: Caret { block_id: id, start, end },
             caret_after: Caret { block_id: id, start: after, end: after },
             rev_before,
             rev_after: self.revision,
         });
+    }
+
+    /// Splices text into a block and shifts its style runs. Returns (deleted, marks before, marks after).
+    fn splice_block(&mut self, id: u32, start: u32, end: u32, text: &str) -> (String, Vec<Run>, Vec<Run>) {
+        let inserted = utf16_len(text) as u32;
+        let Some(Block::Text { body, marks: m, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) else {
+            return (String::new(), Vec::new(), Vec::new());
+        };
+        let deleted = splice_utf16(body, start as usize, end as usize, text);
+        let before = m.clone();
+        if !m.is_empty() {
+            *m = marks::shift(m, start, end, inserted);
+        }
+        (deleted, before, m.clone())
     }
 
     fn try_coalesce(&mut self, id: u32, start: u32, end: u32, text: &str) -> bool {
@@ -250,39 +282,82 @@ impl Document {
         }
         let (bid, at, deleted_empty, inserted_empty, inserted_len) = {
             let Some(last) = self.undo.last() else { return false };
-            let StepKind::Replace { id: bid, at, deleted, inserted } = &last.kind else { return false };
+            let StepKind::Replace { id: bid, at, deleted, inserted, .. } = &last.kind else { return false };
             (*bid, *at, deleted.is_empty(), inserted.is_empty(), utf16_len(inserted) as u32)
         };
         if bid != id {
             return false;
         }
         if deleted_empty && start == end && !text.contains('\n') && utf16_len(text) <= 2 && start == at + inserted_len {
-            let body = self.text_body_mut(id).expect("text");
-            splice_utf16(body, start as usize, start as usize, text);
+            let (_, _, after_marks) = self.splice_block(id, start, start, text);
             let last = self.undo.last_mut().expect("step");
-            if let StepKind::Replace { inserted, .. } = &mut last.kind {
+            if let StepKind::Replace { inserted, marks_after, .. } = &mut last.kind {
                 inserted.push_str(text);
+                *marks_after = after_marks;
             }
             let after = start + utf16_len(text) as u32;
             last.caret_after = Caret { block_id: id, start: after, end: after };
             return true;
         }
         if text.is_empty() && start < end && inserted_empty && end == at {
-            let removed = {
-                let body = self.text_body_mut(id).expect("text");
-                splice_utf16(body, start as usize, end as usize, "")
-            };
+            let (removed, _, after_marks) = self.splice_block(id, start, end, "");
             let last = self.undo.last_mut().expect("step");
-            if let StepKind::Replace { at, deleted, .. } = &mut last.kind {
+            if let StepKind::Replace { at, deleted, marks_after, .. } = &mut last.kind {
                 let mut combined = removed;
                 combined.push_str(deleted);
                 *deleted = combined;
                 *at = start;
+                *marks_after = after_marks;
             }
             last.caret_after = Caret { block_id: id, start, end: start };
             return true;
         }
         false
+    }
+
+    /// Applies an inline style change over `start..end` of a text block. Returns true if anything changed.
+    pub fn apply_style(&mut self, id: u32, start: u32, end: u32, change: StyleChange) -> bool {
+        let Some(len) = self.text_len(id) else { return false };
+        let (start, end) = (start.min(end).min(len), start.max(end).min(len));
+        if start == end {
+            return false;
+        }
+        let Some(Block::Text { marks: m, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) else {
+            return false;
+        };
+        let next = marks::restyle(m, start, end, change);
+        if next == *m {
+            return false;
+        }
+        let before = std::mem::replace(m, next.clone());
+        let rev_before = self.revision;
+        self.revision += 1;
+        let caret = Caret { block_id: id, start, end };
+        self.push(Step {
+            kind: StepKind::Marks { id, before, after: next },
+            caret_before: caret,
+            caret_after: caret,
+            rev_before,
+            rev_after: self.revision,
+        });
+        true
+    }
+
+    pub fn marks_of(&self, id: u32) -> Vec<Run> {
+        self.blocks.iter().find_map(|b| match b {
+            Block::Text { id: bid, marks: m, .. } if *bid == id => Some(m.clone()),
+            _ => None,
+        }).unwrap_or_default()
+    }
+
+    pub fn has_marks(&self) -> bool {
+        self.blocks.iter().any(|b| matches!(b, Block::Text { marks: m, .. } if !m.is_empty()))
+    }
+
+    fn set_marks(&mut self, id: u32, next: &[Run]) {
+        if let Some(Block::Text { marks: m, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
+            *m = next.to_vec();
+        }
     }
 
     pub fn insert_image(&mut self, id: u32, at: u32, mime: &str, data: Vec<u8>) -> Option<Caret> {
@@ -301,11 +376,15 @@ impl Document {
         let image_id = self.alloc_id();
         let right_id = self.alloc_id();
         let mime = if mime.starts_with("image/") { mime.to_string() } else { "image/png".into() };
-        if let Block::Text { body, .. } = &mut self.blocks[idx] {
+        let mut right_marks = Vec::new();
+        if let Block::Text { body, marks: m, .. } = &mut self.blocks[idx] {
             *body = left;
+            let (l, r) = marks::split(m, at);
+            *m = l;
+            right_marks = r;
         }
         self.blocks.insert(idx + 1, Block::Image { id: image_id, mime, data });
-        self.blocks.insert(idx + 2, Block::Text { id: right_id, body: right });
+        self.blocks.insert(idx + 2, Block::Text { id: right_id, body: right, marks: right_marks });
         let caret_before = Caret { block_id: id, start: at, end: at };
         let caret_after = Caret { block_id: right_id, start: 0, end: 0 };
         self.push_structure(before, caret_before, caret_after);
@@ -319,14 +398,16 @@ impl Document {
         let prev = if idx > 0 { Some(idx - 1) } else { None };
         self.blocks.remove(idx);
         let caret = if let Some(p) = prev {
-            if let Block::Text { id: pid, body } = &self.blocks[p] {
+            if let Block::Text { id: pid, body, .. } = &self.blocks[p] {
                 let pid = *pid;
                 let join = utf16_len(body) as u32;
                 if p + 1 < self.blocks.len() {
-                    if let Block::Text { body: right, .. } = &self.blocks[p + 1] {
+                    if let Block::Text { body: right, marks: right_marks, .. } = &self.blocks[p + 1] {
                         let right = right.clone();
-                        if let Block::Text { body, .. } = &mut self.blocks[p] {
+                        let right_marks = right_marks.clone();
+                        if let Block::Text { body, marks: m, .. } = &mut self.blocks[p] {
                             body.push_str(&right);
+                            *m = marks::join(m, &right_marks, join);
                         }
                         self.blocks.remove(p + 1);
                     }
@@ -345,12 +426,12 @@ impl Document {
             }
         } else {
             let id = self.alloc_id();
-            self.blocks.push(Block::Text { id, body: String::new() });
+            self.blocks.push(text_block(id, String::new()));
             Caret { block_id: id, start: 0, end: 0 }
         };
         if !self.blocks.iter().any(|b| matches!(b, Block::Text { .. })) {
             let id = self.alloc_id();
-            self.blocks.push(Block::Text { id, body: String::new() });
+            self.blocks.push(text_block(id, String::new()));
         }
         self.push_structure(before, caret_before, caret);
         Some(caret)
@@ -384,9 +465,11 @@ impl Document {
 
     fn invert(&mut self, step: &Step) {
         match &step.kind {
-            StepKind::Replace { id, at, deleted, inserted } => {
+            StepKind::Replace { id, at, deleted, inserted, marks_before, .. } => {
                 self.apply_replace(*id, *at, inserted, deleted);
+                self.set_marks(*id, marks_before);
             }
+            StepKind::Marks { id, before, .. } => self.set_marks(*id, before),
             StepKind::Structure { before, .. } => self.blocks = before.clone(),
             StepKind::Meta { before, .. } => self.apply_meta(before),
         }
@@ -394,9 +477,11 @@ impl Document {
 
     fn reapply(&mut self, step: &Step) {
         match &step.kind {
-            StepKind::Replace { id, at, deleted, inserted } => {
+            StepKind::Replace { id, at, deleted, inserted, marks_after, .. } => {
                 self.apply_replace(*id, *at, deleted, inserted);
+                self.set_marks(*id, marks_after);
             }
+            StepKind::Marks { id, after, .. } => self.set_marks(*id, after),
             StepKind::Structure { after, .. } => self.blocks = after.clone(),
             StepKind::Meta { after, .. } => self.apply_meta(after),
         }
@@ -420,7 +505,7 @@ impl Document {
         let mut changed = false;
         let mut first_err: Option<String> = None;
         for block in &mut self.blocks {
-            let Block::Text { id, body } = block else { continue };
+            let Block::Text { id, body, marks: m } = block else { continue };
             if body.trim().is_empty() {
                 continue;
             }
@@ -438,6 +523,7 @@ impl Document {
                 Ok(next) => {
                     if next != *body {
                         *body = next;
+                        m.clear();
                         changed = true;
                     }
                     if !names.contains(&lang.label()) {
@@ -525,12 +611,19 @@ impl Document {
         let before = self.blocks.clone();
         let mut count = 0u32;
         for block in &mut self.blocks {
-            if let Block::Text { body, .. } = block {
-                let (next, n) = replace_in(body, query, replacement, case_sensitive);
-                if n > 0 {
-                    *body = next;
-                    count += n;
+            if let Block::Text { body, marks: m, .. } = block {
+                let matches = all_matches(body, query, case_sensitive);
+                if matches.is_empty() {
+                    continue;
                 }
+                let ins = utf16_len(replacement) as u32;
+                for (start, end) in matches.iter().rev() {
+                    splice_utf16(body, *start, *end, replacement);
+                    if !m.is_empty() {
+                        *m = marks::shift(m, *start as u32, *end as u32, ins);
+                    }
+                }
+                count += matches.len() as u32;
             }
         }
         if count == 0 {
@@ -567,7 +660,7 @@ impl Document {
         let mut found = 0u32;
         let mut seen = false;
         for block in &self.blocks {
-            if let Block::Text { id: bid, body } = block {
+            if let Block::Text { id: bid, body, .. } = block {
                 if *bid == id {
                     let len = utf16_len(body) as u32;
                     found = offset + pos.min(len);
@@ -589,7 +682,7 @@ impl Document {
         let mut spans: Vec<(u32, u32)> = Vec::new();
         let mut offset = 0u32;
         for block in &self.blocks {
-            if let Block::Text { id, body } = block {
+            if let Block::Text { id, body, .. } = block {
                 spans.push((*id, offset));
                 offset += utf16_len(body) as u32;
                 concat.push_str(body);
@@ -627,7 +720,7 @@ impl Document {
 
     pub fn text_of(&self, id: u32) -> String {
         self.blocks.iter().find_map(|b| match b {
-            Block::Text { id: bid, body } if *bid == id => Some(body.clone()),
+            Block::Text { id: bid, body, .. } if *bid == id => Some(body.clone()),
             _ => None,
         }).unwrap_or_default()
     }
@@ -669,14 +762,14 @@ impl Document {
 
     fn text_len(&self, id: u32) -> Option<u32> {
         self.blocks.iter().find_map(|b| match b {
-            Block::Text { id: bid, body } if *bid == id => Some(utf16_len(body) as u32),
+            Block::Text { id: bid, body, .. } if *bid == id => Some(utf16_len(body) as u32),
             _ => None,
         })
     }
 
     fn text_body_mut(&mut self, id: u32) -> Option<&mut String> {
         self.blocks.iter_mut().find_map(|b| match b {
-            Block::Text { id: bid, body } if *bid == id => Some(body),
+            Block::Text { id: bid, body, .. } if *bid == id => Some(body),
             _ => None,
         })
     }
@@ -789,22 +882,6 @@ fn fold_eq(a: char, b: char) -> bool {
     let al: String = a.to_lowercase().collect();
     let bl: String = b.to_lowercase().collect();
     al == bl
-}
-
-fn replace_in(hay: &str, needle: &str, replacement: &str, case_sensitive: bool) -> (String, u32) {
-    let matches = all_matches(hay, needle, case_sensitive);
-    if matches.is_empty() {
-        return (hay.to_string(), 0);
-    }
-    let mut out = String::new();
-    let mut cursor = 0usize;
-    for (start, end) in &matches {
-        out.push_str(&slice_utf16(hay, cursor, *start));
-        out.push_str(replacement);
-        cursor = *end;
-    }
-    out.push_str(&slice_utf16(hay, cursor, utf16_len(hay)));
-    (out, matches.len() as u32)
 }
 
 #[cfg(test)]
@@ -964,6 +1041,43 @@ mod tests {
         assert!(detect("fn main() {}").is_some());
         let spans = highlight_text("fn main() {}", Lang::Rust);
         assert!(spans.iter().any(|(_, _, k)| *k == crate::highlight::K_KEYWORD));
+    }
+
+    #[test]
+    fn styles_undo_split_and_replace() {
+        use crate::marks::{StyleChange, BOLD};
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "hello world", false);
+        assert!(!doc.has_marks());
+        assert!(doc.apply_style(id, 0, 5, StyleChange::Flag(BOLD, true)));
+        assert!(doc.has_marks());
+        assert_eq!(doc.marks_of(id)[0].end, 5);
+
+        doc.edit(id, 5, 5, "!", true);
+        assert_eq!(doc.marks_of(id)[0].end, 6, "typing at the end continues bold");
+        doc.undo();
+        assert_eq!(doc.marks_of(id)[0].end, 5);
+        doc.undo();
+        assert!(!doc.has_marks(), "style undo");
+        doc.redo();
+        assert!(doc.has_marks());
+
+        doc.edit(id, 0, 5, "", false);
+        assert!(!doc.has_marks());
+        doc.undo();
+        assert_eq!(doc.marks_of(id).len(), 1, "deleted styled text comes back styled");
+
+        let caret = doc.insert_image(id, 3, "image/png", vec![1]).unwrap();
+        assert_eq!(doc.marks_of(id)[0].end, 3);
+        assert_eq!(doc.marks_of(caret.block_id)[0].end, 2);
+        let img = doc.outline().into_iter().find(|i| i.kind == "image").unwrap();
+        doc.delete_image(img.id);
+        assert_eq!(doc.marks_of(id)[0].end, 5);
+
+        assert_eq!(doc.replace_all("hello", "hi", false), 1);
+        assert_eq!(doc.text_of(id), "hi world");
+        assert_eq!(doc.marks_of(id)[0].end, 2);
     }
 
     #[test]
