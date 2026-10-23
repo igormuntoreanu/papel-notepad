@@ -1347,6 +1347,42 @@
   background: rgb(169 205 240 / 0.75);
 }
 
+/* Cell menu: a popover at the pointer on desktop, a bottom sheet on a phone. */
+.cell-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 13rem;
+  max-height: min(64dvh, 460px);
+  overflow: auto;
+  padding: 6px;
+  background: var(--grain), var(--paper);
+  color: var(--ink);
+  border: 1px solid rgb(60 36 12 / 0.18);
+  border-radius: var(--radius-xs);
+  box-shadow: 0 14px 30px var(--shadow);
+}
+
+.cell-menu[data-sheet="on"] {
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+}
+
+.table-tools {
+  position: sticky;
+  bottom: 8px;
+  float: right;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgb(60 36 12 / 0.25);
+  border-radius: var(--radius-sm);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  box-shadow: 0 4px 10px var(--shadow-soft);
+}
+
 .page[data-pattern="ruled"] .block {
   background-image: repeating-linear-gradient(
     to bottom,

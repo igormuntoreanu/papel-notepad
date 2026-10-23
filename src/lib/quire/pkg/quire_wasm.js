@@ -336,6 +336,17 @@ export class Session {
         return ret === 0 ? undefined : Caret.__wrap(ret);
     }
     /**
+     * Inserts an empty table after `after` and returns its block id.
+     * @param {number} after
+     * @param {number} cols
+     * @param {number} rows
+     * @returns {number}
+     */
+    insert_table(after, cols, rows) {
+        const ret = wasm.session_insert_table(this.__wbg_ptr, after, cols, rows);
+        return ret >>> 0;
+    }
+    /**
      * @returns {boolean}
      */
     is_dirty() {

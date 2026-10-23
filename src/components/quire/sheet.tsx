@@ -344,6 +344,7 @@ export function Sheet({
                   key={item.id}
                   blockId={item.id}
                   session={session}
+                  version={tick}
                   onEdited={onEdited}
                 />
               ) : (
