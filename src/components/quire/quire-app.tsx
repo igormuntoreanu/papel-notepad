@@ -7,9 +7,11 @@ import { savePersisted, type Prefs, type SortMode } from "@/lib/quire/persist";
 import { ARCHIVE_EXT, archiveFileName, formatLastBackup, mergeArchive, parseArchive, zipBackupFileName } from "@/lib/quire/backup";
 import {
   canPickFolder,
-  clearFolderHandle,
+  folderEntryCount,
   loadFolderHandle,
   pickSyncFolder,
+  removeFolderFile,
+  renameFolderFile,
   uniqueFileName,
   verifyFolderPermission,
   writeFolderFile,
@@ -17,6 +19,7 @@ import {
 import { defaultSaveExt, extFromFilename, isRich as richFlags, saveExtensions } from "@/lib/quire/save-type";
 import { installTextures } from "@/lib/quire/textures";
 import { canOpenFile, download, FILE_ACCEPT, fileStamp, langFromFilename, langLabel, mimeForExtension, safeName, SKINS, type SkinId } from "@/lib/quire/text";
+import { copyTitle, titleFromFilename, uniqueTitle } from "@/lib/quire/titles";
 import { buildZip } from "@/lib/quire/zip";
 import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
@@ -40,7 +43,6 @@ import {
   type NoteMeta,
   type Place,
 } from "./store";
-import { copyTitle } from "@/lib/quire/titles";
 
 type Ask = { title: string; body: string; confirm: string; tone?: "danger"; run: () => void };
 type Sel = { blockId: number; start: number; end: number };
@@ -67,6 +69,8 @@ export function QuireApp() {
   const [sort, setSort] = useState<SortMode>("manual");
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
+  /** Chromium: true until a sync folder is linked with write permission. */
+  const [folderGate, setFolderGate] = useState(false);
   const [tick, setTick] = useState(0);
   const [sel, setSel] = useState<Sel>({ blockId: 0, start: 0, end: 0 });
   const [findOpen, setFindOpen] = useState(false);
@@ -92,6 +96,7 @@ export function QuireApp() {
   const findRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const folderOkRef = useRef(false);
   const notesRef = useRef(notes);
   const orderRef = useRef(order);
   const activeRef = useRef(activeId);
@@ -100,6 +105,66 @@ export function QuireApp() {
   orderRef.current = order;
   activeRef.current = activeId;
   selRef.current = sel;
+
+  function notePayload(s: Session, meta: NoteMeta): { ext: string; data: string | Uint8Array } {
+    const ext = defaultSaveExt({ sourceExt: meta.sourceExt });
+    if (ext === "papel") return { ext, data: toPapel(s) };
+    return { ext, data: s.export_bytes() };
+  }
+
+  async function writeNoteToFolder(meta: NoteMeta, s: Session, prevDisk?: string): Promise<string | null> {
+    const dir = folderRef.current;
+    if (!dir || !folderOkRef.current) return null;
+    const { ext, data } = notePayload(s, meta);
+    const used = new Set(
+      notesRef.current.filter((n) => n.id !== meta.id && n.diskName).map((n) => n.diskName!.toLowerCase()),
+    );
+    const name = uniqueFileName(meta.title, ext, used);
+    try {
+      if (prevDisk && prevDisk !== name) await renameFolderFile(dir, prevDisk, name, data);
+      else await writeFolderFile(dir, name, data);
+      s.mark_clean();
+      return name;
+    } catch {
+      setMessage("Could not write to the sync folder.");
+      return null;
+    }
+  }
+
+  function setDiskName(id: string, diskName: string | undefined) {
+    setNotes((list) => list.map((n) => (n.id === id ? { ...n, diskName } : n)));
+  }
+
+  async function linkFolder(handle: FileSystemDirectoryHandle) {
+    folderRef.current = handle;
+    folderOkRef.current = true;
+    setFolderName(handle.name);
+    setFolderGate(false);
+    // Migrate: if folder is empty, push every open sheet once.
+    try {
+      const count = await folderEntryCount(handle);
+      if (count === 0) {
+        for (const id of orderRef.current) {
+          const meta = notesRef.current.find((n) => n.id === id);
+          const s = sessions.get(id);
+          if (!meta || !s) continue;
+          const disk = await writeNoteToFolder(meta, s);
+          if (disk) setDiskName(id, disk);
+        }
+      } else {
+        for (const id of orderRef.current) {
+          const meta = notesRef.current.find((n) => n.id === id);
+          const s = sessions.get(id);
+          if (!meta || !s) continue;
+          const disk = await writeNoteToFolder(meta, s, meta.diskName);
+          if (disk) setDiskName(id, disk);
+        }
+      }
+    } catch {
+      setMessage("Could not sync sheets to the folder.");
+    }
+    setTick((n) => n + 1);
+  }
 
   const session = activeId ? (sessions.get(activeId) ?? null) : null;
   const note = notes.find((n) => n.id === activeId) ?? null;
@@ -123,14 +188,23 @@ export function QuireApp() {
         setLastBackup(data.prefs.lastBackup ?? null);
         setFolderName(data.prefs.folderName ?? null);
         setReady(true);
+        if (!canPickFolder()) {
+          setFolderGate(false);
+          return;
+        }
         void loadFolderHandle().then(async (handle) => {
-          if (cancel || !handle) return;
+          if (cancel) return;
+          if (!handle) {
+            setFolderGate(true);
+            return;
+          }
           if (await verifyFolderPermission(handle, false)) {
-            folderRef.current = handle;
-            setFolderName(handle.name);
+            await linkFolder(handle);
           } else {
             folderRef.current = handle;
-            setMessage("Click Settings → Change folder to reconnect folder sync.");
+            folderOkRef.current = false;
+            setFolderName(handle.name);
+            setFolderGate(true);
           }
         });
       })
@@ -161,30 +235,18 @@ export function QuireApp() {
   }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, lastBackup, folderName, tick]);
 
   useEffect(() => {
-    if (!ready || !folderRef.current || !folderName) return;
-    const dir = folderRef.current;
+    if (!ready || !folderOkRef.current || !folderRef.current) return;
     const handle = window.setTimeout(() => {
       void (async () => {
-        if (!(await verifyFolderPermission(dir, false))) return;
-        const used = new Set<string>();
         for (const id of orderRef.current) {
           const meta = notesRef.current.find((n) => n.id === id);
           const s = sessions.get(id);
           if (!meta || !s) continue;
-          const rich = sessionRich(s);
-          const language = s.language() === "auto" ? s.effective_language(s.first_text_id()) : s.language();
-          const ext = defaultSaveExt({ rich, language, sourceExt: meta.sourceExt });
-          const name = uniqueFileName(meta.title, ext, used);
-          try {
-            if (ext === "papel") await writeFolderFile(dir, name, toPapel(s));
-            else await writeFolderFile(dir, name, s.export_bytes());
-          } catch {
-            setMessage("Could not write to the sync folder.");
-            return;
-          }
+          const disk = await writeNoteToFolder(meta, s, meta.diskName);
+          if (disk && disk !== meta.diskName) setDiskName(id, disk);
         }
       })();
-    }, 900);
+    }, 700);
     return () => window.clearTimeout(handle);
   }, [ready, folderName, notes, order, tick]);
 
@@ -289,22 +351,46 @@ export function QuireApp() {
   }
 
   function createNote() {
+    if (folderGate) {
+      setMessage("Choose a folder first so sheets can be saved.");
+      return;
+    }
     const fresh = blankNote(notesRef.current.map((n) => n.title));
     setNotes((list) => [...list, fresh]);
     setOrder((list) => [...list, fresh.id]);
     activate(fresh.id);
+    const s = sessions.get(fresh.id);
+    if (s) {
+      void writeNoteToFolder(fresh, s).then((disk) => {
+        if (disk) setDiskName(fresh.id, disk);
+      });
+    }
   }
 
   /** Blank sheet placed under the given card. */
   function createNoteBelow(afterId: string) {
+    if (folderGate) {
+      setMessage("Choose a folder first so sheets can be saved.");
+      return;
+    }
     const fresh = blankNote(notesRef.current.map((n) => n.title));
     setNotes((list) => [...list, fresh]);
     insertAfter(afterId, fresh.id);
     activate(fresh.id);
+    const s = sessions.get(fresh.id);
+    if (s) {
+      void writeNoteToFolder(fresh, s).then((disk) => {
+        if (disk) setDiskName(fresh.id, disk);
+      });
+    }
   }
 
   /** Full copy of a sheet, placed under the original. */
   function duplicateNote(id: string) {
+    if (folderGate) {
+      setMessage("Choose a folder first so sheets can be saved.");
+      return;
+    }
     const meta = notesRef.current.find((n) => n.id === id);
     const session = duplicateSession(id);
     if (!meta || !session) {
@@ -313,12 +399,10 @@ export function QuireApp() {
     }
     const freshId = crypto.randomUUID();
     sessions.set(freshId, session);
+    const titles = notesRef.current.map((n) => n.title);
     const fresh: NoteMeta = {
       id: freshId,
-      title: copyTitle(
-        meta.title,
-        notesRef.current.map((n) => n.title),
-      ),
+      title: uniqueTitle(copyTitle(meta.title, titles), titles),
       wrap: meta.wrap,
       edited: Date.now(),
       sourceExt: meta.sourceExt,
@@ -326,6 +410,9 @@ export function QuireApp() {
     setNotes((list) => [...list, fresh]);
     insertAfter(id, freshId);
     activate(freshId);
+    void writeNoteToFolder(fresh, session).then((disk) => {
+      if (disk) setDiskName(freshId, disk);
+    });
     setMessage(`Duplicated as ${fresh.title}`);
   }
 
@@ -333,6 +420,11 @@ export function QuireApp() {
     const s = sessions.get(id);
     const meta = notesRef.current.find((n) => n.id === id);
     const run = () => {
+      const disk = meta?.diskName;
+      const dir = folderRef.current;
+      if (disk && dir && folderOkRef.current) {
+        void removeFolderFile(dir, disk);
+      }
       sessions.delete(id);
       dropUrls(id);
       forgetCard(id);
@@ -347,9 +439,9 @@ export function QuireApp() {
     };
     if (s?.is_dirty()) {
       setAsk({
-        title: "Discard this sheet?",
-        body: `${meta?.title ?? "This sheet"} has edits that were not saved to a file. Autosave on this device will drop it too.`,
-        confirm: "Discard",
+        title: "Close this sheet?",
+        body: `${meta?.title ?? "This sheet"} will be removed from the board${meta?.diskName ? ` and ${meta.diskName} will be deleted from your folder` : ""}.`,
+        confirm: "Close",
         tone: "danger",
         run,
       });
@@ -359,8 +451,17 @@ export function QuireApp() {
   }
 
   function rename(id: string, title: string) {
-    const next = title.trim() || "Untitled";
+    const taken = notesRef.current.filter((n) => n.id !== id).map((n) => n.title);
+    const next = uniqueTitle(title.trim() || "Untitled", taken);
+    const prev = notesRef.current.find((n) => n.id === id);
     setNotes((list) => list.map((n) => (n.id === id ? { ...n, title: next } : n)));
+    const s = sessions.get(id);
+    if (prev && s) {
+      const updated = { ...prev, title: next };
+      void writeNoteToFolder(updated, s, prev.diskName).then((disk) => {
+        if (disk) setDiskName(id, disk);
+      });
+    }
   }
 
   function moveNote(id: string, delta: number) {
@@ -393,19 +494,15 @@ export function QuireApp() {
   }
 
   /**
-   * Saves the note. Without an explicit extension it writes the note's default
-   * format: `.papel` when there are images, styles or tables; otherwise the
-   * extension it was opened with (or its language).
+   * Download save. New sheets → `.papel`. Opened plain files keep their type.
+   * Folder sync already keeps a live copy when a folder is linked.
    */
   function saveNote(id: string | null, requested?: string) {
     const s = id ? sessions.get(id) : null;
     const meta = notesRef.current.find((n) => n.id === id);
     if (!s || !meta) return;
     const rich = sessionRich(s);
-    const language = s.language() === "auto" ? s.effective_language(s.first_text_id()) : s.language();
-    const ext =
-      requested ??
-      defaultSaveExt({ rich, language, sourceExt: meta.sourceExt });
+    const ext = requested ?? defaultSaveExt({ sourceExt: meta.sourceExt });
     if (rich && ext !== "papel") {
       setAsk({
         title: "Save text only?",
@@ -458,9 +555,10 @@ export function QuireApp() {
     for (const note of incoming) {
       const session = sessionFromArchiveNote(note);
       sessions.set(note.id, session);
+      const taken = [...notesRef.current, ...metas].map((n) => n.title);
       metas.push({
         id: note.id,
-        title: note.title,
+        title: uniqueTitle(note.title, taken),
         wrap: note.wrap,
         edited: note.edited ?? Date.now(),
         sourceExt: note.sourceExt,
@@ -469,29 +567,38 @@ export function QuireApp() {
     }
     setNotes((curr) => [...curr, ...metas]);
     setOrder((curr) => [...curr, ...ids]);
+    for (const meta of metas) {
+      const s = sessions.get(meta.id);
+      if (!s) continue;
+      void writeNoteToFolder(meta, s).then((disk) => {
+        if (disk) setDiskName(meta.id, disk);
+      });
+    }
     setMessage(`Imported ${imported}, skipped ${skipped}`);
     setTick((n) => n + 1);
   }
 
   async function openFiles(files: FileList | File[]) {
+    if (folderGate) {
+      setMessage("Choose a folder first so sheets can be saved.");
+      return;
+    }
     let first: string | null = null;
+    const pending: NoteMeta[] = [];
     for (const file of [...files]) {
       if (!canOpenFile(file.name)) {
         showAlert(`${file.name}: not a type Papel can open.`);
         continue;
       }
-      const already = notesRef.current.find((n) => n.title === file.name);
-      if (already) {
-        activate(already.id);
-        setMessage("Already open");
-        first = first ?? already.id;
-        continue;
-      }
+      const stem = titleFromFilename(file.name);
+      const taken = [...notesRef.current, ...pending].map((n) => n.title);
+      const title = uniqueTitle(stem, taken);
       const bytes = new Uint8Array(await file.arrayBuffer());
       const id = crypto.randomUUID();
       const s = createSession();
       const lower = file.name.toLowerCase();
       const sourceExt = extFromFilename(file.name) ?? undefined;
+      const plainExt = sourceExt === "papel" || sourceExt === "quire" ? undefined : sourceExt;
       if (lower.endsWith(".papel") || lower.endsWith(".quire")) {
         if (!fromPapel(s, bytes)) {
           showAlert(`${file.name} is not a Papel file.`);
@@ -506,14 +613,23 @@ export function QuireApp() {
       sessions.set(id, s);
       const meta: NoteMeta = {
         id,
-        title: file.name,
+        title,
         wrap: true,
         edited: file.lastModified || Date.now(),
-        sourceExt: sourceExt === "papel" || sourceExt === "quire" ? undefined : sourceExt,
+        sourceExt: plainExt,
       };
-      setNotes((curr) => [...curr, meta]);
-      setOrder((curr) => [...curr, id]);
+      pending.push(meta);
       first = first ?? id;
+    }
+    if (!pending.length) return;
+    setNotes((curr) => [...curr, ...pending]);
+    setOrder((curr) => [...curr, ...pending.map((n) => n.id)]);
+    for (const meta of pending) {
+      const s = sessions.get(meta.id);
+      if (!s) continue;
+      void writeNoteToFolder(meta, s).then((disk) => {
+        if (disk) setDiskName(meta.id, disk);
+      });
     }
     if (first) activate(first);
   }
@@ -861,10 +977,8 @@ export function QuireApp() {
   const effective = session ? session.effective_language(blockId) : "plain";
   const langText = langSetting === "auto" ? `Auto · ${langLabel(effective)}` : langLabel(langSetting);
   const richNow = session ? sessionRich(session) : false;
-  const saveExts = note
-    ? saveExtensions({ rich: richNow, language: effective, sourceExt: note.sourceExt })
-    : ["txt"];
-  const saveExt = saveExts[0] ?? "txt";
+  const saveExts = note ? saveExtensions({ rich: richNow, sourceExt: note.sourceExt }) : ["papel"];
+  const saveExt = saveExts[0] ?? "papel";
   const rest = cellTarget
     ? { start: cellTarget.start, end: cellTarget.end }
     : { start: sel.start, end: sel.end };
@@ -1027,18 +1141,9 @@ export function QuireApp() {
           void pickSyncFolder()
             .then((handle) => {
               if (!handle) return;
-              folderRef.current = handle;
-              setFolderName(handle.name);
-              setMessage(`Syncing sheets to ${handle.name}`);
-              setTick((n) => n + 1);
+              void linkFolder(handle).then(() => setMessage(`Syncing sheets to ${handle.name}`));
             })
             .catch(() => showAlert("Could not open that folder."));
-        }}
-        onClearFolder={() => {
-          folderRef.current = null;
-          setFolderName(null);
-          void clearFolderHandle();
-          setMessage("Folder sync stopped");
         }}
         session={session}
         metrics={metrics}
@@ -1163,6 +1268,51 @@ export function QuireApp() {
       {alert && (
         <div className="toast" role="alert">
           {alert}
+        </div>
+      )}
+
+      {folderGate && canPickFolder() && (
+        <div className="modal-back">
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="folder-gate-title"
+          >
+            <h2 id="folder-gate-title">Choose a folder for your sheets</h2>
+            <p>
+              Papel saves every note as a file on your computer. Pick a folder once — new sheets
+              (like Untitled 2.papel) appear there automatically, and the app remembers this folder
+              next time.
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn primary"
+                autoFocus
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      if (folderRef.current && (await verifyFolderPermission(folderRef.current, true))) {
+                        await linkFolder(folderRef.current);
+                        setMessage(`Syncing sheets to ${folderRef.current.name}`);
+                        return;
+                      }
+                      const handle = await pickSyncFolder();
+                      if (handle) {
+                        await linkFolder(handle);
+                        setMessage(`Syncing sheets to ${handle.name}`);
+                      }
+                    } catch {
+                      showAlert("Could not open that folder.");
+                    }
+                  })();
+                }}
+              >
+                Choose folder…
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

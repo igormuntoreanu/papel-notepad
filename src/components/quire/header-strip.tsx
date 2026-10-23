@@ -56,7 +56,6 @@ export function HeaderStrip({
   folderSupported,
   folderName,
   onPickFolder,
-  onClearFolder,
   session,
   metrics,
   langText,
@@ -97,7 +96,6 @@ export function HeaderStrip({
   folderSupported: boolean;
   folderName: string | null;
   onPickFolder: () => void;
-  onClearFolder: () => void;
   session: Session | null;
   metrics: ArrayLike<number>;
   langText: string;
@@ -215,13 +213,10 @@ export function HeaderStrip({
                       <button type="button" className="menu-item" onClick={onPickFolder}>
                         Change folder…
                       </button>
-                      <button type="button" className="menu-item" onClick={onClearFolder}>
-                        Stop folder sync
-                      </button>
                     </>
                   ) : (
                     <button type="button" className="menu-item" onClick={onPickFolder}>
-                      Save to a folder…
+                      Choose folder…
                     </button>
                   )
                 ) : (
