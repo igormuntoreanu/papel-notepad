@@ -31,6 +31,7 @@ export const session_highlight: (a: number, b: number) => [number, number];
 export const session_image_of: (a: number, b: number) => [number, number];
 export const session_insert_image: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
 export const session_insert_image_caret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+export const session_insert_table: (a: number, b: number, c: number, d: number) => number;
 export const session_is_dirty: (a: number) => number;
 export const session_language: (a: number) => [number, number];
 export const session_line_to_caret: (a: number, b: number) => number;

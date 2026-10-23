@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createSession } from "@/lib/quire/engine";
-import { tableSkeleton, toggleBullets } from "@/lib/quire/blocks";
+import { toggleBullets } from "@/lib/quire/blocks";
 import { MIN_QUERY, searchNotes } from "@/lib/quire/fuzzy";
 import { FLAG, rangeHas, readMarks, type FlagName } from "@/lib/quire/marks";
 import { savePersisted, type Prefs, type SortMode } from "@/lib/quire/persist";
@@ -354,16 +354,11 @@ export function QuireApp() {
   /** Inserts a monospace table skeleton as text: one edit, one undo step. */
   function insertTable(rows: number, cols: number) {
     if (!session) return;
-    const { blockId: b, start, end } = selRef.current;
-    const blockId = b || session.first_text_id();
-    const body = session.text_of(blockId);
-    const lead = start > 0 && body[start - 1] !== "\n" ? "\n" : "";
-    const insert = `${lead}${tableSkeleton(rows, cols)}\n`;
-    session.edit(blockId, start, end, insert, false);
-    const pos = start + insert.length;
-    setSel({ blockId, start: pos, end: pos });
+    const after = selRef.current.blockId || session.first_text_id();
+    const id = session.insert_table(after, cols, rows);
+    setSel({ blockId: id, start: 0, end: 0 });
     touch(activeId);
-    bump({ block_id: blockId, start: pos, end: pos });
+    bump();
   }
 
   /** Adds or removes `• ` on the lines the selection covers. */

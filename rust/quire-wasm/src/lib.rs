@@ -238,6 +238,11 @@ impl Session {
 
     // ---------- Tables ----------
 
+    /// Inserts an empty table after `after` and returns its block id.
+    pub fn insert_table(&mut self, after: u32, cols: u32, rows: u32) -> u32 {
+        self.doc.insert_table(after, cols as usize, rows as usize)
+    }
+
     /// Loads a table from `{"cols":n,"cells":[{"t":"…","m":[…],"f":n}]}`.
     pub fn restore_table(&mut self, json: &str) -> u32 {
         #[derive(serde::Deserialize)]

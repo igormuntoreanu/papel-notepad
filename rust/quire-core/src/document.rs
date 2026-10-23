@@ -1002,6 +1002,25 @@ impl Document {
         changed
     }
 
+    /// Inserts an empty `rows` × `cols` table after block `after`, or at the end.
+    pub fn insert_table(&mut self, after: u32, cols: usize, rows: usize) -> u32 {
+        let id = self.alloc_id();
+        let cols = cols.clamp(1, 20);
+        let rows = rows.clamp(1, 20);
+        let before = self.blocks.clone();
+        let at = self
+            .blocks
+            .iter()
+            .position(|block| block.id() == after)
+            .map(|index| index + 1)
+            .unwrap_or(self.blocks.len());
+        self.blocks
+            .insert(at, Block::Table { id, cols, cells: vec![Cell::default(); cols * rows] });
+        let caret = self.fallback_caret();
+        self.push_structure(before, caret, caret);
+        id
+    }
+
     fn apply_cell(&mut self, id: u32, row: u32, col: u32, text: &str, marks: &[Run]) {
         let Some((rows, cols)) = self.table_shape(id) else { return };
         let (r, c) = (row as usize, col as usize);

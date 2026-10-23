@@ -41,6 +41,10 @@ export class Session {
      * Caret that should focus the text after the new image. `block_id` 0 means the insert was refused.
      */
     insert_image_caret(id: number, at: number, mime: string, bytes: Uint8Array): Caret | undefined;
+    /**
+     * Inserts an empty table after `after` and returns its block id.
+     */
+    insert_table(after: number, cols: number, rows: number): number;
     is_dirty(): boolean;
     language(): string;
     line_to_caret(line: number): Caret;
@@ -114,6 +118,7 @@ export interface InitOutput {
     readonly session_image_of: (a: number, b: number) => [number, number];
     readonly session_insert_image: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly session_insert_image_caret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+    readonly session_insert_table: (a: number, b: number, c: number, d: number) => number;
     readonly session_is_dirty: (a: number) => number;
     readonly session_language: (a: number) => [number, number];
     readonly session_line_to_caret: (a: number, b: number) => number;
