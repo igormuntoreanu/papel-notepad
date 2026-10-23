@@ -1,10 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Session } from "@/lib/quire/engine";
+import { HIGHLIGHTERS } from "@/lib/quire/marks";
 
 type CellData = { t: string; f: number };
 type TableData = { cols: number; cells: CellData[] };
 type Menu = { row: number; col: number; x: number; y: number; sheet: boolean };
+type Scope = "cell" | "row" | "col" | "table";
+
+const SCOPES: { id: Scope; label: string }[] = [
+  { id: "cell", label: "Cell" },
+  { id: "row", label: "Row" },
+  { id: "col", label: "Column" },
+  { id: "table", label: "Table" },
+];
 
 /**
  * A table block.
@@ -40,6 +49,7 @@ export function TableBlock({
   latest.current = onEdited;
 
   const [menu, setMenu] = useState<Menu | null>(null);
+  const [scope, setScope] = useState<Scope>("cell");
   const [active, setActive] = useState<{ row: number; col: number } | null>(null);
 
   // The core is the source of truth; push it back into inputs that are not
@@ -152,6 +162,34 @@ export function TableBlock({
             style={menu.sheet ? undefined : { left: menu.x, top: menu.y }}
             onMouseDown={(event) => event.stopPropagation()}
           >
+            <div className="menu-scope" role="group" aria-label="Paint">
+              {SCOPES.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={scope === item.id ? "scope is-on" : "scope"}
+                  aria-pressed={scope === item.id}
+                  onClick={() => setScope(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="fill-swatches" role="group" aria-label="Fill colour">
+              {HIGHLIGHTERS.map((colour) => (
+                <button
+                  key={colour.id}
+                  type="button"
+                  className="fill-swatch"
+                  style={{ background: colour.color }}
+                  aria-label={colour.id === 0 ? "No fill" : colour.name}
+                  title={colour.id === 0 ? "No fill" : colour.name}
+                  onClick={() =>
+                    change(() => session.table_fill(blockId, scope, menu.row, menu.col, colour.id))
+                  }
+                />
+              ))}
+            </div>
             <button
               type="button"
               className="menu-item"
@@ -195,7 +233,7 @@ export function TableBlock({
               Delete column
             </button>
           </div>,
-          document.body,
+          document.querySelector(".desk") ?? document.body,
         )}
     </div>
   );

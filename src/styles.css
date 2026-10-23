@@ -1355,11 +1355,60 @@
   max-height: min(64dvh, 460px);
   overflow: auto;
   padding: 6px;
-  background: var(--grain), var(--paper);
+  /* Solid, not the textured paper layer: a menu has to read over anything. */
+  background: var(--paper);
   color: var(--ink);
   border: 1px solid rgb(60 36 12 / 0.18);
   border-radius: var(--radius-xs);
   box-shadow: 0 14px 30px var(--shadow);
+}
+
+.menu-scope {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 2px 2px 8px;
+}
+
+.menu-scope .scope {
+  min-height: 32px;
+  border: 1px solid rgb(60 36 12 / 0.2);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+}
+
+.menu-scope .scope.is-on {
+  border-color: var(--blue);
+  background: rgb(42 109 181 / 0.14);
+  font-weight: 600;
+}
+
+.fill-swatches {
+  display: flex;
+  gap: 6px;
+  padding: 0 2px 8px;
+}
+
+.fill-swatch {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 1px solid rgb(60 36 12 / 0.28);
+  border-radius: var(--radius-xs);
+}
+
+.fill-swatch[aria-label="No fill"] {
+  background-image: linear-gradient(
+    45deg,
+    rgb(60 36 12 / 0.14) 25%,
+    transparent 25%,
+    transparent 75%,
+    rgb(60 36 12 / 0.14) 75%
+  );
+  background-size: 8px 8px;
 }
 
 .cell-menu[data-sheet="on"] {
