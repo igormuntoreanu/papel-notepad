@@ -1291,6 +1291,62 @@
   flex: 1;
 }
 
+/* Tables: a real grid; a cell's fill index selects a highlighter colour. */
+.table-block {
+  padding: 10px 0;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.sheet-table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.sheet-table td {
+  border: 1px solid rgb(60 36 12 / 0.35);
+  padding: 0;
+  vertical-align: top;
+}
+
+.sheet-table td input {
+  display: block;
+  width: 100%;
+  min-width: 6ch;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--editor-size);
+  line-height: var(--editor-leading);
+  outline: none;
+}
+
+.sheet-table td:focus-within {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+.fill-1 {
+  background: rgb(243 221 98 / 0.75);
+}
+
+.fill-2 {
+  background: rgb(242 163 182 / 0.7);
+}
+
+.fill-3 {
+  background: rgb(181 223 149 / 0.75);
+}
+
+.fill-4 {
+  background: rgb(169 205 240 / 0.75);
+}
+
 .page[data-pattern="ruled"] .block {
   background-image: repeating-linear-gradient(
     to bottom,

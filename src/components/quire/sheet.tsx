@@ -23,6 +23,7 @@ import type { Session } from "@/lib/quire/engine";
 import { HIGHLIGHTERS, INKS, type FlagName } from "@/lib/quire/marks";
 import { tornClip } from "@/lib/quire/torn";
 import { TextBlock } from "./text-block";
+import { TableBlock } from "./table-block";
 import { DropMenu } from "./drop-menu";
 import { imageUrl, outlineOf, type NoteMeta, type Place } from "./store";
 
@@ -338,6 +339,13 @@ export function Sheet({
                 >
                   <img src={imageUrl(note.id, item.id, session)} alt="" />
                 </button>
+              ) : item.kind === "table" ? (
+                <TableBlock
+                  key={item.id}
+                  blockId={item.id}
+                  session={session}
+                  onEdited={onEdited}
+                />
               ) : (
                 <TextBlock
                   key={item.id}
