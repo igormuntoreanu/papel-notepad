@@ -27,6 +27,7 @@ import {
   buildArchive,
   cardInfo,
   dropUrls,
+  duplicateSession,
   ensureLoaded,
   forgetCard,
   fromPapel,
@@ -39,6 +40,7 @@ import {
   type NoteMeta,
   type Place,
 } from "./store";
+import { copyTitle } from "@/lib/quire/titles";
 
 type Ask = { title: string; body: string; confirm: string; tone?: "danger"; run: () => void };
 type Sel = { blockId: number; start: number; end: number };
@@ -276,11 +278,55 @@ export function QuireApp() {
     setSelectedImage(null);
   }
 
+  function insertAfter(afterId: string, newId: string) {
+    setOrder((list) => {
+      const at = list.indexOf(afterId);
+      if (at < 0) return [...list, newId];
+      const copy = list.slice();
+      copy.splice(at + 1, 0, newId);
+      return copy;
+    });
+  }
+
   function createNote() {
     const fresh = blankNote(notesRef.current.map((n) => n.title));
     setNotes((list) => [...list, fresh]);
     setOrder((list) => [...list, fresh.id]);
     activate(fresh.id);
+  }
+
+  /** Blank sheet placed under the given card. */
+  function createNoteBelow(afterId: string) {
+    const fresh = blankNote(notesRef.current.map((n) => n.title));
+    setNotes((list) => [...list, fresh]);
+    insertAfter(afterId, fresh.id);
+    activate(fresh.id);
+  }
+
+  /** Full copy of a sheet, placed under the original. */
+  function duplicateNote(id: string) {
+    const meta = notesRef.current.find((n) => n.id === id);
+    const session = duplicateSession(id);
+    if (!meta || !session) {
+      showAlert("Could not duplicate that sheet.");
+      return;
+    }
+    const freshId = crypto.randomUUID();
+    sessions.set(freshId, session);
+    const fresh: NoteMeta = {
+      id: freshId,
+      title: copyTitle(
+        meta.title,
+        notesRef.current.map((n) => n.title),
+      ),
+      wrap: meta.wrap,
+      edited: Date.now(),
+      sourceExt: meta.sourceExt,
+    };
+    setNotes((list) => [...list, fresh]);
+    insertAfter(id, freshId);
+    activate(freshId);
+    setMessage(`Duplicated as ${fresh.title}`);
   }
 
   function closeNote(id: string) {
@@ -802,6 +848,8 @@ export function QuireApp() {
     open: (id) => activate(id),
     rename,
     save: (id) => saveNote(id),
+    newBelow: createNoteBelow,
+    duplicate: duplicateNote,
     close: closeNote,
     move: moveNote,
     reorder,

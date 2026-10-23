@@ -192,6 +192,14 @@ describe("folder file names", () => {
   });
 });
 
+describe("copyTitle", () => {
+  it("adds copy and numbers when needed", async () => {
+    const { copyTitle } = await import("./titles.ts");
+    assert.equal(copyTitle("nota1", ["nota1"]), "nota1 copy");
+    assert.equal(copyTitle("nota1", ["nota1", "nota1 copy"]), "nota1 copy 2");
+  });
+});
+
 describe("correctionAt", () => {
   it("fixes a typo once the word ends, keeping the delimiter for undo", () => {
     assert.deepEqual(correctionAt("teh ", 4), { start: 0, end: 4, replacement: "the " });
