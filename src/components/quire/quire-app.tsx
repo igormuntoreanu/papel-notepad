@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createSession } from "@/lib/quire/engine";
 import { tableSkeleton, toggleBullets } from "@/lib/quire/blocks";
 import { MIN_QUERY, searchNotes } from "@/lib/quire/fuzzy";
@@ -142,7 +142,7 @@ export function QuireApp() {
 
   useEffect(() => {
     const dirty = session?.is_dirty() ? "*" : "";
-    document.title = view === "focus" && note ? `${dirty}${note.title} â€” Papel` : "Papel";
+    document.title = view === "focus" && note ? `${dirty}${note.title} — Papel` : "Papel";
   }, [note, view, tick, session]);
 
   function bump(next?: Place | null) {
@@ -366,7 +366,7 @@ export function QuireApp() {
     bump({ block_id: blockId, start: pos, end: pos });
   }
 
-  /** Adds or removes `â€¢ ` on the lines the selection covers. */
+  /** Adds or removes `• ` on the lines the selection covers. */
   function toggleBulletList() {
     if (!session) return;
     const { blockId: b, start, end } = selRef.current;
@@ -583,7 +583,7 @@ export function QuireApp() {
     return (
       <div className="desk" data-skin={skin}>
         <main className="desk-body">
-          <p className="boot-line">Opening a fresh sheetâ€¦</p>
+          <p className="boot-line">Opening a fresh sheet…</p>
         </main>
       </div>
     );
@@ -627,7 +627,7 @@ export function QuireApp() {
   const metrics = session ? session.metrics(blockId, sel.start) : [1, 1, 1, 0];
   const langSetting = session?.language() ?? "auto";
   const effective = session ? session.effective_language(blockId) : "plain";
-  const langText = langSetting === "auto" ? `Auto Â· ${langLabel(effective)}` : langLabel(langSetting);
+  const langText = langSetting === "auto" ? `Auto · ${langLabel(effective)}` : langLabel(langSetting);
   const marksNow = session && sel.end > sel.start ? readMarks(session.marks(blockId)) : [];
   const at = marksNow.find((m) => m.start <= sel.start && m.end > sel.start);
   const styles: StyleState = {
@@ -773,7 +773,7 @@ export function QuireApp() {
             <div className="empty-sheet">
               <h2>Nothing matches.</h2>
               <p>
-                No sheet fits {applied ? <>â€œ{applied}â€</> : "this filter"}
+                No sheet fits {applied ? <>“{applied}”</> : "this filter"}
                 {langFilter ? ` in ${langFilter}` : ""}. Try fewer letters, or clear the filters.
               </p>
               <button

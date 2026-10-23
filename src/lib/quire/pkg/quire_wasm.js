@@ -506,6 +506,17 @@ export class Session {
         wasm.session_restore_marks(this.__wbg_ptr, id, ptr0, len0);
     }
     /**
+     * Loads a table from `{"cols":n,"cells":[{"t":"…","m":[…],"f":n}]}`.
+     * @param {string} json
+     * @returns {number}
+     */
+    restore_table(json) {
+        const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.session_restore_table(this.__wbg_ptr, ptr0, len0);
+        return ret >>> 0;
+    }
+    /**
      * @param {string} text
      * @returns {number}
      */
@@ -550,6 +561,98 @@ export class Session {
         const ptr0 = passStringToWasm0(lang, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         wasm.session_set_language(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {number} id
+     * @param {number} at
+     * @returns {boolean}
+     */
+    table_delete_col(id, at) {
+        const ret = wasm.session_table_delete_col(this.__wbg_ptr, id, at);
+        return ret !== 0;
+    }
+    /**
+     * @param {number} id
+     * @param {number} at
+     * @returns {boolean}
+     */
+    table_delete_row(id, at) {
+        const ret = wasm.session_table_delete_row(this.__wbg_ptr, id, at);
+        return ret !== 0;
+    }
+    /**
+     * @param {number} id
+     * @param {string} target
+     * @param {number} row
+     * @param {number} col
+     * @param {number} fill
+     * @returns {boolean}
+     */
+    table_fill(id, target, row, col, fill) {
+        const ptr0 = passStringToWasm0(target, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.session_table_fill(this.__wbg_ptr, id, ptr0, len0, row, col, fill);
+        return ret !== 0;
+    }
+    /**
+     * @param {number} id
+     * @param {number} at
+     * @returns {boolean}
+     */
+    table_insert_col(id, at) {
+        const ret = wasm.session_table_insert_col(this.__wbg_ptr, id, at);
+        return ret !== 0;
+    }
+    /**
+     * @param {number} id
+     * @param {number} at
+     * @returns {boolean}
+     */
+    table_insert_row(id, at) {
+        const ret = wasm.session_table_insert_row(this.__wbg_ptr, id, at);
+        return ret !== 0;
+    }
+    /**
+     * @param {number} id
+     * @returns {string}
+     */
+    table_json(id) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.session_table_json(this.__wbg_ptr, id);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {number} id
+     * @param {number} row
+     * @param {number} col
+     * @param {Uint32Array} flat
+     * @returns {boolean}
+     */
+    table_set_marks(id, row, col, flat) {
+        const ptr0 = passArray32ToWasm0(flat, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.session_table_set_marks(this.__wbg_ptr, id, row, col, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
+     * @param {number} id
+     * @param {number} row
+     * @param {number} col
+     * @param {string} text
+     * @returns {boolean}
+     */
+    table_set_text(id, row, col, text) {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.session_table_set_text(this.__wbg_ptr, id, row, col, ptr0, len0);
+        return ret !== 0;
     }
     /**
      * @param {number} id

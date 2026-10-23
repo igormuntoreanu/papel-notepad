@@ -1,4 +1,4 @@
-//! Quire document core.
+﻿//! Quire document core.
 //!
 //! This crate is the boundary a future native shell should link against.
 //! It owns the buffer, undo, encoding, language sniff, syntax spans, and
@@ -13,7 +13,8 @@ mod lang;
 pub mod marks;
 mod textutil;
 
-pub use document::{Caret, Document, OutlineItem};
+pub use document::{Caret, Cell, Document, OutlineItem};
 pub use encoding::{Encoding, Eol};
 pub use lang::{Lang, LangMode};
 pub use marks::{Run, Style, StyleChange};
+

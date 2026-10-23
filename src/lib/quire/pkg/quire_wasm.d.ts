@@ -60,10 +60,22 @@ export class Session {
     restore_end(language: string, eol: string, encoding: string): void;
     restore_image(mime: string, bytes: Uint8Array): number;
     restore_marks(id: number, flat: Uint32Array): void;
+    /**
+     * Loads a table from `{"cols":n,"cells":[{"t":"…","m":[…],"f":n}]}`.
+     */
+    restore_table(json: string): number;
     restore_text(text: string): number;
     set_encoding(enc: string): string;
     set_eol(eol: string): boolean;
     set_language(lang: string): void;
+    table_delete_col(id: number, at: number): boolean;
+    table_delete_row(id: number, at: number): boolean;
+    table_fill(id: number, target: string, row: number, col: number, fill: number): boolean;
+    table_insert_col(id: number, at: number): boolean;
+    table_insert_row(id: number, at: number): boolean;
+    table_json(id: number): string;
+    table_set_marks(id: number, row: number, col: number, flat: Uint32Array): boolean;
+    table_set_text(id: number, row: number, col: number, text: string): boolean;
     text_of(id: number): string;
     undo(): Caret | undefined;
 }
@@ -118,10 +130,19 @@ export interface InitOutput {
     readonly session_restore_end: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly session_restore_image: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_restore_marks: (a: number, b: number, c: number, d: number) => void;
+    readonly session_restore_table: (a: number, b: number, c: number) => number;
     readonly session_restore_text: (a: number, b: number, c: number) => number;
     readonly session_set_encoding: (a: number, b: number, c: number) => [number, number];
     readonly session_set_eol: (a: number, b: number, c: number) => number;
     readonly session_set_language: (a: number, b: number, c: number) => void;
+    readonly session_table_delete_col: (a: number, b: number, c: number) => number;
+    readonly session_table_delete_row: (a: number, b: number, c: number) => number;
+    readonly session_table_fill: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+    readonly session_table_insert_col: (a: number, b: number, c: number) => number;
+    readonly session_table_insert_row: (a: number, b: number, c: number) => number;
+    readonly session_table_json: (a: number, b: number) => [number, number];
+    readonly session_table_set_marks: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+    readonly session_table_set_text: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly session_text_of: (a: number, b: number) => [number, number];
     readonly session_undo: (a: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
