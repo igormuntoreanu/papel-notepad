@@ -75,6 +75,16 @@ export function blankNote(titles: string[]): NoteMeta {
   return { id, title: nextTitle(titles), wrap: true, edited: Date.now() };
 }
 
+/** Deep-copies a live session (content only; caller owns id/order/meta). */
+export function duplicateSession(sourceId: string): Session | null {
+  const source = sessions.get(sourceId);
+  if (!source) return null;
+  const session = createSession();
+  if (!fromPapel(session, new TextEncoder().encode(toPapel(source)))) return null;
+  session.mark_dirty();
+  return session;
+}
+
 const SORTS: SortMode[] = ["manual", "recent", "title"];
 
 export async function ensureLoaded(): Promise<Loaded> {

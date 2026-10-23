@@ -8,6 +8,10 @@ export type CardActions = {
   open: (id: string) => void;
   rename: (id: string, title: string) => void;
   save: (id: string) => void;
+  /** Blank sheet inserted under this card. */
+  newBelow: (id: string) => void;
+  /** Full copy of this sheet, inserted under it. */
+  duplicate: (id: string) => void;
   close: (id: string) => void;
   move: (id: string, delta: number) => void;
   reorder: (id: string, beforeId: string) => void;
@@ -271,6 +275,12 @@ function NoteCardView({
                   </button>
                   <button type="button" className="menu-item" onClick={() => setRenaming(true)}>
                     Rename
+                  </button>
+                  <button type="button" className="menu-item" onClick={() => actions.newBelow(meta.id)}>
+                    New below
+                  </button>
+                  <button type="button" className="menu-item" onClick={() => actions.duplicate(meta.id)}>
+                    Duplicate
                   </button>
                   <button type="button" className="menu-item" onClick={() => actions.save(meta.id)}>
                     Save to file
