@@ -36,6 +36,7 @@ export const session_is_dirty: (a: number) => number;
 export const session_language: (a: number) => [number, number];
 export const session_line_to_caret: (a: number, b: number) => number;
 export const session_mark_clean: (a: number) => void;
+export const session_mark_dirty: (a: number) => void;
 export const session_marks: (a: number, b: number) => [number, number];
 export const session_metrics: (a: number, b: number, c: number) => [number, number];
 export const session_mime_of: (a: number, b: number) => [number, number];

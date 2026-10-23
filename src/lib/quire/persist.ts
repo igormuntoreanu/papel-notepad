@@ -9,6 +9,10 @@ export type StoredNote = {
   title: string;
   wrap: boolean;
   edited?: number;
+  /** True when the sheet has edits that were not saved to a downloaded file. */
+  dirty?: boolean;
+  /** Extension the sheet was opened from (no dot). */
+  sourceExt?: string;
   language: string;
   eol: string;
   encoding: string;
@@ -28,6 +32,8 @@ export type Prefs = {
   zoom: number;
   autocorrect: boolean;
   sort: SortMode;
+  /** ISO date of the last full-board backup export. */
+  lastBackup?: string;
 };
 
 const DB = "papel";

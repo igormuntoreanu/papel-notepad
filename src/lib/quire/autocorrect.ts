@@ -150,5 +150,7 @@ export function correctionAt(text: string, caret: number): Correction | null {
   if (!fix) return null;
   const replacement = word.toLowerCase() === "i" || word.toLowerCase().startsWith("i'") ? fix : matchCase(word, fix);
   if (replacement === word) return null;
-  return { start, end: caret - 1, replacement };
+  // Include the delimiter so undoing the fix restores "teh " (not "teh") and
+  // leaves the caret after the space — typing "x" then yields "teh x".
+  return { start, end: caret, replacement: replacement + delim };
 }

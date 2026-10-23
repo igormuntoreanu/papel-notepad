@@ -49,6 +49,7 @@ export class Session {
     language(): string;
     line_to_caret(line: number): Caret;
     mark_clean(): void;
+    mark_dirty(): void;
     /**
      * Flat `[start, end, flags, ink, hl]*` style runs for a text block.
      */
@@ -125,6 +126,7 @@ export interface InitOutput {
     readonly session_language: (a: number) => [number, number];
     readonly session_line_to_caret: (a: number, b: number) => number;
     readonly session_mark_clean: (a: number) => void;
+    readonly session_mark_dirty: (a: number) => void;
     readonly session_marks: (a: number, b: number) => [number, number];
     readonly session_metrics: (a: number, b: number, c: number) => [number, number];
     readonly session_mime_of: (a: number, b: number) => [number, number];
