@@ -1,4 +1,5 @@
-use quire_core::{Caret as CoreCaret, Document, Encoding, Eol, LangMode, StyleChange};
+use quire_core::marks::unflatten;
+use quire_core::{Cell, Caret as CoreCaret, Document, Encoding, Eol, LangMode, StyleChange};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -233,5 +234,70 @@ impl Session {
 
     pub fn first_text_id(&self) -> u32 {
         self.doc.first_text_id()
+    }
+
+    // ---------- Tables ----------
+
+    /// Loads a table from `{"cols":n,"cells":[{"t":"…","m":[…],"f":n}]}`.
+    pub fn restore_table(&mut self, json: &str) -> u32 {
+        #[derive(serde::Deserialize)]
+        struct CellIn {
+            #[serde(default)]
+            t: String,
+            #[serde(default)]
+            m: Vec<u32>,
+            #[serde(default)]
+            f: u8,
+        }
+        #[derive(serde::Deserialize)]
+        struct TableIn {
+            #[serde(default)]
+            cols: usize,
+            #[serde(default)]
+            cells: Vec<CellIn>,
+        }
+        match serde_json::from_str::<TableIn>(json) {
+            Ok(parsed) => {
+                let cells = parsed
+                    .cells
+                    .into_iter()
+                    .map(|cell| Cell { text: cell.t, marks: unflatten(&cell.m), fill: cell.f })
+                    .collect();
+                self.doc.restore_table(parsed.cols, cells)
+            }
+            Err(_) => 0,
+        }
+    }
+
+    pub fn table_json(&self, id: u32) -> String {
+        self.doc.table_json(id)
+    }
+
+    pub fn table_insert_row(&mut self, id: u32, at: u32) -> bool {
+        self.doc.table_insert_row(id, at)
+    }
+
+    pub fn table_delete_row(&mut self, id: u32, at: u32) -> bool {
+        self.doc.table_delete_row(id, at)
+    }
+
+    pub fn table_insert_col(&mut self, id: u32, at: u32) -> bool {
+        self.doc.table_insert_col(id, at)
+    }
+
+    pub fn table_delete_col(&mut self, id: u32, at: u32) -> bool {
+        self.doc.table_delete_col(id, at)
+    }
+
+    pub fn table_set_text(&mut self, id: u32, row: u32, col: u32, text: &str) -> bool {
+        self.doc.table_set_text(id, row, col, text)
+    }
+
+    pub fn table_set_marks(&mut self, id: u32, row: u32, col: u32, flat: &[u32]) -> bool {
+        self.doc.table_set_marks(id, row, col, flat)
+    }
+
+    pub fn table_fill(&mut self, id: u32, target: &str, row: u32, col: u32, fill: u8) -> bool {
+        self.doc.table_fill(id, target, row, col, fill)
     }
 }

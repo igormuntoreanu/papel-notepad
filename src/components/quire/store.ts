@@ -144,11 +144,15 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
   };
 }
 
-/** Serialises a note to the .papel JSON format (v2 adds per-block style marks). */
+/** Serialises a note to the .papel JSON format (v3 adds table blocks). */
 export function toPapel(session: Session): string {
   const blocks = outlineOf(session).map((item) => {
     if (item.kind === "image") {
       return { type: "image", mime: item.mime || "image/png", data: bytesToBase64(session.image_of(item.id)) };
+    }
+    if (item.kind === "table") {
+      const table = JSON.parse(session.table_json(item.id)) as { cols: number; cells: unknown[] };
+      return { type: "table", cols: table.cols, cells: table.cells };
     }
     const marks = session.marks(item.id);
     return marks.length
@@ -157,7 +161,7 @@ export function toPapel(session: Session): string {
   });
   return JSON.stringify({
     format: "papel",
-    version: 2,
+    version: 3,
     language: session.language(),
     eol: session.eol(),
     encoding: session.encoding(),
@@ -169,7 +173,15 @@ type PapelFile = {
   language?: string;
   eol?: string;
   encoding?: string;
-  blocks?: Array<{ type: string; text?: string; mime?: string; data?: string; marks?: number[] }>;
+  blocks?: Array<{
+    type: string;
+    text?: string;
+    mime?: string;
+    data?: string;
+    marks?: number[];
+    cols?: number;
+    cells?: unknown[];
+  }>;
 };
 
 /** Loads .papel / .quire JSON into a session. Returns false when the file is not valid JSON. */
@@ -183,8 +195,11 @@ export function fromPapel(session: Session, bytes: Uint8Array): boolean {
   session.restore_begin();
   const pending: [number, number[]][] = [];
   for (const block of parsed.blocks ?? []) {
-    if (block.type === "image" && block.data) session.restore_image(block.mime || "image/png", base64ToBytes(block.data));
-    else {
+    if (block.type === "image" && block.data) {
+      session.restore_image(block.mime || "image/png", base64ToBytes(block.data));
+    } else if (block.type === "table" && Array.isArray(block.cells)) {
+      session.restore_table(JSON.stringify({ cols: block.cols ?? 1, cells: block.cells }));
+    } else {
       const id = session.restore_text(block.text ?? "");
       if (Array.isArray(block.marks) && block.marks.length) pending.push([id, block.marks]);
     }

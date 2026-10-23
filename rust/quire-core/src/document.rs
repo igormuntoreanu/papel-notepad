@@ -9,10 +9,23 @@ use crate::textutil::{count_lines, line_col, offset_of_line, slice_utf16, splice
 const HISTORY_LIMIT: usize = 200;
 const MAX_IMAGE: usize = 12_000_000;
 
+/// One table cell: plain text, its inline style runs, and a fill index.
+///
+/// `fill` is 0 for "no fill" or an index into the caller's highlighter palette;
+/// the core stores the number and never interprets the colour.
+#[derive(Clone, Debug, Default)]
+pub struct Cell {
+    pub text: String,
+    pub marks: Vec<Run>,
+    pub fill: u8,
+}
+
 #[derive(Clone, Debug)]
 enum Block {
     Text { id: u32, body: String, marks: Vec<Run> },
     Image { id: u32, mime: String, data: Vec<u8> },
+    /// Row-major cells; `cells.len()` is `rows * cols`.
+    Table { id: u32, cols: usize, cells: Vec<Cell> },
 }
 
 fn text_block(id: u32, body: String) -> Block {
@@ -22,7 +35,7 @@ fn text_block(id: u32, body: String) -> Block {
 impl Block {
     fn id(&self) -> u32 {
         match self {
-            Self::Text { id, .. } | Self::Image { id, .. } => *id,
+            Self::Text { id, .. } | Self::Image { id, .. } | Self::Table { id, .. } => *id,
         }
     }
 }
@@ -45,6 +58,8 @@ enum StepKind {
         marks_after: Vec<Run>,
     },
     Marks { id: u32, before: Vec<Run>, after: Vec<Run> },
+    /// One cell's text, as a step small enough to run per keystroke.
+    Cell { id: u32, row: u32, col: u32, deleted: String, inserted: String, marks_before: Vec<Run>, marks_after: Vec<Run> },
     Structure { before: Vec<Block>, after: Vec<Block> },
     Meta { before: Meta, after: Meta },
 }
@@ -423,6 +438,7 @@ impl Document {
             match &self.blocks[0] {
                 Block::Text { id, .. } => Caret { block_id: *id, start: 0, end: 0 },
                 Block::Image { id, .. } => Caret { block_id: *id, start: 0, end: 0 },
+                Block::Table { id, .. } => Caret { block_id: *id, start: 0, end: 0 },
             }
         } else {
             let id = self.alloc_id();
@@ -470,6 +486,9 @@ impl Document {
                 self.set_marks(*id, marks_before);
             }
             StepKind::Marks { id, before, .. } => self.set_marks(*id, before),
+            StepKind::Cell { id, row, col, deleted, marks_before, .. } => {
+                self.apply_cell(*id, *row, *col, deleted, marks_before)
+            }
             StepKind::Structure { before, .. } => self.blocks = before.clone(),
             StepKind::Meta { before, .. } => self.apply_meta(before),
         }
@@ -482,6 +501,9 @@ impl Document {
                 self.set_marks(*id, marks_after);
             }
             StepKind::Marks { id, after, .. } => self.set_marks(*id, after),
+            StepKind::Cell { id, row, col, inserted, marks_after, .. } => {
+                self.apply_cell(*id, *row, *col, inserted, marks_after)
+            }
             StepKind::Structure { after, .. } => self.blocks = after.clone(),
             StepKind::Meta { after, .. } => self.apply_meta(after),
         }
@@ -714,10 +736,292 @@ impl Document {
         Caret { block_id: chosen.0, start: pos, end: pos }
     }
 
+    // ---------- Tables ----------
+
+    /// Row count and column count, or `None` when `id` is not a table.
+    pub fn table_shape(&self, id: u32) -> Option<(usize, usize)> {
+        match self.blocks.iter().find(|b| b.id() == id) {
+            Some(Block::Table { cols, cells, .. }) => Some((cells.len() / (*cols).max(1), *cols)),
+            _ => None,
+        }
+    }
+
+    /// Loads a table. Rows are inferred from the cell count; ragged input is padded.
+    pub fn restore_table(&mut self, cols: usize, cells: Vec<Cell>) -> u32 {
+        let id = self.alloc_id();
+        let cols = cols.max(1);
+        let mut cells = cells;
+        let rows = cells.len().div_ceil(cols).max(1);
+        cells.resize_with(rows * cols, Cell::default);
+        self.blocks.push(Block::Table { id, cols, cells });
+        id
+    }
+
+    /// The table as `{"cols":n,"cells":[{"t":"…","m":[…],"f":n}]}`.
+    pub fn table_json(&self, id: u32) -> String {
+        let Some((cols, cells)) = self.table_of(id) else { return String::new() };
+        let items: Vec<serde_json::Value> = cells
+            .iter()
+            .map(|cell| {
+                let mut item = serde_json::Map::new();
+                item.insert("t".into(), serde_json::Value::String(cell.text.clone()));
+                item.insert("f".into(), serde_json::Value::from(cell.fill));
+                if !cell.marks.is_empty() {
+                    let flat: Vec<u32> = cell
+                        .marks
+                        .iter()
+                        .flat_map(|run| {
+                            [run.start, run.end, run.style.flags as u32, run.style.ink as u32, run.style.hl as u32]
+                        })
+                        .collect();
+                    item.insert(
+                        "m".into(),
+                        serde_json::Value::Array(flat.into_iter().map(serde_json::Value::from).collect()),
+                    );
+                }
+                serde_json::Value::Object(item)
+            })
+            .collect();
+        serde_json::json!({ "cols": cols, "cells": items }).to_string()
+    }
+
+    fn table_of(&self, id: u32) -> Option<(usize, &[Cell])> {
+        match self.blocks.iter().find(|b| b.id() == id) {
+            Some(Block::Table { cols, cells, .. }) => Some((*cols, cells)),
+            _ => None,
+        }
+    }
+
+    fn finish_structure(&mut self, before: Vec<Block>) {
+        let caret = self.fallback_caret();
+        self.push_structure(before, caret, caret);
+    }
+
+    pub fn table_insert_row(&mut self, id: u32, at: u32) -> bool {
+        let before = self.blocks.clone();
+        let changed = match self.blocks.iter_mut().find(|b| b.id() == id) {
+            Some(Block::Table { cols, cells, .. }) => {
+                let cols = *cols;
+                let rows = cells.len() / cols;
+                let at = (at as usize).min(rows);
+                cells.splice(at * cols..at * cols, vec![Cell::default(); cols]);
+                true
+            }
+            _ => false,
+        };
+        if changed {
+            self.finish_structure(before);
+        }
+        changed
+    }
+
+    pub fn table_delete_row(&mut self, id: u32, at: u32) -> bool {
+        let before = self.blocks.clone();
+        let changed = match self.blocks.iter_mut().find(|b| b.id() == id) {
+            Some(Block::Table { cols, cells, .. }) => {
+                let cols = *cols;
+                let rows = cells.len() / cols;
+                if rows <= 1 {
+                    false
+                } else {
+                    let at = (at as usize).min(rows - 1);
+                    cells.drain(at * cols..(at + 1) * cols);
+                    true
+                }
+            }
+            _ => false,
+        };
+        if changed {
+            self.finish_structure(before);
+        }
+        changed
+    }
+
+    pub fn table_insert_col(&mut self, id: u32, at: u32) -> bool {
+        let before = self.blocks.clone();
+        let changed = match self.blocks.iter_mut().find(|b| b.id() == id) {
+            Some(Block::Table { cols, cells, .. }) => {
+                let width = *cols;
+                let at = (at as usize).min(width);
+                let rows = cells.len() / width;
+                let mut next = Vec::with_capacity(cells.len() + rows);
+                for row in 0..rows {
+                    for col in 0..width {
+                        if col == at {
+                            next.push(Cell::default());
+                        }
+                        next.push(cells[row * width + col].clone());
+                    }
+                    if at == width {
+                        next.push(Cell::default());
+                    }
+                }
+                *cells = next;
+                *cols = width + 1;
+                true
+            }
+            _ => false,
+        };
+        if changed {
+            self.finish_structure(before);
+        }
+        changed
+    }
+
+    pub fn table_delete_col(&mut self, id: u32, at: u32) -> bool {
+        let before = self.blocks.clone();
+        let changed = match self.blocks.iter_mut().find(|b| b.id() == id) {
+            Some(Block::Table { cols, cells, .. }) => {
+                let width = *cols;
+                if width <= 1 {
+                    false
+                } else {
+                    let at = (at as usize).min(width - 1);
+                    let rows = cells.len() / width;
+                    let mut next = Vec::with_capacity(cells.len() - rows);
+                    for row in 0..rows {
+                        for col in 0..width {
+                            if col != at {
+                                next.push(cells[row * width + col].clone());
+                            }
+                        }
+                    }
+                    *cells = next;
+                    *cols = width - 1;
+                    true
+                }
+            }
+            _ => false,
+        };
+        if changed {
+            self.finish_structure(before);
+        }
+        changed
+    }
+
+    /// Sets one cell's text. Recorded as a per-cell step so typing stays cheap.
+    pub fn table_set_text(&mut self, id: u32, row: u32, col: u32, text: &str) -> bool {
+        let Some((rows, cols)) = self.table_shape(id) else { return false };
+        let (r, c) = (row as usize, col as usize);
+        if r >= rows || c >= cols {
+            return false;
+        }
+        let index = r * cols + c;
+        let Some(Block::Table { cells, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) else {
+            return false;
+        };
+        let cell = &mut cells[index];
+        if cell.text == text {
+            return false;
+        }
+        let deleted = std::mem::replace(&mut cell.text, text.to_string());
+        let marks_before = cell.marks.clone();
+        cell.marks = marks::clamp(cell.marks.clone(), utf16_len(text) as u32);
+        let marks_after = cell.marks.clone();
+        let rev_before = self.revision;
+        self.revision += 1;
+        let caret = Caret { block_id: id, start: 0, end: 0 };
+        self.push(Step {
+            kind: StepKind::Cell {
+                id,
+                row,
+                col,
+                deleted,
+                inserted: text.to_string(),
+                marks_before,
+                marks_after,
+            },
+            caret_before: caret,
+            caret_after: caret,
+            rev_before,
+            rev_after: self.revision,
+        });
+        true
+    }
+
+    /// Replaces one cell's style runs (`flat` is `[start, end, flags, ink, hl]*`).
+    pub fn table_set_marks(&mut self, id: u32, row: u32, col: u32, flat: &[u32]) -> bool {
+        let Some((rows, cols)) = self.table_shape(id) else { return false };
+        let (r, c) = (row as usize, col as usize);
+        if r >= rows || c >= cols {
+            return false;
+        }
+        let index = r * cols + c;
+        let before = self.blocks.clone();
+        let changed = match self.blocks.iter_mut().find(|b| b.id() == id) {
+            Some(Block::Table { cells, .. }) => {
+                let cell = &mut cells[index];
+                let next = marks::clamp(marks::unflatten(flat), utf16_len(&cell.text) as u32);
+                if next == cell.marks {
+                    false
+                } else {
+                    cell.marks = next;
+                    true
+                }
+            }
+            _ => false,
+        };
+        if changed {
+            self.finish_structure(before);
+        }
+        changed
+    }
+
+    /// Paints a fill over one cell, a row, a column or the whole table.
+    pub fn table_fill(&mut self, id: u32, target: &str, row: u32, col: u32, fill: u8) -> bool {
+        let Some((rows, cols)) = self.table_shape(id) else { return false };
+        let (r, c) = (row as usize, col as usize);
+        if r >= rows || c >= cols {
+            return false;
+        }
+        let before = self.blocks.clone();
+        let changed = match self.blocks.iter_mut().find(|b| b.id() == id) {
+            Some(Block::Table { cells, .. }) => {
+                let mut touched = false;
+                for index in 0..cells.len() {
+                    let cell_row = index / cols;
+                    let cell_col = index % cols;
+                    let hit = match target {
+                        "cell" => cell_row == r && cell_col == c,
+                        "row" => cell_row == r,
+                        "col" => cell_col == c,
+                        _ => true,
+                    };
+                    if hit && cells[index].fill != fill {
+                        cells[index].fill = fill;
+                        touched = true;
+                    }
+                }
+                touched
+            }
+            _ => false,
+        };
+        if changed {
+            self.finish_structure(before);
+        }
+        changed
+    }
+
+    fn apply_cell(&mut self, id: u32, row: u32, col: u32, text: &str, marks: &[Run]) {
+        let Some((rows, cols)) = self.table_shape(id) else { return };
+        let (r, c) = (row as usize, col as usize);
+        if r >= rows || c >= cols {
+            return;
+        }
+        let index = r * cols + c;
+        if let Some(Block::Table { cells, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
+            if let Some(cell) = cells.get_mut(index) {
+                cell.text = text.to_string();
+                cell.marks = marks.to_vec();
+            }
+        }
+    }
+
     pub fn outline(&self) -> Vec<OutlineItem> {
         self.blocks.iter().map(|b| match b {
             Block::Text { id, .. } => OutlineItem { id: *id, kind: "text", mime: String::new() },
             Block::Image { id, mime, .. } => OutlineItem { id: *id, kind: "image", mime: mime.clone() },
+            Block::Table { id, .. } => OutlineItem { id: *id, kind: "table", mime: String::new() },
         }).collect()
     }
 
@@ -1118,6 +1422,75 @@ mod tests {
     }
 
     #[test]
+    fn table_model_round_trips_and_undoes() {
+        let mut doc = Document::new();
+        let cell = |text: &str| Cell { text: text.to_string(), marks: Vec::new(), fill: 0 };
+        let id = doc.restore_table(2, vec![cell("ab"), cell("fd"), cell("one"), cell("two")]);
+
+        assert_eq!(doc.table_shape(id), Some((2, 2)));
+        assert_eq!(doc.outline().iter().find(|item| item.id == id).unwrap().kind, "table");
+        assert!(doc.table_json(id).contains("\"ab\""));
+
+        // Rows and columns are structural steps.
+        assert!(doc.table_insert_row(id, 1));
+        assert_eq!(doc.table_shape(id), Some((3, 2)));
+        doc.undo();
+        assert_eq!(doc.table_shape(id), Some((2, 2)));
+        doc.redo();
+        assert_eq!(doc.table_shape(id), Some((3, 2)));
+
+        assert!(doc.table_insert_col(id, 0));
+        assert_eq!(doc.table_shape(id), Some((3, 3)));
+        doc.undo();
+        assert_eq!(doc.table_shape(id), Some((3, 2)));
+
+        assert!(doc.table_delete_col(id, 0));
+        assert_eq!(doc.table_shape(id), Some((3, 1)));
+        doc.undo();
+        assert_eq!(doc.table_shape(id), Some((3, 2)));
+
+        // A cell edit is its own step, small enough to run per keystroke.
+        assert!(doc.table_set_text(id, 0, 0, "hello"));
+        assert!(doc.table_json(id).contains("hello"));
+        doc.undo();
+        assert!(doc.table_json(id).contains("\"ab\""));
+
+        // Fills cover a cell, a row, a column or everything.
+        assert!(doc.table_fill(id, "row", 0, 0, 2));
+        assert!(doc.table_json(id).contains("\"f\":2"));
+        assert!(!doc.table_fill(id, "row", 0, 0, 2), "same fill is a no-op");
+        doc.undo();
+        assert!(doc.table_json(id).contains("\"f\":0"));
+    }
+
+    #[test]
+    fn table_keeps_at_least_one_row_and_column() {
+        let mut doc = Document::new();
+        let id = doc.restore_table(1, vec![Cell::default()]);
+        assert_eq!(doc.table_shape(id), Some((1, 1)));
+        assert!(!doc.table_delete_row(id, 0));
+        assert!(!doc.table_delete_col(id, 0));
+        assert_eq!(doc.table_shape(id), Some((1, 1)));
+    }
+
+    #[test]
+    fn table_pads_ragged_rows() {
+        let mut doc = Document::new();
+        let id = doc.restore_table(3, vec![Cell::default(), Cell::default()]);
+        assert_eq!(doc.table_shape(id), Some((1, 3)));
+    }
+
+    #[test]
+    fn table_style_runs_are_clamped_to_their_cell() {
+        let mut doc = Document::new();
+        let id = doc.restore_table(1, vec![Cell { text: "abcd".into(), marks: Vec::new(), fill: 0 }]);
+        assert!(doc.table_set_marks(id, 0, 0, &[0, 4, marks::BOLD as u32, 0, 0]));
+        assert!(doc.table_json(id).contains("\"m\":[0,4,1,0,0]"));
+        doc.table_set_text(id, 0, 0, "ab");
+        assert!(doc.table_json(id).contains("\"m\":[0,2,1,0,0]"), "runs clamp to the shorter text");
+    }
+
+    #[test]
     fn utf16_bom_and_metrics() {
         let mut raw = vec![0xEF, 0xBB, 0xBF];
         raw.extend_from_slice("é".as_bytes());
@@ -1217,3 +1590,4 @@ mod tests {
         );
     }
 }
+
