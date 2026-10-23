@@ -13,6 +13,8 @@ export type StoredNote = {
   dirty?: boolean;
   /** Extension the sheet was opened from (no dot). */
   sourceExt?: string;
+  /** Filename in the sync folder. */
+  diskName?: string;
   language: string;
   eol: string;
   encoding: string;

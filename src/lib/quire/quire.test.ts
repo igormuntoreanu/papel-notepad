@@ -118,14 +118,16 @@ describe("searchNotes", () => {
 });
 
 describe("save-type", () => {
-  it("defaults plain sheets to the language extension", async () => {
+  it("uses .papel for new sheets and keeps opened extensions", async () => {
     const { defaultSaveExt, isRich, saveExtensions } = await import("./save-type.ts");
     assert.equal(isRich({ hasImage: false, hasMarks: false, hasTable: false }), false);
-    assert.equal(defaultSaveExt({ rich: false, language: "plain" }), "txt");
-    assert.equal(defaultSaveExt({ rich: false, language: "python", sourceExt: "py" }), "py");
-    assert.equal(defaultSaveExt({ rich: true, language: "plain", sourceExt: "txt" }), "papel");
-    assert.deepEqual(saveExtensions({ rich: true, language: "plain", sourceExt: "txt" }), ["papel", "txt"]);
-    assert.deepEqual(saveExtensions({ rich: false, language: "javascript" }), ["js"]);
+    assert.equal(defaultSaveExt({}), "papel");
+    assert.equal(defaultSaveExt({ sourceExt: "py" }), "py");
+    assert.equal(defaultSaveExt({ sourceExt: "txt" }), "txt");
+    assert.equal(defaultSaveExt({ sourceExt: "json" }), "json");
+    assert.deepEqual(saveExtensions({}), ["papel"]);
+    assert.deepEqual(saveExtensions({ sourceExt: "txt" }), ["txt"]);
+    assert.deepEqual(saveExtensions({ rich: true, sourceExt: "txt" }), ["txt", "papel"]);
   });
 });
 
@@ -192,11 +194,14 @@ describe("folder file names", () => {
   });
 });
 
-describe("copyTitle", () => {
+describe("titles", () => {
   it("adds copy and numbers when needed", async () => {
-    const { copyTitle } = await import("./titles.ts");
+    const { copyTitle, uniqueTitle, nextUntitled } = await import("./titles.ts");
     assert.equal(copyTitle("nota1", ["nota1"]), "nota1 copy");
     assert.equal(copyTitle("nota1", ["nota1", "nota1 copy"]), "nota1 copy 2");
+    assert.equal(uniqueTitle("nota1", ["nota1"]), "nota1 (2)");
+    assert.equal(nextUntitled([]), "Untitled");
+    assert.equal(nextUntitled(["Untitled"]), "Untitled 2");
   });
 });
 

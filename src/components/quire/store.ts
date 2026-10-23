@@ -8,6 +8,7 @@ import {
 import { bootEngine, createSession, type Session } from "@/lib/quire/engine";
 import { loadPersisted, type Persisted, type Prefs, type SortMode, type StoredBlock, type StoredNote } from "@/lib/quire/persist";
 import { base64ToBytes, bytesToBase64, copyBytes, langLabel, SKINS, type SkinId } from "@/lib/quire/text";
+import { nextUntitled } from "@/lib/quire/titles";
 
 export type NoteMeta = {
   id: string;
@@ -16,6 +17,8 @@ export type NoteMeta = {
   edited: number;
   /** Extension the sheet was opened from (no dot), so Save can write it back. */
   sourceExt?: string;
+  /** Exact filename last written to the sync folder (e.g. `Untitled 2.papel`). */
+  diskName?: string;
 };
 export type OutlineItem = { id: number; kind: string; mime: string };
 export type Place = { block_id: number; start: number; end: number };
@@ -62,17 +65,10 @@ export function dropUrls(noteId: string, imageId?: number) {
   }
 }
 
-function nextTitle(titles: string[]): string {
-  if (!titles.includes("Untitled")) return "Untitled";
-  let n = 2;
-  while (titles.includes(`Untitled ${n}`)) n += 1;
-  return `Untitled ${n}`;
-}
-
 export function blankNote(titles: string[]): NoteMeta {
   const id = crypto.randomUUID();
   sessions.set(id, createSession());
-  return { id, title: nextTitle(titles), wrap: true, edited: Date.now() };
+  return { id, title: nextUntitled(titles), wrap: true, edited: Date.now() };
 }
 
 /** Deep-copies a live session (content only; caller owns id/order/meta). */
@@ -119,6 +115,7 @@ export async function ensureLoaded(): Promise<Loaded> {
             wrap: stored.wrap,
             edited: stored.edited ?? Date.now(),
             sourceExt: stored.sourceExt,
+            diskName: stored.diskName,
           });
           if (stored.dirty) session.mark_dirty();
           order.push(id);
@@ -169,6 +166,7 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
           edited: meta.edited,
           dirty: session.is_dirty(),
           sourceExt: meta.sourceExt,
+          diskName: meta.diskName,
           language: session.language(),
           eol: session.eol(),
           encoding: session.encoding(),

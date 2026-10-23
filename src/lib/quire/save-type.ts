@@ -1,4 +1,9 @@
-import { extForLanguage } from "./text.ts";
+/**
+ * Save extension rules (stage: folder-sync):
+ * - New sheets (no sourceExt) → always `.papel`
+ * - Opened plain files (txt, py, js, json, xml, …) → keep that extension
+ * - Opened `.papel` / `.quire` → `.papel`
+ */
 
 /** Anything a plain text file cannot keep. */
 export type RichFlags = {
@@ -11,37 +16,48 @@ export function isRich(flags: RichFlags): boolean {
   return flags.hasImage || flags.hasMarks || flags.hasTable;
 }
 
-/**
- * Default save extension for a sheet.
- * - Rich content (images, styles, tables) → `.papel`
- * - Otherwise the extension the sheet was opened with, or the language's extension
- */
+const KEEP_PLAIN = new Set([
+  "txt",
+  "py",
+  "js",
+  "mjs",
+  "cjs",
+  "json",
+  "xml",
+  "html",
+  "htm",
+  "css",
+  "md",
+  "markdown",
+  "rs",
+  "java",
+  "c",
+  "cpp",
+  "h",
+  "hpp",
+  "sql",
+  "abap",
+]);
+
+/** Extension without dot for folder sync / Save. */
 export function defaultSaveExt(opts: {
-  rich: boolean;
-  language: string;
-  /** Extension the sheet was opened from, without the dot (e.g. `txt`, `py`). */
+  /** Extension the sheet was opened from, without the dot. */
   sourceExt?: string | null;
 }): string {
-  if (opts.rich) return "papel";
   const fromFile = opts.sourceExt?.toLowerCase().replace(/^\./, "");
-  if (fromFile && fromFile !== "papel" && fromFile !== "quire") return fromFile;
-  return extForLanguage(opts.language);
+  if (fromFile && fromFile !== "papel" && fromFile !== "quire" && KEEP_PLAIN.has(fromFile)) {
+    return fromFile === "mjs" || fromFile === "cjs" ? "js" : fromFile === "htm" ? "html" : fromFile === "markdown" ? "md" : fromFile;
+  }
+  return "papel";
 }
 
 /** Extensions offered in the save menu: default first. */
-export function saveExtensions(opts: {
-  rich: boolean;
-  language: string;
-  sourceExt?: string | null;
-}): string[] {
+export function saveExtensions(opts: { sourceExt?: string | null; rich?: boolean }): string[] {
   const primary = defaultSaveExt(opts);
-  if (!opts.rich) return [primary];
-  const text = (() => {
-    const fromFile = opts.sourceExt?.toLowerCase().replace(/^\./, "");
-    if (fromFile && fromFile !== "papel" && fromFile !== "quire") return fromFile;
-    return extForLanguage(opts.language);
-  })();
-  return primary === text ? [primary] : [primary, text];
+  if (primary === "papel") return ["papel"];
+  // Opened plain file: keep original; offer .papel if the sheet grew rich content.
+  if (opts.rich) return [primary, "papel"];
+  return [primary];
 }
 
 export function extFromFilename(name: string): string | null {

@@ -8,6 +8,11 @@ type WindowWithFolderPicker = Window & {
   showDirectoryPicker?: (options?: { mode?: "read" | "readwrite" }) => Promise<DirHandle>;
 };
 
+type FileHandleWithMove = FileSystemFileHandle & {
+  move?: (name: string) => Promise<void>;
+  remove?: () => Promise<void>;
+};
+
 function folderWindow(): WindowWithFolderPicker {
   return window as WindowWithFolderPicker;
 }
@@ -107,7 +112,91 @@ export async function writeFolderFile(
   }
 }
 
-/** Unique file names when two sheets share a title. */
+export async function removeFolderFile(dir: DirHandle, name: string): Promise<void> {
+  try {
+    const file = (await dir.getFileHandle(name)) as FileHandleWithMove;
+    if (typeof file.remove === "function") {
+      await file.remove();
+      return;
+    }
+  } catch {
+    /* missing is fine */
+  }
+  try {
+    await dir.removeEntry(name);
+  } catch {
+    /* missing is fine */
+  }
+}
+
+/** Rename on disk: prefer move(), else write-new + delete-old. */
+export async function renameFolderFile(
+  dir: DirHandle,
+  oldName: string,
+  newName: string,
+  data: Uint8Array | string,
+): Promise<void> {
+  if (oldName === newName) {
+    await writeFolderFile(dir, newName, data);
+    return;
+  }
+  try {
+    const file = (await dir.getFileHandle(oldName)) as FileHandleWithMove;
+    if (typeof file.move === "function") {
+      await file.move(newName);
+      await writeFolderFile(dir, newName, data);
+      return;
+    }
+  } catch {
+    /* fall through */
+  }
+  await writeFolderFile(dir, newName, data);
+  if (oldName !== newName) await removeFolderFile(dir, oldName);
+}
+
+type DirIter = DirHandle & {
+  keys?: () => AsyncIterableIterator<string>;
+  entries?: () => AsyncIterableIterator<[string, FileSystemHandle]>;
+};
+
+/** Counts entries in the sync folder (for empty-folder migrate). */
+export async function folderEntryCount(dir: DirHandle): Promise<number> {
+  const iter = dir as DirIter;
+  if (typeof iter.keys !== "function") return 0;
+  let n = 0;
+  for await (const _ of iter.keys()) n += 1;
+  return n;
+}
+
+/** Lists syncable note files in the folder. */
+export async function listNoteFiles(
+  dir: DirHandle,
+): Promise<Array<{ name: string; file: File }>> {
+  const iter = dir as DirIter;
+  const out: Array<{ name: string; file: File }> = [];
+  if (typeof iter.entries !== "function") return out;
+  for await (const [name, handle] of iter.entries()) {
+    if (handle.kind !== "file") continue;
+    const lower = name.toLowerCase();
+    if (
+      !(
+        lower.endsWith(".papel") ||
+        lower.endsWith(".quire") ||
+        lower.endsWith(".txt") ||
+        lower.endsWith(".py") ||
+        lower.endsWith(".js") ||
+        lower.endsWith(".json") ||
+        lower.endsWith(".xml")
+      )
+    ) {
+      continue;
+    }
+    out.push({ name, file: await (handle as FileSystemFileHandle).getFile() });
+  }
+  return out;
+}
+
+/** Build a safe `Title.ext` that does not collide with `used` (lowercase keys). */
 export function uniqueFileName(title: string, ext: string, used: Set<string>): string {
   const base = title.replace(/[\\/:*?"<>|]+/g, " ").trim() || "Untitled";
   const stripped = base.replace(/\.[^.]+$/, "");
