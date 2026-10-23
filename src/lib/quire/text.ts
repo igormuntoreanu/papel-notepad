@@ -27,6 +27,13 @@ export const SKINS = [
     pattern: "blank",
     blurb: "Bare white sheet, a hairline, nothing else.",
   },
+  {
+    id: "blueprint",
+    name: "Blueprint",
+    edge: "clean",
+    pattern: "grid",
+    blurb: "Night drafting paper. Chalk on deep blue.",
+  },
 ] as const;
 
 export type SkinId = (typeof SKINS)[number]["id"];

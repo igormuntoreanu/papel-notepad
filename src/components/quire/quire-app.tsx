@@ -743,7 +743,7 @@ export function QuireApp() {
   const unsaved = order.filter((id) => sessions.get(id)?.is_dirty()).length;
   const hint =
     trimmed && trimmed.length < MIN_QUERY && !committed
-      ? `Type ${MIN_QUERY}+ letters or press Go`
+      ? `Type ${MIN_QUERY}+ letters, or Enter`
       : hits
         ? `${visible.length} ${visible.length === 1 ? "match" : "matches"}`
         : "";

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, FilePlus, FolderOpen, LayoutGrid, Search, Settings2, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, ChevronUp, FilePlus, FolderOpen, LayoutGrid, ListFilter, Search, Settings2 } from "lucide-react";
 import { useState, type RefObject } from "react";
 import { tornClip } from "@/lib/quire/torn";
 import { SKINS, type SkinId } from "@/lib/quire/text";
@@ -64,9 +64,18 @@ export function HeaderStrip({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [fieldsOpen, setFieldsOpen] = useState(false);
+  const filterOn = Boolean(lang) || sort !== "manual";
+  const filterLabel = filterOn
+    ? [lang || null, sort === "recent" ? "Recent" : sort === "title" ? "Title" : null].filter(Boolean).join(" · ") || "Filters"
+    : "Filters";
 
   return (
-    <header className="strip" data-collapsed={collapsed ? "on" : "off"} data-fields={fieldsOpen ? "open" : "closed"}>
+    <header
+      className="strip"
+      data-collapsed={collapsed ? "on" : "off"}
+      data-fields={fieldsOpen ? "open" : "closed"}
+      data-view={view}
+    >
       <div className="strip-paper">
         <div className="strip-bg" style={{ clipPath: HEADER_CLIP }} aria-hidden="true" />
         <div className="strip-top">
@@ -195,33 +204,50 @@ export function HeaderStrip({
               <Search aria-hidden="true" />
             </span>
           </label>
-          <label className="field">
-            <span>Language</span>
-            <span className="field-box">
-              <select value={lang} onChange={(e) => setLang(e.target.value)}>
-                <option value="">Any</option>
-                {langs.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-              <SlidersHorizontal aria-hidden="true" />
-            </span>
-          </label>
-          <label className="field">
-            <span>Sort</span>
-            <span className="field-box">
-              <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)}>
-                <option value="manual">My order</option>
-                <option value="recent">Last edited</option>
-                <option value="title">Title</option>
-              </select>
-              <SlidersHorizontal aria-hidden="true" />
-            </span>
-          </label>
+          <DropMenu
+            className={filterOn ? "filter-chip is-on" : "filter-chip"}
+            ariaLabel="Language and sort filters"
+            title={filterLabel}
+            label={
+              <>
+                <ListFilter aria-hidden="true" />
+                <span>{filterLabel}</span>
+              </>
+            }
+            items={
+              <div
+                className="filter-menu"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <label className="field">
+                  <span>Language</span>
+                  <span className="field-box">
+                    <select value={lang} onChange={(e) => setLang(e.target.value)}>
+                      <option value="">Any</option>
+                      {langs.map((l) => (
+                        <option key={l} value={l}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </label>
+                <label className="field">
+                  <span>Sort</span>
+                  <span className="field-box">
+                    <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)}>
+                      <option value="manual">My order</option>
+                      <option value="recent">Last edited</option>
+                      <option value="title">Title</option>
+                    </select>
+                  </span>
+                </label>
+              </div>
+            }
+          />
           <div className="go-wrap">
-            <button type="submit" className="btn go">
+            <button type="submit" className="btn go" title="Search short words (Enter)">
               Go
             </button>
             <span className="go-hint" aria-live="polite">
