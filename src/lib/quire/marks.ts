@@ -1,17 +1,17 @@
 export const INKS = [
   { id: 0, name: "Black", color: "var(--ink)" },
   { id: 1, name: "Wax red", color: "#9c3b2e" },
-  { id: 2, name: "Blue", color: "#2a5f9e" },
-  { id: 3, name: "Green", color: "#3f6b3a" },
-  { id: 4, name: "Pencil", color: "#77716a" },
+  { id: 2, name: "Blue", color: "#1e4f8c" },
+  { id: 3, name: "Green", color: "#2f5a2c" },
+  { id: 4, name: "Pencil", color: "#5a544c" },
 ] as const;
 
 export const HIGHLIGHTERS = [
   { id: 0, name: "None", color: "transparent" },
-  { id: 1, name: "Yellow", color: "#f3dd62" },
-  { id: 2, name: "Pink", color: "#f2a3b6" },
-  { id: 3, name: "Green", color: "#b5df95" },
-  { id: 4, name: "Blue", color: "#a9cdf0" },
+  { id: 1, name: "Yellow", color: "#f0d44a" },
+  { id: 2, name: "Pink", color: "#ef8fa8" },
+  { id: 3, name: "Green", color: "#9ed47a" },
+  { id: 4, name: "Blue", color: "#8ebef0" },
 ] as const;
 
 export const FLAG = { bold: 1, italic: 2, underline: 4, strike: 8 } as const;

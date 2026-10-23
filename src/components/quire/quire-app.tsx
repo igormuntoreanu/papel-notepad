@@ -4,15 +4,24 @@ import { toggleBullets } from "@/lib/quire/blocks";
 import { MIN_QUERY, searchNotes } from "@/lib/quire/fuzzy";
 import { FLAG, rangeHas, readMarks, type FlagName } from "@/lib/quire/marks";
 import { savePersisted, type Prefs, type SortMode } from "@/lib/quire/persist";
-import { ARCHIVE_EXT, archiveFileName, formatLastBackup, mergeArchive, parseArchive } from "@/lib/quire/backup";
+import { ARCHIVE_EXT, archiveFileName, formatLastBackup, mergeArchive, parseArchive, zipBackupFileName } from "@/lib/quire/backup";
+import {
+  canPickFolder,
+  clearFolderHandle,
+  loadFolderHandle,
+  pickSyncFolder,
+  uniqueFileName,
+  verifyFolderPermission,
+  writeFolderFile,
+} from "@/lib/quire/folder-sync";
 import { defaultSaveExt, extFromFilename, isRich as richFlags, saveExtensions } from "@/lib/quire/save-type";
 import { installTextures } from "@/lib/quire/textures";
 import { canOpenFile, download, FILE_ACCEPT, fileStamp, langFromFilename, langLabel, mimeForExtension, safeName, SKINS, type SkinId } from "@/lib/quire/text";
+import { buildZip } from "@/lib/quire/zip";
 import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
 import type { CellTarget } from "./table-block";
-import { StatusBar } from "./status-bar";
 import {
   blankNote,
   buildArchive,
@@ -55,6 +64,7 @@ export function QuireApp() {
   const [autocorrect, setAutocorrect] = useState(true);
   const [sort, setSort] = useState<SortMode>("manual");
   const [lastBackup, setLastBackup] = useState<string | null>(null);
+  const [folderName, setFolderName] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const [sel, setSel] = useState<Sel>({ blockId: 0, start: 0, end: 0 });
   const [findOpen, setFindOpen] = useState(false);
@@ -79,6 +89,7 @@ export function QuireApp() {
   const imageRef = useRef<HTMLInputElement>(null);
   const findRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<FileSystemDirectoryHandle | null>(null);
   const notesRef = useRef(notes);
   const orderRef = useRef(order);
   const activeRef = useRef(activeId);
@@ -108,7 +119,18 @@ export function QuireApp() {
         setAutocorrect(data.prefs.autocorrect);
         setSort(data.prefs.sort);
         setLastBackup(data.prefs.lastBackup ?? null);
+        setFolderName(data.prefs.folderName ?? null);
         setReady(true);
+        void loadFolderHandle().then(async (handle) => {
+          if (cancel || !handle) return;
+          if (await verifyFolderPermission(handle, false)) {
+            folderRef.current = handle;
+            setFolderName(handle.name);
+          } else {
+            folderRef.current = handle;
+            setMessage("Click Settings → Change folder to reconnect folder sync.");
+          }
+        });
       })
       .catch((err: unknown) => {
         if (!cancel) setFailed(err instanceof Error ? err.message : "The editor core failed to start.");
@@ -121,13 +143,48 @@ export function QuireApp() {
   useEffect(() => {
     if (!ready) return;
     const handle = window.setTimeout(() => {
-      const prefs: Prefs = { skin, zoom, autocorrect, sort, lastBackup: lastBackup ?? undefined };
+      const prefs: Prefs = {
+        skin,
+        zoom,
+        autocorrect,
+        sort,
+        lastBackup: lastBackup ?? undefined,
+        folderName: folderName ?? undefined,
+      };
       void savePersisted(snapshot(notes, order, activeId), prefs).catch(() => {
         setMessage("Could not autosave this sheet.");
       });
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, lastBackup, tick]);
+  }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, lastBackup, folderName, tick]);
+
+  useEffect(() => {
+    if (!ready || !folderRef.current || !folderName) return;
+    const dir = folderRef.current;
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        if (!(await verifyFolderPermission(dir, false))) return;
+        const used = new Set<string>();
+        for (const id of orderRef.current) {
+          const meta = notesRef.current.find((n) => n.id === id);
+          const s = sessions.get(id);
+          if (!meta || !s) continue;
+          const rich = sessionRich(s);
+          const language = s.language() === "auto" ? s.effective_language(s.first_text_id()) : s.language();
+          const ext = defaultSaveExt({ rich, language, sourceExt: meta.sourceExt });
+          const name = uniqueFileName(meta.title, ext, used);
+          try {
+            if (ext === "papel") await writeFolderFile(dir, name, toPapel(s));
+            else await writeFolderFile(dir, name, s.export_bytes());
+          } catch {
+            setMessage("Could not write to the sync folder.");
+            return;
+          }
+        }
+      })();
+    }, 900);
+    return () => window.clearTimeout(handle);
+  }, [ready, folderName, notes, order, tick]);
 
   useEffect(() => {
     const onLeave = (e: BeforeUnloadEvent) => {
@@ -492,15 +549,8 @@ export function QuireApp() {
   }
 
   function runFormat() {
-    if (!session) return;
-    const msg = session.format_all();
-    const ok = msg.startsWith("ok:");
-    const text = msg.slice(ok ? 3 : 4);
-    setMessage(text);
-    if (ok && text !== "Already formatted.") {
-      touch(activeId);
-      bump();
-    }
+    // Pretty-printer parked: keep the hook so re-enabling the toolbar is one line.
+    setMessage("Autoformat is turned off for now.");
   }
 
   function doUndo(redo: boolean) {
@@ -743,7 +793,7 @@ export function QuireApp() {
   const unsaved = order.filter((id) => sessions.get(id)?.is_dirty()).length;
   const hint =
     trimmed && trimmed.length < MIN_QUERY && !committed
-      ? `Type ${MIN_QUERY}+ letters or press Go`
+      ? `Type ${MIN_QUERY}+ letters, or Enter`
       : hits
         ? `${visible.length} ${visible.length === 1 ? "match" : "matches"}`
         : "";
@@ -912,7 +962,46 @@ export function QuireApp() {
           setLastBackup(iso);
           setMessage(`Exported ${archive.notes.length} sheets`);
         }}
+        onExportZip={() => {
+          const archive = buildArchive(notesRef.current, orderRef.current);
+          const json = JSON.stringify(archive);
+          const bytes = buildZip([
+            { name: archiveFileName(), data: new TextEncoder().encode(json) },
+          ]);
+          download(zipBackupFileName(), bytes, "application/zip");
+          setLastBackup(archive.exportedAt);
+          setMessage(`Exported zip with ${archive.notes.length} sheets`);
+        }}
         onImportBackup={() => backupRef.current?.click()}
+        folderSupported={canPickFolder()}
+        folderName={folderName}
+        onPickFolder={() => {
+          void pickSyncFolder()
+            .then((handle) => {
+              if (!handle) return;
+              folderRef.current = handle;
+              setFolderName(handle.name);
+              setMessage(`Syncing sheets to ${handle.name}`);
+              setTick((n) => n + 1);
+            })
+            .catch(() => showAlert("Could not open that folder."));
+        }}
+        onClearFolder={() => {
+          folderRef.current = null;
+          setFolderName(null);
+          void clearFolderHandle();
+          setMessage("Folder sync stopped");
+        }}
+        session={session}
+        metrics={metrics}
+        langText={langText}
+        zoom={zoom}
+        message={message}
+        total={order.length}
+        unsaved={unsaved}
+        shown={visible.length}
+        onChanged={() => bump()}
+        onMessage={setMessage}
       />
 
       <main className="desk-body">
@@ -988,20 +1077,6 @@ export function QuireApp() {
           </div>
         )}
       </main>
-
-      <StatusBar
-        view={view}
-        session={session}
-        metrics={metrics}
-        langText={langText}
-        zoom={zoom}
-        message={message}
-        total={order.length}
-        unsaved={unsaved}
-        shown={visible.length}
-        onChanged={() => bump()}
-        onMessage={setMessage}
-      />
 
       <input
         ref={fileRef}

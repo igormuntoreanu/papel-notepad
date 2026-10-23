@@ -1,11 +1,28 @@
-import { ChevronDown, ChevronUp, FilePlus, FolderOpen, LayoutGrid, Search, Settings2, SlidersHorizontal } from "lucide-react";
+import {
+  ChevronDown,
+  FilePlus,
+  FolderOpen,
+  FolderSync,
+  LayoutGrid,
+  ListFilter,
+  Search,
+  Settings2,
+} from "lucide-react";
 import { useState, type RefObject } from "react";
+import type { Session } from "@/lib/quire/engine";
 import { tornClip } from "@/lib/quire/torn";
-import { SKINS, type SkinId } from "@/lib/quire/text";
+import { LANGUAGES, SKINS, type SkinId } from "@/lib/quire/text";
 import type { SortMode } from "@/lib/quire/persist";
 import { DropMenu } from "./drop-menu";
 
-const HEADER_CLIP = tornClip("papel-header", 7, { bottom: true }, 48);
+const HEADER_CLIP = tornClip("papel-header", 5, { bottom: true }, 40);
+
+const ENCODINGS = [
+  ["utf-8", "UTF-8"],
+  ["utf-8-bom", "UTF-8 BOM"],
+  ["utf-16le", "UTF-16 LE"],
+  ["windows-1252", "Windows-1252"],
+] as const;
 
 export type SwitchItem = { id: string; title: string; dirty: boolean };
 
@@ -34,7 +51,22 @@ export function HeaderStrip({
   setAutocorrect,
   lastBackup,
   onExportAll,
+  onExportZip,
   onImportBackup,
+  folderSupported,
+  folderName,
+  onPickFolder,
+  onClearFolder,
+  session,
+  metrics,
+  langText,
+  zoom,
+  message,
+  total,
+  unsaved,
+  shown,
+  onChanged,
+  onMessage,
 }: {
   view: "board" | "focus";
   current: string;
@@ -60,13 +92,31 @@ export function HeaderStrip({
   setAutocorrect: (v: boolean) => void;
   lastBackup: string | null;
   onExportAll: () => void;
+  onExportZip: () => void;
   onImportBackup: () => void;
+  folderSupported: boolean;
+  folderName: string | null;
+  onPickFolder: () => void;
+  onClearFolder: () => void;
+  session: Session | null;
+  metrics: ArrayLike<number>;
+  langText: string;
+  zoom: number;
+  message: string;
+  total: number;
+  unsaved: number;
+  shown: number;
+  onChanged: () => void;
+  onMessage: (m: string) => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
   const [fieldsOpen, setFieldsOpen] = useState(false);
+  const filterOn = Boolean(lang) || sort !== "manual";
+  const filterLabel = filterOn
+    ? [lang || null, sort === "recent" ? "Recent" : sort === "title" ? "Title" : null].filter(Boolean).join(" · ") || "Filters"
+    : "Filters";
 
   return (
-    <header className="strip" data-collapsed={collapsed ? "on" : "off"} data-fields={fieldsOpen ? "open" : "closed"}>
+    <header className="strip" data-fields={fieldsOpen ? "open" : "closed"} data-view={view}>
       <div className="strip-paper">
         <div className="strip-bg" style={{ clipPath: HEADER_CLIP }} aria-hidden="true" />
         <div className="strip-top">
@@ -155,9 +205,33 @@ export function HeaderStrip({
                   Autocorrect English typos
                 </button>
                 <div className="menu-sep" role="separator" />
-                <p className="menu-heading">Backup</p>
+                <p className="menu-heading">Folder & backup</p>
+                {folderSupported ? (
+                  folderName ? (
+                    <>
+                      <p className="menu-note">
+                        <FolderSync aria-hidden="true" className="menu-inline-icon" /> Syncing to {folderName}
+                      </p>
+                      <button type="button" className="menu-item" onClick={onPickFolder}>
+                        Change folder…
+                      </button>
+                      <button type="button" className="menu-item" onClick={onClearFolder}>
+                        Stop folder sync
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className="menu-item" onClick={onPickFolder}>
+                      Save to a folder…
+                    </button>
+                  )
+                ) : (
+                  <p className="menu-note">Folder sync needs Chrome or Edge. Use Export zip on this browser.</p>
+                )}
+                <button type="button" className="menu-item" onClick={onExportZip}>
+                  Export zip…
+                </button>
                 <button type="button" className="menu-item" onClick={onExportAll}>
-                  Export all…
+                  Export archive…
                 </button>
                 <button type="button" className="menu-item" onClick={onImportBackup}>
                   Import backup…
@@ -195,33 +269,50 @@ export function HeaderStrip({
               <Search aria-hidden="true" />
             </span>
           </label>
-          <label className="field">
-            <span>Language</span>
-            <span className="field-box">
-              <select value={lang} onChange={(e) => setLang(e.target.value)}>
-                <option value="">Any</option>
-                {langs.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-              <SlidersHorizontal aria-hidden="true" />
-            </span>
-          </label>
-          <label className="field">
-            <span>Sort</span>
-            <span className="field-box">
-              <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)}>
-                <option value="manual">My order</option>
-                <option value="recent">Last edited</option>
-                <option value="title">Title</option>
-              </select>
-              <SlidersHorizontal aria-hidden="true" />
-            </span>
-          </label>
+          <DropMenu
+            className={filterOn ? "filter-chip is-on" : "filter-chip"}
+            ariaLabel="Language and sort filters"
+            title={filterLabel}
+            label={
+              <>
+                <ListFilter aria-hidden="true" />
+                <span>{filterLabel}</span>
+              </>
+            }
+            items={
+              <div
+                className="filter-menu"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <label className="field">
+                  <span>Language</span>
+                  <span className="field-box">
+                    <select value={lang} onChange={(e) => setLang(e.target.value)}>
+                      <option value="">Any</option>
+                      {langs.map((l) => (
+                        <option key={l} value={l}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </label>
+                <label className="field">
+                  <span>Sort</span>
+                  <span className="field-box">
+                    <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)}>
+                      <option value="manual">My order</option>
+                      <option value="recent">Last edited</option>
+                      <option value="title">Title</option>
+                    </select>
+                  </span>
+                </label>
+              </div>
+            }
+          />
           <div className="go-wrap">
-            <button type="submit" className="btn go">
+            <button type="submit" className="btn go" title="Search short words (Enter)">
               Go
             </button>
             <span className="go-hint" aria-live="polite">
@@ -229,16 +320,96 @@ export function HeaderStrip({
             </span>
           </div>
         </form>
+
+        <div className="strip-status" aria-live="polite">
+          {view === "focus" && session ? (
+            <>
+              <span>
+                Ln {metrics[0]}, Col {metrics[1]}
+              </span>
+              <span>{metrics[3]} chars</span>
+              <DropMenu
+                label={langText}
+                align="end"
+                items={LANGUAGES.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={item.id === session.language() ? "menu-item is-on" : "menu-item"}
+                    onClick={() => {
+                      session.set_language(item.id);
+                      onChanged();
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              />
+              <DropMenu
+                label={session.encoding_label()}
+                align="end"
+                items={ENCODINGS.map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className="menu-item"
+                    onClick={() => {
+                      const result = session.set_encoding(id);
+                      onMessage(result.startsWith("err:") ? result.slice(4) : label);
+                      onChanged();
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              />
+              <DropMenu
+                label={session.eol_label()}
+                align="end"
+                items={
+                  <>
+                    <button
+                      type="button"
+                      className="menu-item"
+                      onClick={() => {
+                        session.set_eol("lf");
+                        onChanged();
+                      }}
+                    >
+                      Unix (LF)
+                    </button>
+                    <button
+                      type="button"
+                      className="menu-item"
+                      onClick={() => {
+                        session.set_eol("crlf");
+                        onChanged();
+                      }}
+                    >
+                      Windows (CRLF)
+                    </button>
+                  </>
+                }
+              />
+              <span>{Math.round((zoom / 16) * 100)}%</span>
+            </>
+          ) : (
+            <>
+              <span>
+                {total} {total === 1 ? "sheet" : "sheets"}
+              </span>
+              {shown !== total && <span>{shown} shown</span>}
+              <span>{unsaved ? `${unsaved} not saved to a file` : "No unsaved changes"}</span>
+              <span>{folderName ? `Folder: ${folderName}` : "Autosaved on this device"}</span>
+            </>
+          )}
+          {message && (
+            <span className="status-msg" role="status">
+              {message}
+            </span>
+          )}
+        </div>
       </div>
-      <button
-        type="button"
-        className="strip-fold"
-        aria-label={collapsed ? "Show filters" : "Hide filters"}
-        aria-expanded={!collapsed}
-        onClick={() => setCollapsed((v) => !v)}
-      >
-        {collapsed ? <ChevronDown /> : <ChevronUp />}
-      </button>
     </header>
   );
 }

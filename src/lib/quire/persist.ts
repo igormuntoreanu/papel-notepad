@@ -34,6 +34,8 @@ export type Prefs = {
   sort: SortMode;
   /** ISO date of the last full-board backup export. */
   lastBackup?: string;
+  /** Display name of the linked sync folder (Chrome/Edge). */
+  folderName?: string;
 };
 
 const DB = "papel";

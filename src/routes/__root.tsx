@@ -24,7 +24,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      { name: "theme-color", content: "#B5844F" },
+      { name: "theme-color", content: "#C9A06A" },
       {
         name: "description",
         content: "A paper notepad: torn-paper cards on a kraft desk, fuzzy search, styled text, and a Rust editor core.",
