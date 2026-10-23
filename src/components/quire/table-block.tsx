@@ -1,12 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Session } from "@/lib/quire/engine";
-import { HIGHLIGHTERS } from "@/lib/quire/marks";
+import { HIGHLIGHTERS, paint, readMarks } from "@/lib/quire/marks";
 
-type CellData = { t: string; f: number };
+type CellData = { t: string; f: number; m?: number[] };
 type TableData = { cols: number; cells: CellData[] };
 type Menu = { row: number; col: number; x: number; y: number; sheet: boolean };
 type Scope = "cell" | "row" | "col" | "table";
+
+/** The caret a cell is holding, so the sheet toolbar styles the cell, not the page. */
+export type CellTarget = { tableId: number; row: number; col: number; start: number; end: number };
 
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "cell", label: "Cell" },
@@ -29,11 +32,13 @@ export function TableBlock({
   session,
   version,
   onEdited,
+  onSelect,
 }: {
   blockId: number;
   session: Session;
   version: number;
   onEdited: () => void;
+  onSelect: (target: CellTarget) => void;
 }) {
   const table = useMemo<TableData>(() => {
     try {
@@ -52,16 +57,24 @@ export function TableBlock({
   const [scope, setScope] = useState<Scope>("cell");
   const [active, setActive] = useState<{ row: number; col: number } | null>(null);
 
-  // The core is the source of truth; push it back into inputs that are not
-  // being typed into (undo, row/column edits, reloads).
+  // The core is the source of truth; push it back into cells that are not being
+  // typed into (undo, structural edits, styling) and repaint their overlays.
   useLayoutEffect(() => {
-    const inputs = rootRef.current?.querySelectorAll("input");
-    if (!inputs) return;
-    inputs.forEach((input, index) => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.querySelectorAll<HTMLTextAreaElement>("textarea.cell-input").forEach((ta, index) => {
       const cell = table.cells[index];
-      if (cell && document.activeElement !== input && input.value !== cell.t) input.value = cell.t;
+      if (!cell) return;
+      if (document.activeElement !== ta && ta.value !== cell.t) ta.value = cell.t;
+      paintCell(ta, cell.m);
     });
   }, [table]);
+
+  function paintCell(ta: HTMLTextAreaElement, marks: number[] | undefined) {
+    const pre = ta.previousElementSibling as HTMLElement | null;
+    if (!pre) return;
+    pre.innerHTML = paint(ta.value, [], readMarks(marks ?? []));
+  }
 
   const flush = () => {
     if (pending.current === null) return;
@@ -123,16 +136,43 @@ export function TableBlock({
                         setMenu({ row, col, x: event.clientX, y: event.clientY, sheet: false });
                       }}
                     >
-                      <input
-                        aria-label={`Row ${row + 1}, column ${col + 1}`}
-                        defaultValue={cell.t}
-                        spellCheck={false}
-                        onFocus={() => setActive({ row, col })}
-                        onChange={(event) => {
-                          session.table_set_text(blockId, row, col, event.currentTarget.value);
-                          nudge();
-                        }}
-                      />
+                      <div className="cell">
+                        <pre className="hl" aria-hidden="true" />
+                        <textarea
+                          rows={1}
+                          wrap="off"
+                          className="cell-input"
+                          aria-label={`Row ${row + 1}, column ${col + 1}`}
+                          defaultValue={cell.t}
+                          spellCheck={false}
+                          onFocus={(event) => {
+                            setActive({ row, col });
+                            onSelect({
+                              tableId: blockId,
+                              row,
+                              col,
+                              start: event.currentTarget.selectionStart ?? 0,
+                              end: event.currentTarget.selectionEnd ?? 0,
+                            });
+                          }}
+                          onSelect={(event) => {
+                            const ta = event.currentTarget;
+                            onSelect({
+                              tableId: blockId,
+                              row,
+                              col,
+                              start: ta.selectionStart ?? 0,
+                              end: ta.selectionEnd ?? 0,
+                            });
+                          }}
+                          onChange={(event) => {
+                            const ta = event.currentTarget;
+                            session.table_set_text(blockId, row, col, ta.value);
+                            paintCell(ta, cell.m);
+                            nudge();
+                          }}
+                        />
+                      </div>
                     </td>
                   );
                 })}

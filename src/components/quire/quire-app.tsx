@@ -9,6 +9,7 @@ import { canOpenFile, download, FILE_ACCEPT, fileStamp, langFromFilename, langLa
 import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
+import type { CellTarget } from "./table-block";
 import { StatusBar } from "./status-bar";
 import {
   blankNote,
@@ -51,6 +52,7 @@ export function QuireApp() {
   const [message, setMessage] = useState("");
   const [ask, setAsk] = useState<Ask | null>(null);
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
+  const [cellTarget, setCellTarget] = useState<CellTarget | null>(null);
   const [query, setQuery] = useState("");
   const [committed, setCommitted] = useState("");
   const [langFilter, setLangFilter] = useState("");
@@ -463,8 +465,22 @@ export function QuireApp() {
   }
 
   function applyStyle(kind: string, value: number) {
+    if (!session) return;
+    // A focused table cell takes the style, not the page text behind it.
+    if (cellTarget) {
+      const { tableId, row, col, start, end } = cellTarget;
+      if (end <= start) {
+        setMessage("Select some text first.");
+        return;
+      }
+      if (session.table_style(tableId, row, col, start, end, kind, value)) {
+        touch(activeId);
+        bump();
+      }
+      return;
+    }
     const { blockId, start, end } = selRef.current;
-    if (!session || end <= start) {
+    if (end <= start) {
       setMessage("Select some text first.");
       return;
     }
@@ -474,6 +490,12 @@ export function QuireApp() {
 
   function toggleFlag(flag: FlagName) {
     if (!session) return;
+    if (cellTarget) {
+      const runs = readMarks(session.table_marks(cellTarget.tableId, cellTarget.row, cellTarget.col));
+      const on = rangeHas(runs, cellTarget.start, cellTarget.end, FLAG[flag]);
+      applyStyle(flag, on ? 0 : 1);
+      return;
+    }
     const { blockId, start, end } = selRef.current;
     const on = rangeHas(readMarks(session.marks(blockId)), start, end, FLAG[flag]);
     applyStyle(flag, on ? 0 : 1);
@@ -623,15 +645,22 @@ export function QuireApp() {
   const langSetting = session?.language() ?? "auto";
   const effective = session ? session.effective_language(blockId) : "plain";
   const langText = langSetting === "auto" ? `Auto · ${langLabel(effective)}` : langLabel(langSetting);
-  const marksNow = session && sel.end > sel.start ? readMarks(session.marks(blockId)) : [];
-  const at = marksNow.find((m) => m.start <= sel.start && m.end > sel.start);
+  const rest = cellTarget
+    ? { start: cellTarget.start, end: cellTarget.end }
+    : { start: sel.start, end: sel.end };
+  const marksNow = cellTarget && session
+    ? readMarks(session.table_marks(cellTarget.tableId, cellTarget.row, cellTarget.col))
+    : session && sel.end > sel.start
+      ? readMarks(session.marks(blockId))
+      : [];
+  const at = marksNow.find((m) => m.start <= rest.start && m.end > rest.start);
   const styles: StyleState = {
-    hasSelection: sel.end > sel.start,
+    hasSelection: rest.end > rest.start,
     active: {
-      bold: rangeHas(marksNow, sel.start, sel.end, FLAG.bold),
-      italic: rangeHas(marksNow, sel.start, sel.end, FLAG.italic),
-      underline: rangeHas(marksNow, sel.start, sel.end, FLAG.underline),
-      strike: rangeHas(marksNow, sel.start, sel.end, FLAG.strike),
+      bold: rangeHas(marksNow, rest.start, rest.end, FLAG.bold),
+      italic: rangeHas(marksNow, rest.start, rest.end, FLAG.italic),
+      underline: rangeHas(marksNow, rest.start, rest.end, FLAG.underline),
+      strike: rangeHas(marksNow, rest.start, rest.end, FLAG.strike),
     },
     ink: at?.ink ?? 0,
     hl: at?.hl ?? 0,
@@ -808,6 +837,7 @@ export function QuireApp() {
                   )
                 }
                 onEdited={edited}
+                onCellSelect={setCellTarget}
                 onImage={(file) => void insertImageFile(file)}
                 styles={styles}
                 find={find}
