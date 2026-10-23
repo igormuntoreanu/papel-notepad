@@ -305,7 +305,8 @@ export function Sheet({
               <Keep label="Redo" title="Redo (Ctrl+Y)" disabled={!session.can_redo()} onPress={actions.redo}>
                 <Redo2 />
               </Keep>
-              <Keep label="Autoformat code" onPress={actions.format}>
+              {/* Autoformat is parked for now — re-enable with actions.format when ready. */}
+              <Keep label="Autoformat code (coming back soon)" disabled onPress={() => {}}>
                 <Braces />
               </Keep>
               <Keep label="Find, replace, go to line" title="Find (Ctrl+F)" pressed={find.open} onPress={actions.find}>

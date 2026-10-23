@@ -492,15 +492,8 @@ export function QuireApp() {
   }
 
   function runFormat() {
-    if (!session) return;
-    const msg = session.format_all();
-    const ok = msg.startsWith("ok:");
-    const text = msg.slice(ok ? 3 : 4);
-    setMessage(text);
-    if (ok && text !== "Already formatted.") {
-      touch(activeId);
-      bump();
-    }
+    // Pretty-printer parked: keep the hook so re-enabling the toolbar is one line.
+    setMessage("Autoformat is turned off for now.");
   }
 
   function doUndo(redo: boolean) {

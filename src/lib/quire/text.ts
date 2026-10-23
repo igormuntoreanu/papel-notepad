@@ -11,7 +11,7 @@ export const SKINS = [
     name: "Ink",
     edge: "clean",
     pattern: "blank",
-    blurb: "A flat sheet. Nothing but the words.",
+    blurb: "Cream desk and sheet. Nothing but the words.",
   },
   {
     id: "carbon",

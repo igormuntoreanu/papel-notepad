@@ -92,6 +92,21 @@
   --syn-com: #6a645c;
   --syn-type: #1e4f8c;
   --selection: rgb(156 59 46 / 0.14);
+  /* Full environment, same idea as Sulphite — not kraft under a cream sheet. */
+  --kraft: #ebe6dc;
+  --kraft-light: #f3efe6;
+  --kraft-dark: #4a4338;
+  --field: #f8f5ef;
+  --status-paper: #eeeae2;
+  --ink-soft: #3a342c;
+  --muted: #5c554a;
+  --shadow: rgb(40 32 20 / 0.16);
+  --shadow-soft: rgb(40 32 20 / 0.08);
+  --fibers: none;
+  --noise: none;
+  --mottle: none;
+  --grain: none;
+  background: var(--kraft);
 }
 
 .desk[data-skin="carbon"] {
@@ -177,6 +192,7 @@
     linear-gradient(180deg, #14304c, #0c1e32);
 }
 
+.desk[data-skin="ink"] .strip,
 .desk[data-skin="sulphite"] .strip,
 .desk[data-skin="carbon"] .strip,
 .desk[data-skin="blueprint"] .strip {
@@ -184,6 +200,8 @@
 }
 
 /* Flat header/footer edges for skins that aren't kraft-torn. */
+.desk[data-skin="ink"] .strip-bg,
+.desk[data-skin="ink"] .status-bg,
 .desk[data-skin="sulphite"] .strip-bg,
 .desk[data-skin="sulphite"] .status-bg,
 .desk[data-skin="carbon"] .strip-bg,
@@ -191,6 +209,21 @@
 .desk[data-skin="blueprint"] .strip-bg,
 .desk[data-skin="blueprint"] .status-bg {
   display: none;
+}
+
+.desk[data-skin="ink"] .strip-paper {
+  background: #eeeae2;
+  border-bottom: 1px solid rgb(40 32 20 / 0.1);
+}
+
+.desk[data-skin="ink"] .status {
+  background: var(--status-paper);
+  border-top: 1px solid rgb(40 32 20 / 0.1);
+}
+
+.desk[data-skin="ink"] .sheet-frame,
+.desk[data-skin="ink"] .card-bg {
+  border: 1px solid rgb(40 32 20 / 0.1);
 }
 
 .desk[data-skin="sulphite"] .strip-paper {
@@ -1522,32 +1555,41 @@
 }
 
 /* A cell is a textarea behind a styled overlay, the same trick as the page
-   editor: native caret and selection, coloured text from the <pre> behind. */
+   editor: native caret and selection, coloured text from the <pre> behind.
+   Specifiers must beat `.block textarea` / `.block pre` or the caret drifts
+   left of the glyphs (one character “behind” at the end of a cell). */
 .cell {
   position: relative;
   min-height: calc(var(--editor-size) * var(--editor-leading) + 8px);
 }
 
-.cell .hl,
-.cell-input {
+.block .cell .hl,
+.block .cell .cell-input {
+  box-sizing: border-box;
   margin: 0;
   padding: 4px 8px;
   border: 0;
   font-family: var(--font-mono);
   font-size: var(--editor-size);
+  font-weight: 400;
   line-height: var(--editor-leading);
+  letter-spacing: 0;
+  tab-size: 4;
   white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
-.cell .hl {
+.block .cell .hl {
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
   color: var(--ink);
+  background: transparent;
 }
 
-.cell-input {
+.block .cell .cell-input {
   position: relative;
   display: block;
   width: 100%;
@@ -1555,14 +1597,18 @@
   background: transparent;
   color: transparent;
   caret-color: var(--ink);
-  overflow-x: auto;
+  overflow: hidden;
   resize: none;
   outline: none;
 }
 
 .sheet-table td:focus-within {
-  outline: 2px solid var(--blue);
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+.desk[data-skin="blueprint"] .sheet-table td {
+  border-color: #ffffff;
 }
 
 .fill-1 {
