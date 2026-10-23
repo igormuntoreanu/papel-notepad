@@ -1704,6 +1704,23 @@
   gap: 8px;
 }
 
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 56px;
+  z-index: 40;
+  transform: translateX(-50%);
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border: 1px solid #7d2d22;
+  border-radius: 4px;
+  background: #fff8ee;
+  color: #5c1f18;
+  box-shadow: 0 8px 24px rgba(40, 24, 12, 0.18);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
 /* ---------- Phone ---------- */
 
 @media (max-width: 760px) {

@@ -1,8 +1,22 @@
+import {
+  ARCHIVE_FORMAT,
+  ARCHIVE_VERSION,
+  type ArchiveBlock,
+  type ArchiveNote,
+  type PapelArchive,
+} from "@/lib/quire/backup";
 import { bootEngine, createSession, type Session } from "@/lib/quire/engine";
 import { loadPersisted, type Persisted, type Prefs, type SortMode, type StoredBlock, type StoredNote } from "@/lib/quire/persist";
 import { base64ToBytes, bytesToBase64, copyBytes, langLabel, SKINS, type SkinId } from "@/lib/quire/text";
 
-export type NoteMeta = { id: string; title: string; wrap: boolean; edited: number };
+export type NoteMeta = {
+  id: string;
+  title: string;
+  wrap: boolean;
+  edited: number;
+  /** Extension the sheet was opened from (no dot), so Save can write it back. */
+  sourceExt?: string;
+};
 export type OutlineItem = { id: number; kind: string; mime: string };
 export type Place = { block_id: number; start: number; end: number };
 export type Loaded = { notes: NoteMeta[]; order: string[]; activeId: string | null; prefs: Prefs };
@@ -89,7 +103,14 @@ export async function ensureLoaded(): Promise<Loaded> {
           session.restore_end(stored.language, stored.eol, stored.encoding);
           for (const [blockId, marks] of pending) session.restore_marks(blockId, Uint32Array.from(marks));
           sessions.set(id, session);
-          notes.push({ id, title: stored.title, wrap: stored.wrap, edited: stored.edited ?? Date.now() });
+          notes.push({
+            id,
+            title: stored.title,
+            wrap: stored.wrap,
+            edited: stored.edited ?? Date.now(),
+            sourceExt: stored.sourceExt,
+          });
+          if (stored.dirty) session.mark_dirty();
           order.push(id);
         }
       }
@@ -103,6 +124,7 @@ export async function ensureLoaded(): Promise<Loaded> {
           zoom: prefs?.zoom && prefs.zoom >= 12 && prefs.zoom <= 28 ? prefs.zoom : 16,
           autocorrect: prefs?.autocorrect ?? true,
           sort: prefs?.sort && SORTS.includes(prefs.sort) ? prefs.sort : "manual",
+          lastBackup: typeof prefs?.lastBackup === "string" ? prefs.lastBackup : undefined,
         },
       };
       return loadedCache;
@@ -134,6 +156,8 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
           title: meta.title,
           wrap: meta.wrap,
           edited: meta.edited,
+          dirty: session.is_dirty(),
+          sourceExt: meta.sourceExt,
           language: session.language(),
           eol: session.eol(),
           encoding: session.encoding(),
@@ -240,6 +264,83 @@ export function cardInfo(id: string, stamp: string): CardInfo | null {
 
 export function forgetCard(id: string) {
   cardCache.delete(id);
+}
+
+function blocksToArchive(session: Session): ArchiveBlock[] {
+  return outlineOf(session).map((item) => {
+    if (item.kind === "image") {
+      return { kind: "image", mime: item.mime || "image/png", data: bytesToBase64(session.image_of(item.id)) };
+    }
+    if (item.kind === "table") {
+      const table = JSON.parse(session.table_json(item.id)) as { cols: number; cells: unknown[] };
+      return { kind: "table", cols: table.cols, cells: table.cells };
+    }
+    const marks = session.marks(item.id);
+    return marks.length
+      ? { kind: "text", text: session.text_of(item.id), marks: [...marks] }
+      : { kind: "text", text: session.text_of(item.id) };
+  });
+}
+
+/** Builds a full-board backup archive from the live sessions. */
+export function buildArchive(
+  notes: Array<{ id: string; title: string; wrap: boolean; edited: number; sourceExt?: string }>,
+  order: string[],
+): PapelArchive {
+  const exportedAt = new Date().toISOString();
+  const archived: ArchiveNote[] = [];
+  for (const id of order) {
+    const meta = notes.find((n) => n.id === id);
+    const session = sessions.get(id);
+    if (!meta || !session) continue;
+    archived.push({
+      id: meta.id,
+      title: meta.title,
+      wrap: meta.wrap,
+      edited: meta.edited,
+      dirty: session.is_dirty(),
+      sourceExt: meta.sourceExt,
+      language: session.language(),
+      eol: session.eol(),
+      encoding: session.encoding(),
+      blocks: blocksToArchive(session),
+    });
+  }
+  return {
+    format: ARCHIVE_FORMAT,
+    version: ARCHIVE_VERSION,
+    exportedAt,
+    order: archived.map((n) => n.id),
+    notes: archived,
+  };
+}
+
+/** Loads an archive note into a live session. */
+export function sessionFromArchiveNote(note: ArchiveNote): Session {
+  const session = createSession();
+  const papel = {
+    format: "papel",
+    version: 3,
+    language: note.language,
+    eol: note.eol,
+    encoding: note.encoding,
+    blocks: note.blocks.map((block) => {
+      if (block.kind === "image") return { type: "image", mime: block.mime, data: block.data };
+      if (block.kind === "table") return { type: "table", cols: block.cols, cells: block.cells };
+      return block.marks?.length
+        ? { type: "text", text: block.text, marks: block.marks }
+        : { type: "text", text: block.text };
+    }),
+  };
+  const ok = fromPapel(session, new TextEncoder().encode(JSON.stringify(papel)));
+  if (!ok) {
+    session.restore_begin();
+    session.restore_text("");
+    session.restore_end(note.language || "auto", note.eol || "lf", note.encoding || "utf-8");
+  }
+  if (note.dirty) session.mark_dirty();
+  else session.mark_clean();
+  return session;
 }
 
 export function relativeTime(at: number, now = Date.now()): string {
