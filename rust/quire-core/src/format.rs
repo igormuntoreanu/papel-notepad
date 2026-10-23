@@ -12,7 +12,7 @@ pub fn format_source(text: &str, lang: Lang) -> Result<String, String> {
         Lang::Xml => pretty_markup(text, false)?,
         Lang::Css | Lang::Js | Lang::Java | Lang::C | Lang::Cpp | Lang::Rust => pretty_braces(text, lang),
         Lang::Sql => pretty_sql(text),
-        Lang::Python => pretty_python(text),
+        Lang::Python => pretty_python(text)?,
         Lang::Abap => pretty_abap(text),
         Lang::Md => pretty_md(text),
     };
@@ -121,6 +121,10 @@ fn lex_code(src: &str, lang: Lang) -> Vec<Tok> {
                     }
                 }
             }
+            // Keep CSS units glued to the number so `1px` never becomes `1 px`.
+            if lang == Lang::Css {
+                j = extend_css_unit(b, j);
+            }
             toks.push(Tok::Word(src[i..j].to_string()));
             i = j;
             continue;
@@ -139,7 +143,7 @@ fn lex_code(src: &str, lang: Lang) -> Vec<Tok> {
         const TRI: &[&str] = &["<<=", ">>=", "..."];
         const DUO: &[&str] = &[
             "==", "!=", "<=", ">=", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "->",
-            "::", "<<", ">>", "&=", "|=", "^=", "?.", "??",
+            "=>", "::", "<<", ">>", "&=", "|=", "^=", "?.", "??",
         ];
         if TRI.iter().any(|t| *t == three) {
             toks.push(Tok::Punct(three.to_string()));
@@ -166,6 +170,31 @@ fn is_ident_start(c: u8) -> bool {
 }
 fn is_ident_cont(c: u8) -> bool {
     c.is_ascii_alphanumeric() || c == b'_'
+}
+
+/// Consumes a CSS length/time/angle unit (including `%`) after a number.
+fn extend_css_unit(b: &[u8], mut j: usize) -> usize {
+    if b.get(j) == Some(&b'%') {
+        return j + 1;
+    }
+    let start = j;
+    while j < b.len() && b[j].is_ascii_alphabetic() {
+        j += 1;
+    }
+    if start == j {
+        return j;
+    }
+    let unit = std::str::from_utf8(&b[start..j]).unwrap_or("");
+    const UNITS: &[&str] = &[
+        "px", "em", "rem", "vh", "vw", "vmin", "vmax", "ex", "ch", "s", "ms", "deg", "rad", "turn",
+        "fr", "pt", "pc", "in", "cm", "mm", "cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax", "lvh",
+        "lvw", "svh", "svw", "dvh", "dvw",
+    ];
+    if UNITS.iter().any(|u| unit.eq_ignore_ascii_case(u)) {
+        j
+    } else {
+        start
+    }
 }
 
 fn scan_string(b: &[u8], start: usize, quote: u8) -> usize {
@@ -251,6 +280,7 @@ fn pretty_braces(src: &str, lang: Lang) -> String {
     };
 
     let mut prev_word_kw = false;
+    let mut prev_value = false;
     let mut idx = 0;
     while idx < toks.len() {
         match &toks[idx] {
@@ -263,6 +293,7 @@ fn pretty_braces(src: &str, lang: Lang) -> String {
                 out.push_str(s);
                 newline(&mut out, indent, &mut at_indent);
                 prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Comment(s) => {
                 let line = s.starts_with("//") || s.starts_with('#') || s.starts_with("--");
@@ -280,6 +311,7 @@ fn pretty_braces(src: &str, lang: Lang) -> String {
                     at_indent = false;
                 }
                 prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Punct(p) if p == "{" => {
                 if !at_indent {
@@ -289,6 +321,7 @@ fn pretty_braces(src: &str, lang: Lang) -> String {
                 indent += 1;
                 newline(&mut out, indent, &mut at_indent);
                 prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Punct(p) if p == "}" => {
                 indent = (indent - 1).max(0);
@@ -318,21 +351,25 @@ fn pretty_braces(src: &str, lang: Lang) -> String {
                     newline(&mut out, indent, &mut at_indent);
                 }
                 prev_word_kw = false;
+                prev_value = true;
             }
             Tok::Punct(p) if p == ";" && paren == 0 && bracket == 0 => {
                 out.push(';');
                 newline(&mut out, indent, &mut at_indent);
                 prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Punct(p) if p == ";" => {
                 out.push(';');
                 at_indent = false;
                 prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Punct(p) if p == "," => {
                 out.push_str(", ");
                 at_indent = false;
                 prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Punct(p) if p == "(" => {
                 if prev_word_kw && !out.ends_with(' ') && !at_indent {
@@ -342,29 +379,34 @@ fn pretty_braces(src: &str, lang: Lang) -> String {
                 paren += 1;
                 at_indent = false;
                 prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Punct(p) if p == ")" => {
                 paren = (paren - 1).max(0);
                 out.push(')');
                 at_indent = false;
                 prev_word_kw = false;
+                prev_value = true;
             }
             Tok::Punct(p) if p == "[" => {
                 bracket += 1;
                 out.push('[');
                 at_indent = false;
                 prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Punct(p) if p == "]" => {
                 bracket = (bracket - 1).max(0);
                 out.push(']');
                 at_indent = false;
                 prev_word_kw = false;
+                prev_value = true;
             }
             Tok::Punct(p) if p == ":" && lang == Lang::Css => {
                 out.push_str(": ");
                 at_indent = false;
                 prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Punct(p)
                 if matches!(p.as_str(), "." | "::" | "->" | "++" | "--" | "?.") =>
@@ -372,13 +414,23 @@ fn pretty_braces(src: &str, lang: Lang) -> String {
                 out.push_str(p);
                 at_indent = false;
                 prev_word_kw = false;
+                prev_value = matches!(p.as_str(), "++" | "--");
+            }
+            Tok::Punct(p) if is_spaced_op(p) && !(p == "-" && !prev_value) => {
+                if !at_indent && !out.ends_with(' ') {
+                    out.push(' ');
+                }
+                out.push_str(p);
+                out.push(' ');
+                at_indent = false;
+                prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Punct(p) => {
-                let tight_after = matches!(p.as_str(), "(" | "[" | "{" | "." );
-                let _ = tight_after;
                 out.push_str(p);
                 at_indent = false;
                 prev_word_kw = false;
+                prev_value = false;
             }
             Tok::Word(w) => {
                 let glue = matches!(w.as_str(), "else" | "catch" | "finally" | "while" | "elif" | "except")
@@ -394,6 +446,7 @@ fn pretty_braces(src: &str, lang: Lang) -> String {
                 }
                 at_indent = false;
                 prev_word_kw = space_before_paren(w);
+                prev_value = true;
             }
             Tok::Str(s) => {
                 if !at_indent && needs_space_before_word(&out) {
@@ -402,6 +455,7 @@ fn pretty_braces(src: &str, lang: Lang) -> String {
                 out.push_str(s);
                 at_indent = false;
                 prev_word_kw = false;
+                prev_value = true;
             }
         }
         idx += 1;
@@ -431,94 +485,107 @@ fn needs_space_before_word(out: &str) -> bool {
     }
 }
 
-fn pretty_python(src: &str) -> String {
-    let mut out = String::new();
-    let mut level: i32 = 0;
+fn is_spaced_op(p: &str) -> bool {
+    matches!(
+        p,
+        "+" | "-" | "*" | "/" | "%" | "=" | "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||"
+            | "??" | "=>" | "&" | "|" | "^" | "<<" | ">>" | "+=" | "-=" | "*=" | "/=" | "%="
+            | "&=" | "|=" | "^=" | "<<=" | ">>=" | "?"
+    )
+}
+
+/// Normalises Python indent width without changing which block a line belongs to.
+/// Dedented lines stay dedented. Ambiguous or inconsistent indents are refused.
+fn pretty_python(src: &str) -> Result<String, String> {
+    let mut rows: Vec<(Option<usize>, String)> = Vec::new();
+    let mut stack: Vec<usize> = vec![0];
+
     for line in src.split_inclusive('\n') {
         let raw = line.trim_end_matches(['\n', '\r']);
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
-            out.push('\n');
+        if raw.trim().is_empty() {
+            rows.push((None, String::new()));
             continue;
         }
-        let lower = trimmed.to_ascii_lowercase();
-        let dedent = lower.starts_with("elif ")
-            || lower == "elif:"
-            || lower.starts_with("else:")
-            || lower.starts_with("else ")
-            || lower.starts_with("except")
-            || lower.starts_with("finally");
-        if dedent {
-            level = (level - 1).max(0);
-        }
-        for _ in 0..level {
-            out.push_str("    ");
-        }
-        out.push_str(trimmed);
-        out.push('\n');
-        if py_ends_colon(trimmed) {
-            level += 1;
-        }
-    }
-    out
-}
-
-fn py_ends_colon(line: &str) -> bool {
-    let b = line.as_bytes();
-    let mut i = 0;
-    let mut quote: Option<u8> = None;
-    while i < b.len() {
-        let c = b[i];
-        if let Some(q) = quote {
-            if c == b'\\' {
-                i = (i + 2).min(b.len());
-                continue;
+        let (cols, body) = py_indent_of(raw)?;
+        let top = *stack.last().unwrap_or(&0);
+        if cols > top {
+            stack.push(cols);
+        } else if cols < top {
+            while stack.last().is_some_and(|c| *c > cols) {
+                stack.pop();
             }
-            if c == q {
-                quote = None;
+            if stack.last().copied() != Some(cols) {
+                return Err("Couldn't format safely".into());
             }
-            i += 1;
-            continue;
         }
-        if c == b'#' {
-            break;
-        }
-        if c == b'"' || c == b'\'' {
-            quote = Some(c);
-            i += 1;
-            continue;
-        }
-        i += 1;
+        let depth = stack.len() - 1;
+        rows.push((Some(depth), body));
     }
-    let code = if let Some(h) = line.find('#') { &line[..h] } else { line };
-    // crude: ignore colon inside strings by stripping strings
-    let stripped = strip_quotes(code);
-    stripped.trim_end().ends_with(':')
-}
 
-fn strip_quotes(s: &str) -> String {
-    let b = s.as_bytes();
     let mut out = String::new();
+    for (depth, body) in rows {
+        if let Some(d) = depth {
+            for _ in 0..d {
+                out.push_str("    ");
+            }
+            out.push_str(&body);
+        }
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+fn py_indent_of(raw: &str) -> Result<(usize, String), String> {
+    let bytes = raw.as_bytes();
     let mut i = 0;
-    while i < b.len() {
-        if b[i] == b'"' || b[i] == b'\'' {
-            let q = b[i];
-            i += 1;
-            while i < b.len() && b[i] != q {
-                if b[i] == b'\\' {
-                    i += 2;
-                    continue;
-                }
+    let mut cols = 0usize;
+    let mut saw_space = false;
+    let mut saw_tab = false;
+    while i < bytes.len() {
+        match bytes[i] {
+            b' ' => {
+                saw_space = true;
+                cols += 1;
                 i += 1;
             }
-            i = (i + 1).min(b.len());
-            out.push(' ');
+            b'\t' => {
+                saw_tab = true;
+                cols += 8 - (cols % 8);
+                i += 1;
+            }
+            _ => break,
+        }
+    }
+    if saw_space && saw_tab {
+        return Err("Couldn't format safely".into());
+    }
+    Ok((cols, raw[i..].trim_end().to_string()))
+}
+
+/// Indent nesting depths for non-blank lines — used to assert structure is preserved.
+#[cfg(test)]
+fn py_block_structure(src: &str) -> Result<Vec<usize>, String> {
+    let mut stack: Vec<usize> = vec![0];
+    let mut depths = Vec::new();
+    for line in src.lines() {
+        if line.trim().is_empty() {
             continue;
         }
-        out.push(b[i] as char);
-        i += 1;
+        let (cols, _) = py_indent_of(line)?;
+        let top = *stack.last().unwrap_or(&0);
+        if cols > top {
+            stack.push(cols);
+        } else if cols < top {
+            while stack.last().is_some_and(|c| *c > cols) {
+                stack.pop();
+            }
+            if stack.last().copied() != Some(cols) {
+                return Err("Couldn't format safely".into());
+            }
+        }
+        depths.push(stack.len() - 1);
     }
-    out
+    Ok(depths)
 }
 
 fn pretty_sql(src: &str) -> String {
@@ -559,7 +626,14 @@ fn pretty_sql(src: &str) -> String {
                 at_indent = false;
             }
             Tok::Punct(p) if p == "," => {
-                out.push(',');
+                out.push_str(", ");
+                at_indent = false;
+            }
+            Tok::Punct(p) if p == ";" => {
+                while out.ends_with(' ') {
+                    out.pop();
+                }
+                out.push(';');
                 at_indent = false;
             }
             Tok::Punct(p) if p == "(" || p == ")" || p == "." || p == "*" => {
@@ -571,7 +645,7 @@ fn pretty_sql(src: &str) -> String {
                     out.push(' ');
                 }
                 out.push_str(p);
-                if !matches!(p.as_str(), "." | "(" ) {
+                if !matches!(p.as_str(), "." | "(") {
                     out.push(' ');
                 }
                 at_indent = false;
@@ -812,6 +886,21 @@ fn pretty_markup(src: &str, html: bool) -> Result<String, String> {
         if b[i] == b'<' {
             saw = true;
             let rest = &src[i..];
+            if rest.starts_with("<?") {
+                let end_rel = rest
+                    .find("?>")
+                    .ok_or_else(|| "Unclosed tag, so nothing was changed.".to_string())?;
+                let tag = &rest[..=end_rel + 1];
+                if !out.is_empty() && !out.ends_with('\n') {
+                    out.push('\n');
+                }
+                out.push_str(tag.trim());
+                out.push('\n');
+                // Root element after the declaration starts at column 0.
+                indent = 0;
+                i += tag.len();
+                continue;
+            }
             if rest.starts_with("<!--") {
                 if let Some(end) = rest.find("-->") {
                     nl_at(&mut out, indent);
@@ -826,6 +915,30 @@ fn pretty_markup(src: &str, html: bool) -> Result<String, String> {
             let name = tag_name(tag);
             let closing = tag.starts_with("</");
             let self_close = tag.ends_with("/>") || (html && VOID.iter().any(|v| name.eq_ignore_ascii_case(v)));
+
+            // Short text-only element stays on one line: `<name>A</name>` / `<p>hi</p>`.
+            if !closing && !self_close {
+                let after = i + tag.len();
+                let close = format!("</{name}>");
+                if let Some(pos) = src[after..].find('<') {
+                    let inner = src[after..after + pos].trim();
+                    let tail = &src[after + pos..];
+                    if !inner.is_empty()
+                        && inner.len() <= 40
+                        && !inner.contains('\n')
+                        && tail.to_ascii_lowercase().starts_with(&close.to_ascii_lowercase())
+                    {
+                        nl_at(&mut out, indent);
+                        out.push_str(tag.trim());
+                        out.push_str(inner);
+                        out.push_str(&close);
+                        out.push('\n');
+                        i = after + pos + close.len();
+                        continue;
+                    }
+                }
+            }
+
             if closing {
                 indent = (indent - 1).max(0);
             }
@@ -920,4 +1033,87 @@ fn pretty_md(src: &str) -> String {
         out.push('\n');
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn round_trip(lang: Lang, src: &str) -> String {
+        let once = format_source(src, lang).expect("format");
+        let twice = format_source(&once, lang).expect("format again");
+        assert_eq!(once, twice, "formatter must be idempotent for {lang:?}");
+        once
+    }
+
+    #[test]
+    fn python_preserves_block_structure() {
+        let src = "\
+def foo(x):
+  if x>1:
+      return x*2
+  else:
+   return 0
+print(foo(2))
+";
+        let before = py_block_structure(src).unwrap();
+        let out = round_trip(Lang::Python, src);
+        let after = py_block_structure(&out).unwrap();
+        assert_eq!(before, after, "block structure changed:\n{out}");
+        assert!(out.contains("print(foo(2))"));
+        let print_line = out.lines().find(|l| l.contains("print(foo(2))")).unwrap();
+        assert!(!print_line.starts_with(' '), "print must stay at column 0, got {print_line:?}");
+        assert!(out.contains("    if x>1:") || out.contains("    if x > 1:"));
+    }
+
+    #[test]
+    fn python_refuses_inconsistent_indent() {
+        let src = "def foo():\n    x = 1\n   y = 2\n";
+        let err = format_source(src, Lang::Python).unwrap_err();
+        assert!(err.contains("Couldn't format safely"), "{err}");
+    }
+
+    #[test]
+    fn css_keeps_units_with_numbers() {
+        let out = round_trip(Lang::Css, ".b>.c{padding:1px 2px}");
+        assert!(out.contains("padding: 1px 2px"), "{out}");
+        assert!(!out.contains("1 px"), "{out}");
+        assert!(out.contains(".b > .c") || out.contains(".b> .c") || out.contains(".b >.c"), "{out}");
+    }
+
+    #[test]
+    fn sql_spaces_after_commas_not_before_semicolon() {
+        let out = round_trip(Lang::Sql, "select a.id,b.name from a order by a.id;");
+        assert!(out.contains("a.id, b.name") || out.to_ascii_lowercase().contains("a.id, b.name"), "{out}");
+        assert!(!out.contains(" ;"), "{out}");
+        assert!(out.trim_end().ends_with(';'), "{out}");
+    }
+
+    #[test]
+    fn xml_root_at_column_zero_and_short_text_inline() {
+        let src = "<?xml version=\"1.0\"?><root><name>A</name></root>";
+        let out = round_trip(Lang::Xml, src);
+        let root = out.lines().find(|l| l.contains("<root")).unwrap();
+        assert!(!root.starts_with(' '), "root must start at column 0:\n{out}");
+        assert!(out.contains("<name>A</name>"), "{out}");
+    }
+
+    #[test]
+    fn html_short_text_stays_inline() {
+        let out = round_trip(Lang::Html, "<div><p>hi</p></div>");
+        assert!(out.contains("<p>hi</p>"), "{out}");
+    }
+
+    #[test]
+    fn js_spaces_around_operators_and_arrow() {
+        let out = round_trip(Lang::Js, "const f=(a,b)=>a+b;");
+        assert!(out.contains(" => "), "{out}");
+        assert!(out.contains(" + ") || out.contains("a + b"), "{out}");
+    }
+
+    #[test]
+    fn json_round_trip() {
+        let out = round_trip(Lang::Json, "{\"a\":1,\"b\":[2,3]}");
+        assert!(out.contains("\n"));
+    }
 }
