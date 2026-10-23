@@ -117,15 +117,69 @@ describe("searchNotes", () => {
   });
 });
 
+describe("save-type", () => {
+  it("defaults plain sheets to the language extension", async () => {
+    const { defaultSaveExt, isRich, saveExtensions } = await import("./save-type.ts");
+    assert.equal(isRich({ hasImage: false, hasMarks: false, hasTable: false }), false);
+    assert.equal(defaultSaveExt({ rich: false, language: "plain" }), "txt");
+    assert.equal(defaultSaveExt({ rich: false, language: "python", sourceExt: "py" }), "py");
+    assert.equal(defaultSaveExt({ rich: true, language: "plain", sourceExt: "txt" }), "papel");
+    assert.deepEqual(saveExtensions({ rich: true, language: "plain", sourceExt: "txt" }), ["papel", "txt"]);
+    assert.deepEqual(saveExtensions({ rich: false, language: "javascript" }), ["js"]);
+  });
+});
+
+describe("backup merge", () => {
+  it("skips notes that are already present by id", async () => {
+    const { mergeArchive, ARCHIVE_FORMAT } = await import("./backup.ts");
+    const archive = {
+      format: ARCHIVE_FORMAT,
+      version: 1,
+      exportedAt: "2026-10-23T00:00:00.000Z",
+      order: ["a", "b", "c"],
+      notes: [
+        { id: "a", title: "A", wrap: true, language: "auto", eol: "lf", encoding: "utf-8", blocks: [{ kind: "text", text: "a" }] },
+        { id: "b", title: "B", wrap: true, language: "auto", eol: "lf", encoding: "utf-8", blocks: [{ kind: "text", text: "b" }] },
+        { id: "c", title: "C", wrap: true, language: "auto", eol: "lf", encoding: "utf-8", blocks: [{ kind: "text", text: "c" }] },
+      ],
+    };
+    const result = mergeArchive(archive as never, new Set(["b"]));
+    assert.equal(result.imported, 2);
+    assert.equal(result.skipped, 1);
+    assert.deepEqual(result.notes.map((n) => n.id), ["a", "c"]);
+  });
+});
+
+describe("ui strings stay valid UTF-8", () => {
+  it("has no classic mojibake markers in the shell copy", async () => {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const root = path.join(import.meta.dirname, "../../components/quire");
+    const files = ["quire-app.tsx", "sheet.tsx", "board.tsx", "status-bar.tsx", "header-strip.tsx"];
+    for (const name of files) {
+      const text = await fs.readFile(path.join(root, name), "utf8");
+      assert.equal(text.includes("Ã"), false, `${name} contains Ã`);
+      assert.equal(text.includes("â€"), false, `${name} contains â€`);
+      assert.equal(text.includes("Â·"), false, `${name} contains Â·`);
+    }
+    // Spot-check the strings that used to garble in the UI.
+    const app = await fs.readFile(path.join(root, "quire-app.tsx"), "utf8");
+    assert.match(app, /Auto · /);
+    assert.match(app, /— Papel/);
+    const sheet = await fs.readFile(path.join(root, "sheet.tsx"), "utf8");
+    assert.match(sheet, /\d+ × \d+/);
+  });
+});
+
 describe("correctionAt", () => {
-  it("fixes a typo once the word ends", () => {
-    assert.deepEqual(correctionAt("teh ", 4), { start: 0, end: 3, replacement: "the" });
+  it("fixes a typo once the word ends, keeping the delimiter for undo", () => {
+    assert.deepEqual(correctionAt("teh ", 4), { start: 0, end: 4, replacement: "the " });
     assert.equal(correctionAt("teh", 3), null);
   });
 
   it("keeps capitals and fixes apostrophes", () => {
-    assert.deepEqual(correctionAt("Dont.", 5), { start: 0, end: 4, replacement: "Don't" });
-    assert.deepEqual(correctionAt("so i ", 5), { start: 3, end: 4, replacement: "I" });
+    assert.deepEqual(correctionAt("Dont.", 5), { start: 0, end: 5, replacement: "Don't." });
+    assert.deepEqual(correctionAt("so i ", 5), { start: 3, end: 5, replacement: "I " });
   });
 
   it("leaves real words, paths and mid-word text alone", () => {

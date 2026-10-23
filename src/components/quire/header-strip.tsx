@@ -32,6 +32,9 @@ export function HeaderStrip({
   setSkin,
   autocorrect,
   setAutocorrect,
+  lastBackup,
+  onExportAll,
+  onImportBackup,
 }: {
   view: "board" | "focus";
   current: string;
@@ -55,6 +58,9 @@ export function HeaderStrip({
   setSkin: (v: SkinId) => void;
   autocorrect: boolean;
   setAutocorrect: (v: boolean) => void;
+  lastBackup: string | null;
+  onExportAll: () => void;
+  onImportBackup: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [fieldsOpen, setFieldsOpen] = useState(false);
@@ -148,6 +154,15 @@ export function HeaderStrip({
                   <span className="check" aria-hidden="true">{autocorrect ? "✓" : ""}</span>
                   Autocorrect English typos
                 </button>
+                <div className="menu-sep" role="separator" />
+                <p className="menu-heading">Backup</p>
+                <button type="button" className="menu-item" onClick={onExportAll}>
+                  Export all…
+                </button>
+                <button type="button" className="menu-item" onClick={onImportBackup}>
+                  Import backup…
+                </button>
+                {lastBackup && <p className="menu-note">Last backup: {lastBackup}</p>}
               </div>
             }
           />

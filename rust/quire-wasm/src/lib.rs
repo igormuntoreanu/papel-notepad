@@ -116,6 +116,10 @@ impl Session {
         self.doc.mark_clean();
     }
 
+    pub fn mark_dirty(&mut self) {
+        self.doc.mark_dirty();
+    }
+
     pub fn outline(&self) -> String {
         self.doc.outline_json()
     }

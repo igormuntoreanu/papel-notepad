@@ -138,6 +138,13 @@ impl Document {
         self.saved = self.revision;
     }
 
+    /// Marks the document dirty without changing its content (e.g. after restore).
+    pub fn mark_dirty(&mut self) {
+        if self.saved == self.revision {
+            self.saved = self.revision.wrapping_sub(1);
+        }
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }

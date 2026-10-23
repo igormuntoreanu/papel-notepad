@@ -379,6 +379,9 @@ export class Session {
     mark_clean() {
         wasm.session_mark_clean(this.__wbg_ptr);
     }
+    mark_dirty() {
+        wasm.session_mark_dirty(this.__wbg_ptr);
+    }
     /**
      * Flat `[start, end, flags, ink, hl]*` style runs for a text block.
      * @param {number} id

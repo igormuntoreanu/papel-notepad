@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { createSession } from "@/lib/quire/engine";
+import { createSession, type Session } from "@/lib/quire/engine";
 import { toggleBullets } from "@/lib/quire/blocks";
 import { MIN_QUERY, searchNotes } from "@/lib/quire/fuzzy";
 import { FLAG, rangeHas, readMarks, type FlagName } from "@/lib/quire/marks";
 import { savePersisted, type Prefs, type SortMode } from "@/lib/quire/persist";
+import { ARCHIVE_EXT, archiveFileName, formatLastBackup, mergeArchive, parseArchive } from "@/lib/quire/backup";
+import { defaultSaveExt, extFromFilename, isRich as richFlags, saveExtensions } from "@/lib/quire/save-type";
 import { installTextures } from "@/lib/quire/textures";
-import { canOpenFile, download, FILE_ACCEPT, fileStamp, langFromFilename, langLabel, safeName, SKINS, type SkinId } from "@/lib/quire/text";
+import { canOpenFile, download, FILE_ACCEPT, fileStamp, langFromFilename, langLabel, mimeForExtension, safeName, SKINS, type SkinId } from "@/lib/quire/text";
 import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
@@ -13,6 +15,7 @@ import type { CellTarget } from "./table-block";
 import { StatusBar } from "./status-bar";
 import {
   blankNote,
+  buildArchive,
   cardInfo,
   dropUrls,
   ensureLoaded,
@@ -20,6 +23,7 @@ import {
   fromPapel,
   imageUrl,
   outlineOf,
+  sessionFromArchiveNote,
   sessions,
   snapshot,
   toPapel,
@@ -29,6 +33,15 @@ import {
 
 type Ask = { title: string; body: string; confirm: string; tone?: "danger"; run: () => void };
 type Sel = { blockId: number; start: number; end: number };
+
+function sessionRich(session: Session): boolean {
+  const outline = outlineOf(session);
+  return richFlags({
+    hasImage: outline.some((item) => item.kind === "image"),
+    hasTable: outline.some((item) => item.kind === "table"),
+    hasMarks: session.has_marks(),
+  });
+}
 
 export function QuireApp() {
   const [ready, setReady] = useState(false);
@@ -41,6 +54,7 @@ export function QuireApp() {
   const [zoom, setZoom] = useState(16);
   const [autocorrect, setAutocorrect] = useState(true);
   const [sort, setSort] = useState<SortMode>("manual");
+  const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const [sel, setSel] = useState<Sel>({ blockId: 0, start: 0, end: 0 });
   const [findOpen, setFindOpen] = useState(false);
@@ -50,6 +64,7 @@ export function QuireApp() {
   const [line, setLine] = useState("");
   const [findStatus, setFindStatus] = useState("");
   const [message, setMessage] = useState("");
+  const [alert, setAlert] = useState("");
   const [ask, setAsk] = useState<Ask | null>(null);
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
   const [cellTarget, setCellTarget] = useState<CellTarget | null>(null);
@@ -60,6 +75,7 @@ export function QuireApp() {
   const focusRef = useRef<Place | null>(null);
   const anchor = useRef<Place | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const backupRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const findRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -91,6 +107,7 @@ export function QuireApp() {
         setZoom(data.prefs.zoom);
         setAutocorrect(data.prefs.autocorrect);
         setSort(data.prefs.sort);
+        setLastBackup(data.prefs.lastBackup ?? null);
         setReady(true);
       })
       .catch((err: unknown) => {
@@ -104,13 +121,13 @@ export function QuireApp() {
   useEffect(() => {
     if (!ready) return;
     const handle = window.setTimeout(() => {
-      const prefs: Prefs = { skin, zoom, autocorrect, sort };
+      const prefs: Prefs = { skin, zoom, autocorrect, sort, lastBackup: lastBackup ?? undefined };
       void savePersisted(snapshot(notes, order, activeId), prefs).catch(() => {
         setMessage("Could not autosave this sheet.");
       });
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, tick]);
+  }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, lastBackup, tick]);
 
   useEffect(() => {
     const onLeave = (e: BeforeUnloadEvent) => {
@@ -138,9 +155,20 @@ export function QuireApp() {
 
   useEffect(() => {
     if (!message) return;
-    const id = window.setTimeout(() => setMessage(""), 6000);
+    const id = window.setTimeout(() => setMessage(""), 4000);
     return () => window.clearTimeout(id);
   }, [message]);
+
+  useEffect(() => {
+    if (!alert) return;
+    const id = window.setTimeout(() => setAlert(""), 6000);
+    return () => window.clearTimeout(id);
+  }, [alert]);
+
+  function showAlert(text: string) {
+    setAlert(text);
+    setMessage(text);
+  }
 
   useEffect(() => {
     const dirty = session?.is_dirty() ? "*" : "";
@@ -172,6 +200,7 @@ export function QuireApp() {
     setActiveId(id);
     setView("focus");
     setSelectedImage(null);
+    setMessage("");
     anchor.current = null;
     if (s) {
       const items = outlineOf(s).filter((i) => i.kind === "text");
@@ -260,15 +289,84 @@ export function QuireApp() {
     setNotes((list) => list.map((n) => (n.id === activeId ? { ...n, wrap: !n.wrap } : n)));
   }
 
-  /** `.papel` is the only format Papel writes: text, images, styles, tables. */
-  function saveNote(id: string | null) {
+  /**
+   * Saves the note. Without an explicit extension it writes the note's default
+   * format: `.papel` when there are images, styles or tables; otherwise the
+   * extension it was opened with (or its language).
+   */
+  function saveNote(id: string | null, requested?: string) {
     const s = id ? sessions.get(id) : null;
     const meta = notesRef.current.find((n) => n.id === id);
     if (!s || !meta) return;
-    const name = safeName(meta.title, "papel");
-    download(name, toPapel(s), "application/json");
-    s.mark_clean();
-    setMessage(`Saved ${name}`);
+    const rich = sessionRich(s);
+    const language = s.language() === "auto" ? s.effective_language(s.first_text_id()) : s.language();
+    const ext =
+      requested ??
+      defaultSaveExt({ rich, language, sourceExt: meta.sourceExt });
+    if (rich && ext !== "papel") {
+      setAsk({
+        title: "Save text only?",
+        body: `A .${ext} file cannot keep pasted images, colors, highlights or tables. The words are saved; everything else stays on this sheet.`,
+        confirm: "Save text",
+        run: () => writeText(ext),
+      });
+      return;
+    }
+    if (ext === "papel") writePapel();
+    else writeText(ext);
+
+    function writeText(as: string) {
+      if (!s || !meta) return;
+      try {
+        const name = safeName(meta.title, as);
+        download(name, s.export_bytes(), mimeForExtension(as));
+        s.mark_clean();
+        setMessage(`Saved ${name}`);
+        setTick((n) => n + 1);
+      } catch (err) {
+        showAlert(err instanceof Error ? err.message : "Could not encode this file.");
+      }
+    }
+    function writePapel() {
+      if (!s || !meta) return;
+      const name = safeName(meta.title, "papel");
+      download(name, toPapel(s), "application/json");
+      s.mark_clean();
+      setMessage(`Saved ${name}`);
+      setTick((n) => n + 1);
+    }
+  }
+
+  async function importBackup(file: File) {
+    const text = await file.text();
+    const archive = parseArchive(text);
+    if (!archive) {
+      showAlert("That file is not a Papel backup.");
+      return;
+    }
+    const existing = new Set(notesRef.current.map((n) => n.id));
+    const { imported, skipped, notes: incoming } = mergeArchive(archive, existing);
+    if (!incoming.length) {
+      setMessage(`Imported 0, skipped ${skipped}`);
+      return;
+    }
+    const metas: NoteMeta[] = [];
+    const ids: string[] = [];
+    for (const note of incoming) {
+      const session = sessionFromArchiveNote(note);
+      sessions.set(note.id, session);
+      metas.push({
+        id: note.id,
+        title: note.title,
+        wrap: note.wrap,
+        edited: note.edited ?? Date.now(),
+        sourceExt: note.sourceExt,
+      });
+      ids.push(note.id);
+    }
+    setNotes((curr) => [...curr, ...metas]);
+    setOrder((curr) => [...curr, ...ids]);
+    setMessage(`Imported ${imported}, skipped ${skipped}`);
     setTick((n) => n + 1);
   }
 
@@ -276,16 +374,24 @@ export function QuireApp() {
     let first: string | null = null;
     for (const file of [...files]) {
       if (!canOpenFile(file.name)) {
-        setMessage(`${file.name}: not a type Papel can open.`);
+        showAlert(`${file.name}: not a type Papel can open.`);
+        continue;
+      }
+      const already = notesRef.current.find((n) => n.title === file.name);
+      if (already) {
+        activate(already.id);
+        setMessage("Already open");
+        first = first ?? already.id;
         continue;
       }
       const bytes = new Uint8Array(await file.arrayBuffer());
       const id = crypto.randomUUID();
       const s = createSession();
       const lower = file.name.toLowerCase();
+      const sourceExt = extFromFilename(file.name) ?? undefined;
       if (lower.endsWith(".papel") || lower.endsWith(".quire")) {
         if (!fromPapel(s, bytes)) {
-          setMessage(`${file.name} is not a Papel file.`);
+          showAlert(`${file.name} is not a Papel file.`);
           continue;
         }
       } else {
@@ -293,8 +399,15 @@ export function QuireApp() {
         const hinted = langFromFilename(file.name);
         if (hinted && hinted !== "plain") s.force_language(hinted);
       }
+      s.mark_clean();
       sessions.set(id, s);
-      const meta: NoteMeta = { id, title: file.name, wrap: true, edited: file.lastModified || Date.now() };
+      const meta: NoteMeta = {
+        id,
+        title: file.name,
+        wrap: true,
+        edited: file.lastModified || Date.now(),
+        sourceExt: sourceExt === "papel" || sourceExt === "quire" ? undefined : sourceExt,
+      };
       setNotes((curr) => [...curr, meta]);
       setOrder((curr) => [...curr, id]);
       first = first ?? id;
@@ -302,14 +415,14 @@ export function QuireApp() {
     if (first) activate(first);
   }
 
-  async function insertImageFile(file: File) {
+  async function insertImageFile(file: File, from: "picker" | "paste" = "picker") {
     if (!session || !activeId) return;
     if (!file.type.startsWith("image/")) {
-      setMessage("That file is not an image.");
+      showAlert("That file is not an image.");
       return;
     }
     if (file.size > 12_000_000) {
-      setMessage("Images over 12 MB are refused.");
+      showAlert("Images over 12 MB are refused.");
       return;
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -318,13 +431,13 @@ export function QuireApp() {
     const before = new Set(outlineOf(session).filter((i) => i.kind === "image").map((i) => i.id));
     const next = session.insert_image_caret(blockId, at, file.type, bytes);
     if (!next) {
-      setMessage("Could not place that image.");
+      showAlert("Could not place that image.");
       return;
     }
     const added = outlineOf(session).find((i) => i.kind === "image" && !before.has(i.id));
     if (added) imageUrl(activeId, added.id, session);
     setSel({ blockId: next.block_id, start: next.start, end: next.start });
-    setMessage("Image pasted onto the sheet.");
+    setMessage(from === "paste" ? "Image pasted onto the sheet." : "Image inserted");
     touch(activeId);
     bump({ block_id: next.block_id, start: next.start, end: next.end });
   }
@@ -346,8 +459,10 @@ export function QuireApp() {
     const { blockId: b, start, end } = selRef.current;
     const blockId = b || session.first_text_id();
     const stamp = fileStamp();
-    session.edit(blockId, start, end, stamp, false);
-    const pos = start + stamp.length;
+    const before = start > 0 ? session.text_of(blockId).slice(start - 1, start) : "";
+    const insert = before && !/\s/.test(before) ? ` ${stamp}` : stamp;
+    session.edit(blockId, start, end, insert, false);
+    const pos = start + insert.length;
     setSel({ blockId, start: pos, end: pos });
     touch(activeId);
     bump({ block_id: blockId, start: pos, end: pos });
@@ -455,6 +570,8 @@ export function QuireApp() {
     const n = Number.parseInt(line, 10);
     if (!Number.isFinite(n)) return;
     const next = session.line_to_caret(n);
+    const total = session.metrics(session.first_text_id(), 0)[2] ?? 1;
+    if (n > total) setFindStatus(`File has ${total} lines`);
     setSel({ blockId: next.block_id, start: next.start, end: next.start });
     bump({ block_id: next.block_id, start: next.start, end: next.end });
   }
@@ -645,6 +762,11 @@ export function QuireApp() {
   const langSetting = session?.language() ?? "auto";
   const effective = session ? session.effective_language(blockId) : "plain";
   const langText = langSetting === "auto" ? `Auto · ${langLabel(effective)}` : langLabel(langSetting);
+  const richNow = session ? sessionRich(session) : false;
+  const saveExts = note
+    ? saveExtensions({ rich: richNow, language: effective, sourceExt: note.sourceExt })
+    : ["txt"];
+  const saveExt = saveExts[0] ?? "txt";
   const rest = cellTarget
     ? { start: cellTarget.start, end: cellTarget.end }
     : { start: sel.start, end: sel.end };
@@ -701,7 +823,7 @@ export function QuireApp() {
     date: insertDate,
     image: () => imageRef.current?.click(),
     wrap: toggleWrap,
-    save: () => saveNote(activeId),
+    save: (ext) => saveNote(activeId, ext),
     table: insertTable,
     bullets: toggleBulletList,
     close: () => activeId && closeNote(activeId),
@@ -781,6 +903,16 @@ export function QuireApp() {
         setSkin={setSkin}
         autocorrect={autocorrect}
         setAutocorrect={setAutocorrect}
+        lastBackup={formatLastBackup(lastBackup)}
+        onExportAll={() => {
+          const archive = buildArchive(notesRef.current, orderRef.current);
+          const name = archiveFileName();
+          download(name, JSON.stringify(archive), "application/json");
+          const iso = archive.exportedAt;
+          setLastBackup(iso);
+          setMessage(`Exported ${archive.notes.length} sheets`);
+        }}
+        onImportBackup={() => backupRef.current?.click()}
       />
 
       <main className="desk-body">
@@ -797,7 +929,7 @@ export function QuireApp() {
             <div className="empty-sheet">
               <h2>Nothing matches.</h2>
               <p>
-                No sheet fits {applied ? <>“{applied}”</> : "this filter"}
+                No sheet fits {applied ? <>“{applied}”</> : "this filter"}
                 {langFilter ? ` in ${langFilter}` : ""}. Try fewer letters, or clear the filters.
               </p>
               <button
@@ -838,9 +970,11 @@ export function QuireApp() {
                 }
                 onEdited={edited}
                 onCellSelect={setCellTarget}
-                onImage={(file) => void insertImageFile(file)}
+                onImage={(file) => void insertImageFile(file, "paste")}
                 styles={styles}
                 find={find}
+                saveExt={saveExt}
+                saveExts={saveExts}
                 actions={sheetActions}
               />
             ) : (
@@ -881,6 +1015,17 @@ export function QuireApp() {
         }}
       />
       <input
+        ref={backupRef}
+        type="file"
+        hidden
+        accept={`.${ARCHIVE_EXT},application/json`}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void importBackup(file);
+          e.target.value = "";
+        }}
+      />
+      <input
         ref={imageRef}
         type="file"
         hidden
@@ -891,6 +1036,12 @@ export function QuireApp() {
           e.target.value = "";
         }}
       />
+
+      {alert && (
+        <div className="toast" role="alert">
+          {alert}
+        </div>
+      )}
 
       {ask && (
         <div className="modal-back" onMouseDown={() => setAsk(null)}>
@@ -904,13 +1055,12 @@ export function QuireApp() {
             <h2 id="ask-title">{ask.title}</h2>
             <p>{ask.body}</p>
             <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setAsk(null)}>
+              <button type="button" className="btn primary" autoFocus onClick={() => setAsk(null)}>
                 Keep editing
               </button>
               <button
                 type="button"
-                className={ask.tone === "danger" ? "btn danger" : "btn primary"}
-                autoFocus
+                className={ask.tone === "danger" ? "btn danger" : "btn"}
                 onClick={() => {
                   const run = ask.run;
                   setAsk(null);
