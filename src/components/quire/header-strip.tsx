@@ -122,6 +122,7 @@ export function HeaderStrip({
           <DropMenu
             className="variant"
             ariaLabel="Switch sheet"
+            title="Switch sheet or open the board"
             label={
               <>
                 <span className="variant-label">{current}</span>
@@ -149,11 +150,109 @@ export function HeaderStrip({
               </>
             }
           />
-          <span className="spacer" />
+          <div className="strip-status" aria-live="polite">
+            {view === "focus" && session ? (
+              <>
+                <span title="Current line and column">
+                  Ln {metrics[0]}, Col {metrics[1]}
+                </span>
+                <span title="Character count in this sheet">{metrics[3]} chars</span>
+                <DropMenu
+                  className="tool status-chip"
+                  label={langText}
+                  title="Language for this sheet"
+                  align="end"
+                  items={LANGUAGES.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={item.id === session.language() ? "menu-item is-on" : "menu-item"}
+                      onClick={() => {
+                        session.set_language(item.id);
+                        onChanged();
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                />
+                <DropMenu
+                  className="tool status-chip"
+                  label={session.encoding_label()}
+                  title="File encoding"
+                  align="end"
+                  items={ENCODINGS.map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className="menu-item"
+                      onClick={() => {
+                        const result = session.set_encoding(id);
+                        onMessage(result.startsWith("err:") ? result.slice(4) : label);
+                        onChanged();
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                />
+                <DropMenu
+                  className="tool status-chip"
+                  label={session.eol_label()}
+                  title="Line endings"
+                  align="end"
+                  items={
+                    <>
+                      <button
+                        type="button"
+                        className="menu-item"
+                        onClick={() => {
+                          session.set_eol("lf");
+                          onChanged();
+                        }}
+                      >
+                        Unix (LF)
+                      </button>
+                      <button
+                        type="button"
+                        className="menu-item"
+                        onClick={() => {
+                          session.set_eol("crlf");
+                          onChanged();
+                        }}
+                      >
+                        Windows (CRLF)
+                      </button>
+                    </>
+                  }
+                />
+                <span title="Zoom level">{Math.round((zoom / 16) * 100)}%</span>
+              </>
+            ) : (
+              <>
+                <span title="Sheets on the board">
+                  {total} {total === 1 ? "sheet" : "sheets"}
+                </span>
+                {shown !== total && <span title="Sheets matching filters">{shown} shown</span>}
+                <span title="Sheets not yet saved to a downloaded file">
+                  {unsaved ? `${unsaved} not saved to a file` : "No unsaved changes"}
+                </span>
+                <span title={folderName ? `Sync folder: ${folderName}` : "Saved in this browser"}>
+                  {folderName ? `Folder: ${folderName}` : "Autosaved on this device"}
+                </span>
+              </>
+            )}
+            {message && (
+              <span className="status-msg" role="status">
+                {message}
+              </span>
+            )}
+          </div>
           <button
             type="button"
             className="tool fields-toggle"
             aria-label="Search and filters"
+            title="Search and filters"
             aria-expanded={fieldsOpen}
             onClick={() => {
               setFieldsOpen((v) => !v);
@@ -162,7 +261,7 @@ export function HeaderStrip({
           >
             <Search />
           </button>
-          <button type="button" className="tool" onClick={onNew} title="New sheet (Ctrl+N)">
+          <button type="button" className="tool" onClick={onNew} aria-label="New sheet" title="New sheet (Ctrl+N)">
             <FilePlus />
             <span className="tool-label">New</span>
           </button>
@@ -171,7 +270,7 @@ export function HeaderStrip({
           </button>
           <DropMenu
             ariaLabel="Settings"
-            title="Paper and typing"
+            title="Paper, typing, folder and backup"
             label={<Settings2 />}
             align="end"
             items={
@@ -315,95 +414,6 @@ export function HeaderStrip({
             </span>
           </div>
         </form>
-
-        <div className="strip-status" aria-live="polite">
-          {view === "focus" && session ? (
-            <>
-              <span>
-                Ln {metrics[0]}, Col {metrics[1]}
-              </span>
-              <span>{metrics[3]} chars</span>
-              <DropMenu
-                label={langText}
-                align="end"
-                items={LANGUAGES.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={item.id === session.language() ? "menu-item is-on" : "menu-item"}
-                    onClick={() => {
-                      session.set_language(item.id);
-                      onChanged();
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              />
-              <DropMenu
-                label={session.encoding_label()}
-                align="end"
-                items={ENCODINGS.map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className="menu-item"
-                    onClick={() => {
-                      const result = session.set_encoding(id);
-                      onMessage(result.startsWith("err:") ? result.slice(4) : label);
-                      onChanged();
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              />
-              <DropMenu
-                label={session.eol_label()}
-                align="end"
-                items={
-                  <>
-                    <button
-                      type="button"
-                      className="menu-item"
-                      onClick={() => {
-                        session.set_eol("lf");
-                        onChanged();
-                      }}
-                    >
-                      Unix (LF)
-                    </button>
-                    <button
-                      type="button"
-                      className="menu-item"
-                      onClick={() => {
-                        session.set_eol("crlf");
-                        onChanged();
-                      }}
-                    >
-                      Windows (CRLF)
-                    </button>
-                  </>
-                }
-              />
-              <span>{Math.round((zoom / 16) * 100)}%</span>
-            </>
-          ) : (
-            <>
-              <span>
-                {total} {total === 1 ? "sheet" : "sheets"}
-              </span>
-              {shown !== total && <span>{shown} shown</span>}
-              <span>{unsaved ? `${unsaved} not saved to a file` : "No unsaved changes"}</span>
-              <span>{folderName ? `Folder: ${folderName}` : "Autosaved on this device"}</span>
-            </>
-          )}
-          {message && (
-            <span className="status-msg" role="status">
-              {message}
-            </span>
-          )}
-        </div>
       </div>
     </header>
   );

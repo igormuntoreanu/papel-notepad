@@ -1,17 +1,17 @@
 export const SKINS = [
   {
-    id: "paper",
-    name: "Paper",
-    edge: "torn",
-    pattern: "ruled",
-    blurb: "Torn notebook. Rules under the type.",
-  },
-  {
     id: "ink",
     name: "Ink",
     edge: "clean",
     pattern: "blank",
     blurb: "Cream desk and sheet. Nothing but the words.",
+  },
+  {
+    id: "paper",
+    name: "Paper",
+    edge: "torn",
+    pattern: "ruled",
+    blurb: "Torn notebook. Rules under the type.",
   },
   {
     id: "carbon",

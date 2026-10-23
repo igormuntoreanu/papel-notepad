@@ -63,7 +63,7 @@ export function QuireApp() {
   const [order, setOrder] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [view, setView] = useState<"board" | "focus">("board");
-  const [skin, setSkin] = useState<SkinId>("paper");
+  const [skin, setSkin] = useState<SkinId>("ink");
   const [zoom, setZoom] = useState(16);
   const [autocorrect, setAutocorrect] = useState(true);
   const [sort, setSort] = useState<SortMode>("manual");
@@ -914,7 +914,7 @@ export function QuireApp() {
 
   if (failed) {
     return (
-      <div className="desk" data-skin="paper">
+      <div className="desk" data-skin="ink">
         <main className="desk-body">
           <div className="empty-sheet">
             <h2>The sheet did not open</h2>

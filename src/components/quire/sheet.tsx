@@ -224,13 +224,96 @@ export function Sheet({
               />
             ) : (
               <h2 className="sheet-title">
-                <button type="button" onClick={() => setRenaming(true)} title="Rename">
+                <button type="button" onClick={() => setRenaming(true)} title="Rename this sheet">
                   {note.title}
                 </button>
               </h2>
             )}
             {session.is_dirty() && <span className="dirty" role="img" aria-label="Unsaved" title="Not saved to a file" />}
-            <span className="spacer" />
+            <div className="sheet-tools" role="toolbar" aria-label="Text and sheet tools">
+              <div className="tool-group" role="group" aria-label="Text style">
+                <Keep label={`Bold${selHint}`} title="Bold (Ctrl+B)" pressed={styles.active.bold} disabled={noSel} onPress={() => styles.toggle("bold")}>
+                  <Bold />
+                </Keep>
+                <Keep label={`Italic${selHint}`} title="Italic (Ctrl+I)" pressed={styles.active.italic} disabled={noSel} onPress={() => styles.toggle("italic")}>
+                  <Italic />
+                </Keep>
+                <Keep label={`Underline${selHint}`} title="Underline (Ctrl+U)" pressed={styles.active.underline} disabled={noSel} onPress={() => styles.toggle("underline")}>
+                  <Underline />
+                </Keep>
+                <Keep label={`Strikethrough${selHint}`} title="Strikethrough (Ctrl+Shift+X)" pressed={styles.active.strike} disabled={noSel} onPress={() => styles.toggle("strike")}>
+                  <Strikethrough />
+                </Keep>
+              </div>
+              <div className="tool-group swatches" role="group" aria-label="Ink color">
+                {INKS.map((ink) => (
+                  <Keep
+                    key={ink.id}
+                    label={`${ink.name} ink${selHint}`}
+                    title={`${ink.name} ink${selHint}`}
+                    className="swatch-btn ink"
+                    pressed={styles.hasSelection && styles.ink === ink.id}
+                    disabled={noSel}
+                    onPress={() => styles.setInk(ink.id)}
+                  >
+                    <span style={{ background: ink.color }} />
+                  </Keep>
+                ))}
+              </div>
+              <div className="tool-group swatches" role="group" aria-label="Highlighter">
+                <Highlighter className="group-icon" aria-hidden="true" />
+                {HIGHLIGHTERS.map((hl) => (
+                  <Keep
+                    key={hl.id}
+                    label={hl.id === 0 ? `No highlight${selHint}` : `${hl.name} highlighter${selHint}`}
+                    title={hl.id === 0 ? `No highlight${selHint}` : `${hl.name} highlighter${selHint}`}
+                    className={hl.id === 0 ? "swatch-btn hl none" : "swatch-btn hl"}
+                    pressed={styles.hasSelection && styles.hl === hl.id}
+                    disabled={noSel}
+                    onPress={() => styles.setHl(hl.id)}
+                  >
+                    <span style={{ background: hl.color }} />
+                  </Keep>
+                ))}
+                <Keep label={`Clear styles${selHint}`} title={`Clear styles${selHint}`} disabled={noSel} onPress={styles.clear}>
+                  <Eraser />
+                </Keep>
+              </div>
+              <div className="tool-group" role="group" aria-label="Edit">
+                <Keep label="Undo" title="Undo (Ctrl+Z)" disabled={!session.can_undo()} onPress={actions.undo}>
+                  <Undo2 />
+                </Keep>
+                <Keep label="Redo" title="Redo (Ctrl+Y)" disabled={!session.can_redo()} onPress={actions.redo}>
+                  <Redo2 />
+                </Keep>
+                <Keep label="Autoformat code (coming back soon)" title="Autoformat code (coming back soon)" disabled onPress={() => {}}>
+                  <Braces />
+                </Keep>
+                <Keep label="Find, replace, go to line" title="Find (Ctrl+F)" pressed={find.open} onPress={actions.find}>
+                  <Search />
+                </Keep>
+                <Keep label="Insert date and time" title="Insert date (F5)" onPress={actions.date}>
+                  <Clock />
+                </Keep>
+                <Keep label="Bulleted list" title="Bulleted list" onPress={actions.bullets}>
+                  <List />
+                </Keep>
+                <DropMenu
+                  className="tool"
+                  align="end"
+                  ariaLabel="Insert table"
+                  title="Insert table"
+                  label={<Table2 />}
+                  items={<TablePicker onPick={actions.table} />}
+                />
+                <Keep label="Insert image" title="Insert image" onPress={actions.image}>
+                  <ImagePlus />
+                </Keep>
+                <Keep label="Word wrap" title="Toggle word wrap" pressed={note.wrap} onPress={actions.wrap}>
+                  <WrapText />
+                </Keep>
+              </div>
+            </div>
             <Keep label={`Save (.${saveExt})`} title={`Save (.${saveExt}) (Ctrl+S)`} onPress={() => actions.save()}>
               <Save />
             </Keep>
@@ -238,7 +321,7 @@ export function Sheet({
               className="tool text-only"
               align="end"
               ariaLabel={`Save as .${saveExt}`}
-              title={`Save (.${saveExt})`}
+              title={`Choose save format (.${saveExt})`}
               label={<span>.{saveExt}</span>}
               items={saveExts.map((ext) => (
                 <button key={ext} type="button" className="menu-item" onClick={() => actions.save(ext)}>
@@ -246,93 +329,9 @@ export function Sheet({
                 </button>
               ))}
             />
-            <Keep label="Close sheet" onPress={actions.close}>
+            <Keep label="Close sheet" title="Close sheet" onPress={actions.close}>
               <X />
             </Keep>
-          </div>
-
-          <div className="sheet-tools" role="toolbar" aria-label="Text and sheet tools">
-            <div className="tool-group" role="group" aria-label="Text style">
-              <Keep label={`Bold${selHint}`} title="Bold (Ctrl+B)" pressed={styles.active.bold} disabled={noSel} onPress={() => styles.toggle("bold")}>
-                <Bold />
-              </Keep>
-              <Keep label={`Italic${selHint}`} title="Italic (Ctrl+I)" pressed={styles.active.italic} disabled={noSel} onPress={() => styles.toggle("italic")}>
-                <Italic />
-              </Keep>
-              <Keep label={`Underline${selHint}`} title="Underline (Ctrl+U)" pressed={styles.active.underline} disabled={noSel} onPress={() => styles.toggle("underline")}>
-                <Underline />
-              </Keep>
-              <Keep label={`Strikethrough${selHint}`} title="Strikethrough (Ctrl+Shift+X)" pressed={styles.active.strike} disabled={noSel} onPress={() => styles.toggle("strike")}>
-                <Strikethrough />
-              </Keep>
-            </div>
-            <div className="tool-group swatches" role="group" aria-label="Ink color">
-              {INKS.map((ink) => (
-                <Keep
-                  key={ink.id}
-                  label={`${ink.name} ink${selHint}`}
-                  className="swatch-btn ink"
-                  pressed={styles.hasSelection && styles.ink === ink.id}
-                  disabled={noSel}
-                  onPress={() => styles.setInk(ink.id)}
-                >
-                  <span style={{ background: ink.color }} />
-                </Keep>
-              ))}
-            </div>
-            <div className="tool-group swatches" role="group" aria-label="Highlighter">
-              <Highlighter className="group-icon" aria-hidden="true" />
-              {HIGHLIGHTERS.map((hl) => (
-                <Keep
-                  key={hl.id}
-                  label={hl.id === 0 ? `No highlight${selHint}` : `${hl.name} highlighter${selHint}`}
-                  className={hl.id === 0 ? "swatch-btn hl none" : "swatch-btn hl"}
-                  pressed={styles.hasSelection && styles.hl === hl.id}
-                  disabled={noSel}
-                  onPress={() => styles.setHl(hl.id)}
-                >
-                  <span style={{ background: hl.color }} />
-                </Keep>
-              ))}
-              <Keep label={`Clear styles${selHint}`} disabled={noSel} onPress={styles.clear}>
-                <Eraser />
-              </Keep>
-            </div>
-            <div className="tool-group" role="group" aria-label="Edit">
-              <Keep label="Undo" title="Undo (Ctrl+Z)" disabled={!session.can_undo()} onPress={actions.undo}>
-                <Undo2 />
-              </Keep>
-              <Keep label="Redo" title="Redo (Ctrl+Y)" disabled={!session.can_redo()} onPress={actions.redo}>
-                <Redo2 />
-              </Keep>
-              {/* Autoformat is parked for now — re-enable with actions.format when ready. */}
-              <Keep label="Autoformat code (coming back soon)" disabled onPress={() => {}}>
-                <Braces />
-              </Keep>
-              <Keep label="Find, replace, go to line" title="Find (Ctrl+F)" pressed={find.open} onPress={actions.find}>
-                <Search />
-              </Keep>
-              <Keep label="Insert date and time" title="Insert date (F5)" onPress={actions.date}>
-                <Clock />
-              </Keep>
-              <Keep label="Bulleted list" title="Bulleted list" onPress={actions.bullets}>
-                <List />
-              </Keep>
-              <DropMenu
-                className="tool"
-                align="end"
-                ariaLabel="Insert table"
-                title="Insert table"
-                label={<Table2 />}
-                items={<TablePicker onPick={actions.table} />}
-              />
-              <Keep label="Insert image" onPress={actions.image}>
-                <ImagePlus />
-              </Keep>
-              <Keep label="Word wrap" pressed={note.wrap} onPress={actions.wrap}>
-                <WrapText />
-              </Keep>
-            </div>
           </div>
 
           {find.open && <FindBar find={find} />}
@@ -413,16 +412,16 @@ function FindBar({ find }: { find: FindState }) {
       <button type="button" className="tool" aria-pressed={find.matchCase} title="Match case" onClick={() => find.setMatchCase(!find.matchCase)}>
         Aa
       </button>
-      <button type="button" className="tool" onClick={() => find.move(true)}>
+      <button type="button" className="tool" title="Previous match" onClick={() => find.move(true)}>
         Prev
       </button>
-      <button type="button" className="tool" onClick={() => find.move(false)}>
+      <button type="button" className="tool" title="Next match" onClick={() => find.move(false)}>
         Next
       </button>
-      <button type="button" className="tool" onClick={find.replaceOne}>
+      <button type="button" className="tool" title="Replace this match" onClick={find.replaceOne}>
         Replace
       </button>
-      <button type="button" className="tool" onClick={find.replaceAll}>
+      <button type="button" className="tool" title="Replace all matches" onClick={find.replaceAll}>
         All
       </button>
       <form
@@ -433,12 +432,12 @@ function FindBar({ find }: { find: FindState }) {
         }}
       >
         <input aria-label="Go to line" inputMode="numeric" placeholder="Line" value={find.line} onChange={(e) => find.setLine(e.target.value)} />
-        <button type="submit" className="tool">
+        <button type="submit" className="tool" title="Go to line">
           Go
         </button>
       </form>
       {find.status && <span className="find-count">{find.status}</span>}
-      <button type="button" className="tool" aria-label="Close find" onClick={find.close}>
+      <button type="button" className="tool" aria-label="Close find" title="Close find" onClick={find.close}>
         <X />
       </button>
     </div>

@@ -121,7 +121,7 @@ export async function ensureLoaded(): Promise<Loaded> {
           order.push(id);
         }
       }
-      const skin = SKINS.some((s) => s.id === prefs?.skin) ? (prefs!.skin as SkinId) : "paper";
+      const skin = SKINS.some((s) => s.id === prefs?.skin) ? (prefs!.skin as SkinId) : "ink";
       loadedCache = {
         notes,
         order,

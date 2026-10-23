@@ -14,7 +14,7 @@ function Home() {
 
 function Boot() {
   return (
-    <div className="desk" data-skin="paper">
+    <div className="desk" data-skin="ink">
       <main className="desk-body">
         <p className="boot-line">Opening a fresh sheet…</p>
       </main>
