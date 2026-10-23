@@ -125,6 +125,7 @@ export async function ensureLoaded(): Promise<Loaded> {
           autocorrect: prefs?.autocorrect ?? true,
           sort: prefs?.sort && SORTS.includes(prefs.sort) ? prefs.sort : "manual",
           lastBackup: typeof prefs?.lastBackup === "string" ? prefs.lastBackup : undefined,
+          folderName: typeof prefs?.folderName === "string" ? prefs.folderName : undefined,
         },
       };
       return loadedCache;

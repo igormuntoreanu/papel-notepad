@@ -28,11 +28,20 @@ export type PapelArchive = {
   notes: ArchiveNote[];
 };
 
-export function archiveFileName(date = new Date()): string {
+function stampDay(date = new Date()): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
-  return `papel-backup-${y}-${m}-${d}.${ARCHIVE_EXT}`;
+  return `${y}-${m}-${d}`;
+}
+
+export function archiveFileName(date = new Date()): string {
+  return `papel-backup-${stampDay(date)}.${ARCHIVE_EXT}`;
+}
+
+/** Cross-browser backup download (contains the same archive JSON). */
+export function zipBackupFileName(date = new Date()): string {
+  return `papel-backup-${stampDay(date)}.zip`;
 }
 
 export function parseArchive(raw: string): PapelArchive | null {

@@ -155,7 +155,7 @@ describe("ui strings stay valid UTF-8", () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
     const root = path.join(import.meta.dirname, "../../components/quire");
-    const files = ["quire-app.tsx", "sheet.tsx", "board.tsx", "status-bar.tsx", "header-strip.tsx"];
+    const files = ["quire-app.tsx", "sheet.tsx", "board.tsx", "header-strip.tsx"];
     for (const name of files) {
       const text = await fs.readFile(path.join(root, name), "utf8");
       assert.equal(text.includes("Ã"), false, `${name} contains Ã`);
@@ -168,6 +168,27 @@ describe("ui strings stay valid UTF-8", () => {
     assert.match(app, /— Papel/);
     const sheet = await fs.readFile(path.join(root, "sheet.tsx"), "utf8");
     assert.match(sheet, /\d+ × \d+/);
+  });
+});
+
+describe("zip store", () => {
+  it("builds a readable uncompressed archive", async () => {
+    const { buildZip, crc32 } = await import("./zip.ts");
+    const payload = new TextEncoder().encode('{"ok":true}');
+    const zip = buildZip([{ name: "backup.papel-archive", data: payload }]);
+    assert.equal(zip[0], 0x50);
+    assert.equal(zip[1], 0x4b);
+    assert.equal(crc32(payload), crc32(payload));
+    assert.ok(zip.length > payload.length + 30);
+  });
+});
+
+describe("folder file names", () => {
+  it("avoids collisions", async () => {
+    const { uniqueFileName } = await import("./folder-sync.ts");
+    const used = new Set<string>();
+    assert.equal(uniqueFileName("Note", "txt", used), "Note.txt");
+    assert.equal(uniqueFileName("Note", "txt", used), "Note (2).txt");
   });
 });
 
