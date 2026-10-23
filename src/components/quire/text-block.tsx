@@ -32,6 +32,7 @@ export function TextBlock({
   tick,
   focusRef,
   autocorrect,
+  findHit,
   onSelection,
   onEdited,
   onImage,
@@ -44,6 +45,8 @@ export function TextBlock({
   tick: number;
   focusRef: MutableRefObject<Place | null>;
   autocorrect: boolean;
+  /** Current Find match in this block — kept painted while Find stays focused. */
+  findHit?: { start: number; end: number } | null;
   onSelection: (start: number, end: number) => void;
   onEdited: () => void;
   onImage: (file: File) => void;
@@ -61,7 +64,12 @@ export function TextBlock({
     const ta = taRef.current;
     const pre = preRef.current;
     if (!ta || !pre) return;
-    pre.innerHTML = paint(ta.value, session.highlight(blockId), readMarks(session.marks(blockId)));
+    pre.innerHTML = paint(
+      ta.value,
+      session.highlight(blockId),
+      readMarks(session.marks(blockId)),
+      findHit && findHit.end > findHit.start ? findHit : null,
+    );
     fit(ta, wrap);
   };
 
@@ -135,15 +143,26 @@ export function TextBlock({
       // phone "scroll the focused element into view" reveals its bottom edge —
       // that is the jump to the bottom people see after tapping New sheet.
       // The caret is placed by hand instead, which we can do precisely.
-      ta.focus({ preventScroll: true });
+      // Keep Find focused when a findHit is active so typing the query still works;
+      // the match stays visible via the overlay `.find-hit` class.
+      if (!findHit || findHit.end <= findHit.start) {
+        ta.focus({ preventScroll: true });
+      }
       const pos = Math.min(focus.start, ta.value.length);
       const end = Math.min(focus.end, ta.value.length);
-      ta.setSelectionRange(pos, end);
+      try {
+        ta.setSelectionRange(pos, end);
+      } catch {
+        /* some browsers refuse setSelectionRange when not focused */
+      }
       revealCaret(ta);
       focusRef.current = null;
       onSelection(pos, end);
+    } else if (findHit && findHit.end > findHit.start) {
+      // Re-paint when the Find highlight moves without a focus handoff.
+      paintNow();
     }
-  }, [tick, wrap, blockId]);
+  }, [tick, wrap, blockId, findHit?.start, findHit?.end]);
 
   function sync(coalesce: boolean, typed?: string | null) {
     const ta = taRef.current;

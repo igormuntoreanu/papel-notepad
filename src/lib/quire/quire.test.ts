@@ -78,6 +78,10 @@ describe("paint", () => {
   it("emits highlighter classes", () => {
     assert.equal(paint("ab", [], readMarks([0, 1, 0, 0, 2])), '<span class="hl2">a</span>b');
   });
+
+  it("paints a Find hit that stays visible without textarea focus", () => {
+    assert.equal(paint("abc", [], [], { start: 1, end: 2 }), 'a<span class="find-hit">b</span>c');
+  });
 });
 
 describe("rangeHas", () => {

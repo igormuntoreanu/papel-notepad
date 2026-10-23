@@ -785,6 +785,7 @@ export function QuireApp() {
     const index = findMatchIndex(findQuery, matchCase, place);
     setFindStatus(`${index}/${count}`);
     bump(place);
+    // Refocus Find so Enter keeps searching; selection highlight lives on the overlay.
     window.setTimeout(() => findRef.current?.focus(), 0);
   }
 
@@ -1254,6 +1255,11 @@ export function QuireApp() {
                 onImage={(file) => void insertImageFile(file, "paste")}
                 styles={styles}
                 find={find}
+                findHit={
+                  findOpen && sel.end > sel.start
+                    ? { blockId: sel.blockId, start: sel.start, end: sel.end }
+                    : null
+                }
                 saveExt={saveExt}
                 saveExts={saveExts}
                 actions={sheetActions}
