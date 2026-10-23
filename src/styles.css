@@ -213,7 +213,8 @@
 }
 
 .desk[data-skin="ink"] .strip-status {
-  border-top-color: rgb(40 32 20 / 0.1);
+  border-left-color: rgb(40 32 20 / 0.1);
+  border-right-color: rgb(40 32 20 / 0.1);
 }
 
 .desk[data-skin="ink"] .sheet-frame,
@@ -227,7 +228,8 @@
 }
 
 .desk[data-skin="sulphite"] .strip-status {
-  border-top-color: rgb(0 0 0 / 0.08);
+  border-left-color: rgb(0 0 0 / 0.08);
+  border-right-color: rgb(0 0 0 / 0.08);
 }
 
 .desk[data-skin="sulphite"] .sheet-frame,
@@ -241,7 +243,8 @@
 }
 
 .desk[data-skin="carbon"] .strip-status {
-  border-top-color: rgb(30 40 38 / 0.14);
+  border-left-color: rgb(30 40 38 / 0.14);
+  border-right-color: rgb(30 40 38 / 0.14);
 }
 
 .desk[data-skin="carbon"] .sheet-frame,
@@ -255,7 +258,8 @@
 }
 
 .desk[data-skin="blueprint"] .strip-status {
-  border-top-color: rgb(232 240 248 / 0.12);
+  border-left-color: rgb(232 240 248 / 0.12);
+  border-right-color: rgb(232 240 248 / 0.12);
 }
 
 .desk[data-skin="blueprint"] .sheet-frame,
@@ -300,12 +304,12 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 16px 22px 18px;
+  padding: 12px 16px 14px;
 }
 
 .desk[data-view="focus"] .desk-body {
   overflow: hidden;
-  padding-bottom: 12px;
+  padding-bottom: 8px;
 }
 
 .spacer {
@@ -333,7 +337,7 @@
 
 .strip-paper {
   position: relative;
-  padding: 4px 16px 10px;
+  padding: 2px 12px 6px;
 }
 
 .strip-bg,
@@ -357,7 +361,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  min-height: 40px;
+  min-height: 34px;
 }
 
 .brand-name {
@@ -375,15 +379,15 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 36px;
-  max-width: min(42vw, 24rem);
-  padding: 0 6px;
+  min-height: 30px;
+  max-width: min(28vw, 14rem);
+  padding: 0 4px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: #1f2b40;
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -515,17 +519,22 @@
 
 .strip-status {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
   min-height: 28px;
-  margin-top: 2px;
-  padding-top: 4px;
-  border-top: 1px solid rgb(110 74 38 / 0.18);
+  margin: 0 6px;
+  padding: 0 8px;
+  border: 0;
+  border-left: 1px solid rgb(110 74 38 / 0.18);
+  border-right: 1px solid rgb(110 74 38 / 0.18);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .strip-status > * {
@@ -533,12 +542,13 @@
   white-space: nowrap;
 }
 
-.strip-status .tool {
-  min-height: 28px;
+.strip-status .tool,
+.strip-status .status-chip {
+  min-height: 26px;
   min-width: 0;
-  padding: 0 6px;
+  padding: 0 5px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11.5px;
   color: inherit;
 }
 
@@ -556,16 +566,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 40px;
-  min-width: 40px;
-  padding: 0 9px;
+  gap: 4px;
+  min-height: 30px;
+  min-width: 30px;
+  padding: 0 6px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 1;
   transition:
@@ -588,19 +598,22 @@
 }
 
 .tool svg {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   flex: none;
   stroke-width: 2.1;
 }
 
 .sheet-tools .tool {
   color: var(--ink);
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0 4px;
 }
 
 .sheet-tools .tool svg {
-  width: 20px;
-  height: 20px;
+  width: 15px;
+  height: 15px;
   color: var(--ink-soft);
 }
 
@@ -1304,7 +1317,7 @@
 
 .sheet-strip {
   flex: none;
-  padding: 14px 22px 8px;
+  padding: 6px 12px 4px;
   border-bottom: 1px dashed rgb(60 36 12 / 0.22);
 }
 
@@ -1321,8 +1334,10 @@
 
 .sheet-title {
   min-width: 0;
+  max-width: 10rem;
+  flex: 0 1 auto;
   margin: 0;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -1364,18 +1379,22 @@
 
 .sheet-tools {
   display: flex;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px 4px;
-  margin-top: 10px;
+  gap: 2px 2px;
+  min-width: 0;
+  margin: 0 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .tool-group {
   display: flex;
   align-items: center;
-  gap: 3px;
-  margin-right: 8px;
-  padding-right: 12px;
+  gap: 1px;
+  margin-right: 4px;
+  padding-right: 6px;
   border-right: 1px solid rgb(60 36 12 / 0.2);
 }
 
@@ -1386,17 +1405,17 @@
 }
 
 .group-icon {
-  width: 16px;
-  height: 16px;
-  margin: 0 4px 0 2px;
+  width: 13px;
+  height: 13px;
+  margin: 0 2px 0 1px;
   color: var(--ink-soft);
 }
 
 .swatch-btn {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 40px;
+  width: 24px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-xs);
@@ -1404,17 +1423,17 @@
 }
 
 .swatch-btn span {
-  width: 18px;
-  height: 18px;
+  width: 13px;
+  height: 13px;
   border-radius: 99px;
   border: 1px solid rgb(40 25 10 / 0.45);
   box-shadow: 0 1px 2px rgb(40 25 10 / 0.18);
 }
 
 .swatch-btn.hl span {
-  border-radius: 3px;
-  width: 20px;
-  height: 14px;
+  border-radius: 2px;
+  width: 14px;
+  height: 10px;
 }
 
 .swatch-btn.none span {
@@ -2036,7 +2055,7 @@
   }
 
   .sheet-strip {
-    padding: 10px 12px 6px;
+    padding: 4px 8px 2px;
   }
 
   .sheet-tools {
@@ -2050,8 +2069,13 @@
   }
 
   .swatch-btn {
-    width: 36px;
-    height: 44px;
+    width: 24px;
+    height: 28px;
+  }
+
+  .tool {
+    min-width: 32px;
+    min-height: 32px;
   }
 
   .sheet {
