@@ -206,8 +206,26 @@ export function copyBytes(bytes: Uint8Array): ArrayBuffer {
   return copy.buffer;
 }
 
-export function fileStamp(): string {
-  return new Date().toLocaleString(undefined, {
+export type DateStampStyle = "local" | "eu" | "iso";
+
+/** Insertable date/time stamp. `eu` is day/month/year (European). */
+export function fileStamp(style: DateStampStyle = "local"): string {
+  const d = new Date();
+  if (style === "eu") {
+    return d.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+  if (style === "iso") {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  return d.toLocaleString(undefined, {
     hour: "numeric",
     minute: "2-digit",
     day: "numeric",
