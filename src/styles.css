@@ -1799,6 +1799,12 @@
   color: transparent;
 }
 
+/* Find match stays visible even when focus is in the Find field. */
+.hl .find-hit {
+  background: var(--selection);
+  border-radius: 1px;
+}
+
 .block textarea:focus {
   outline: none;
 }

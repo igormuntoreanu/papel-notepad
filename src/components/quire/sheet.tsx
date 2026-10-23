@@ -161,6 +161,7 @@ export function Sheet({
   onImage,
   styles,
   find,
+  findHit,
   saveExt,
   saveExts,
   actions,
@@ -180,6 +181,8 @@ export function Sheet({
   onImage: (file: File) => void;
   styles: StyleState;
   find: FindState;
+  /** Active Find match to keep highlighted while Find stays focused. */
+  findHit: { blockId: number; start: number; end: number } | null;
   /** Default extension for Ctrl+S, e.g. `papel` or `txt`. */
   saveExt: string;
   /** Every extension this note can be written as, default first. */
@@ -394,6 +397,11 @@ export function Sheet({
                   tick={tick}
                   focusRef={focusRef}
                   autocorrect={autocorrect}
+                  findHit={
+                    findHit && findHit.blockId === item.id && findHit.end > findHit.start
+                      ? { start: findHit.start, end: findHit.end }
+                      : null
+                  }
                   onSelection={(start, end) => {
                     setSelectedImage(null);
                     onSelection(item.id, start, end);
@@ -417,6 +425,7 @@ function FindBar({ find }: { find: FindState }) {
       e.stopPropagation();
       // Enter = next only; Shift+Enter = previous.
       find.move(e.shiftKey);
+      // Keep focus in Find so the next Enter advances; match stays painted via find-hit.
       window.setTimeout(() => find.inputRef.current?.focus(), 0);
     }
     if (e.key === "Escape") {

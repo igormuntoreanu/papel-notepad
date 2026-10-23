@@ -53,7 +53,13 @@ export function rangeHas(marks: Mark[], start: number, end: number, flag: number
 }
 
 /** Renders text into HTML, layering syntax spans (triples) and style marks. */
-export function paint(text: string, spans: ArrayLike<number>, marks: Mark[] = []): string {
+export function paint(
+  text: string,
+  spans: ArrayLike<number>,
+  marks: Mark[] = [],
+  /** Current Find match — painted even when the textarea is not focused. */
+  findHit?: { start: number; end: number } | null,
+): string {
   const len = text.length;
   const points = new Set<number>([0, len]);
   const syn: { s: number; e: number; cls: string }[] = [];
@@ -74,7 +80,15 @@ export function paint(text: string, spans: ArrayLike<number>, marks: Mark[] = []
     points.add(m.start);
     points.add(m.end);
   }
-  if (syn.length === 0 && styled.length === 0) return esc(text);
+  const hit =
+    findHit && findHit.end > findHit.start
+      ? { start: Math.min(findHit.start, len), end: Math.min(findHit.end, len) }
+      : null;
+  if (hit && hit.end > hit.start) {
+    points.add(hit.start);
+    points.add(hit.end);
+  }
+  if (syn.length === 0 && styled.length === 0 && !hit) return esc(text);
   const cuts = [...points].sort((a, b) => a - b);
   let html = "";
   let si = 0;
@@ -97,6 +111,7 @@ export function paint(text: string, spans: ArrayLike<number>, marks: Mark[] = []
       if (mk.ink) classes.push(`ink${mk.ink}`);
       if (mk.hl) classes.push(`hl${mk.hl}`);
     }
+    if (hit && hit.start <= a && hit.end > a) classes.push("find-hit");
     html += classes.length ? `<span class="${classes.join(" ")}">${body}</span>` : body;
   }
   return html;
