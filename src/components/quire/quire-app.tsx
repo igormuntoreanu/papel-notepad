@@ -18,7 +18,19 @@ import {
 } from "@/lib/quire/folder-sync";
 import { defaultSaveExt, extFromFilename, isRich as richFlags, saveExtensions } from "@/lib/quire/save-type";
 import { installTextures } from "@/lib/quire/textures";
-import { canOpenFile, download, FILE_ACCEPT, fileStamp, langFromFilename, langLabel, mimeForExtension, safeName, SKINS, type SkinId } from "@/lib/quire/text";
+import {
+  canOpenFile,
+  download,
+  FILE_ACCEPT,
+  fileStamp,
+  langFromFilename,
+  langLabel,
+  mimeForExtension,
+  safeName,
+  SKINS,
+  type DateStampStyle,
+  type SkinId,
+} from "@/lib/quire/text";
 import { copyTitle, titleFromFilename, uniqueTitle } from "@/lib/quire/titles";
 import { buildZip } from "@/lib/quire/zip";
 import { Board, type CardActions } from "./board";
@@ -673,11 +685,11 @@ export function QuireApp() {
     } else bump();
   }
 
-  function insertDate() {
+  function insertDate(style: DateStampStyle = "local") {
     if (!session) return;
     const { blockId: b, start, end } = selRef.current;
     const blockId = b || session.first_text_id();
-    const stamp = fileStamp();
+    const stamp = fileStamp(style);
     const before = start > 0 ? session.text_of(blockId).slice(start - 1, start) : "";
     const insert = before && !/\s/.test(before) ? ` ${stamp}` : stamp;
     session.edit(blockId, start, end, insert, false);
@@ -685,6 +697,26 @@ export function QuireApp() {
     setSel({ blockId, start: pos, end: pos });
     touch(activeId);
     bump({ block_id: blockId, start: pos, end: pos });
+  }
+
+  /** 1-based index of `hit` among all matches for the current query. */
+  function findMatchIndex(query: string, matchCase: boolean, hit: Place): number {
+    if (!session) return 0;
+    let index = 0;
+    for (const item of outlineOf(session).filter((i) => i.kind === "text")) {
+      let from = 0;
+      const len = session.text_of(item.id).length;
+      while (from <= len) {
+        const m = session.find(query, matchCase, item.id, from, false);
+        if (!m || m.block_id !== item.id) break;
+        index += 1;
+        if (m.block_id === hit.block_id && m.start === hit.start && m.end === hit.end) return index;
+        const next = m.end > from ? m.end : from + 1;
+        if (next <= from) break;
+        from = next;
+      }
+    }
+    return index;
   }
 
   /** Inserts a monospace table skeleton as text: one edit, one undo step. */
@@ -726,7 +758,7 @@ export function QuireApp() {
 
   function findMove(back: boolean) {
     if (!session || !findQuery) {
-      setFindStatus("Type something to find.");
+      setFindStatus("—");
       return;
     }
     const cur = selRef.current;
@@ -744,14 +776,16 @@ export function QuireApp() {
     const count = session.find_count(findQuery, matchCase);
     if (!hit || count === 0) {
       anchor.current = null;
-      setFindStatus("No matches.");
+      setFindStatus("0/0");
       return;
     }
     const place = { block_id: hit.block_id, start: hit.start, end: hit.end };
     anchor.current = place;
     setSel({ blockId: hit.block_id, start: hit.start, end: hit.end });
-    setFindStatus(`${count} found`);
+    const index = findMatchIndex(findQuery, matchCase, place);
+    setFindStatus(`${index}/${count}`);
     bump(place);
+    window.setTimeout(() => findRef.current?.focus(), 0);
   }
 
   function replaceOne() {
@@ -1009,7 +1043,12 @@ export function QuireApp() {
     setQuery: (v) => {
       setFindQuery(v);
       anchor.current = null;
-      setFindStatus("");
+      // Mid-edit: reset cycle; show total until Enter picks match 1/N.
+      if (!v) setFindStatus("—");
+      else if (session) {
+        const count = session.find_count(v, matchCase);
+        setFindStatus(count ? `1/${count}` : "0/0");
+      } else setFindStatus("—");
     },
     repl,
     setRepl,
