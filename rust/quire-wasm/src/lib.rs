@@ -305,4 +305,24 @@ impl Session {
     pub fn table_fill(&mut self, id: u32, target: &str, row: u32, col: u32, fill: u8) -> bool {
         self.doc.table_fill(id, target, row, col, fill)
     }
+
+    pub fn table_style(
+        &mut self,
+        id: u32,
+        row: u32,
+        col: u32,
+        start: u32,
+        end: u32,
+        kind: &str,
+        value: u32,
+    ) -> bool {
+        match StyleChange::parse(kind, value) {
+            Some(change) => self.doc.table_style(id, row, col, start, end, change),
+            None => false,
+        }
+    }
+
+    pub fn table_marks(&self, id: u32, row: u32, col: u32) -> Vec<u32> {
+        self.doc.table_marks(id, row, col)
+    }
 }

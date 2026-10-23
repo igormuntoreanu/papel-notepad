@@ -1021,6 +1021,62 @@ impl Document {
         id
     }
 
+    /// Applies a style change over `start..end` inside one cell.
+    pub fn table_style(
+        &mut self,
+        id: u32,
+        row: u32,
+        col: u32,
+        start: u32,
+        end: u32,
+        change: StyleChange,
+    ) -> bool {
+        let Some((rows, cols)) = self.table_shape(id) else { return false };
+        let (r, c) = (row as usize, col as usize);
+        if r >= rows || c >= cols {
+            return false;
+        }
+        let index = r * cols + c;
+        let before = self.blocks.clone();
+        let changed = match self.blocks.iter_mut().find(|block| block.id() == id) {
+            Some(Block::Table { cells, .. }) => {
+                let cell = &mut cells[index];
+                let len = utf16_len(&cell.text) as u32;
+                let (a, b) = (start.min(end).min(len), start.max(end).min(len));
+                if a == b {
+                    false
+                } else {
+                    let next = marks::restyle(&cell.marks, a, b, change);
+                    if next == cell.marks {
+                        false
+                    } else {
+                        cell.marks = next;
+                        true
+                    }
+                }
+            }
+            _ => false,
+        };
+        if changed {
+            self.finish_structure(before);
+        }
+        changed
+    }
+
+    /// Flat style runs for one cell (`[start, end, flags, ink, hl]*`).
+    pub fn table_marks(&self, id: u32, row: u32, col: u32) -> Vec<u32> {
+        let Some((cols, cells)) = self.table_of(id) else { return Vec::new() };
+        let Some(cell) = cells.get(row as usize * cols + col as usize) else {
+            return Vec::new();
+        };
+        cell.marks
+            .iter()
+            .flat_map(|run| {
+                [run.start, run.end, run.style.flags as u32, run.style.ink as u32, run.style.hl as u32]
+            })
+            .collect()
+    }
+
     fn apply_cell(&mut self, id: u32, row: u32, col: u32, text: &str, marks: &[Run]) {
         let Some((rows, cols)) = self.table_shape(id) else { return };
         let (r, c) = (row as usize, col as usize);
@@ -1480,6 +1536,25 @@ mod tests {
         assert!(!doc.table_fill(id, "row", 0, 0, 2), "same fill is a no-op");
         doc.undo();
         assert!(doc.table_json(id).contains("\"f\":0"));
+    }
+
+    #[test]
+    fn table_cell_styles_apply_to_a_range() {
+        let mut doc = Document::new();
+        let cell = Cell { text: "hello".into(), marks: Vec::new(), fill: 0 };
+        let id = doc.restore_table(1, vec![cell]);
+
+        assert!(doc.table_style(id, 0, 0, 0, 2, StyleChange::Flag(marks::BOLD, true)));
+        assert_eq!(doc.table_marks(id, 0, 0), vec![0, 2, 1, 0, 0]);
+
+        assert!(doc.table_style(id, 0, 0, 3, 5, StyleChange::Ink(2)));
+        assert_eq!(doc.table_marks(id, 0, 0), vec![0, 2, 1, 0, 0, 3, 5, 0, 2, 0]);
+
+        doc.undo();
+        assert_eq!(doc.table_marks(id, 0, 0), vec![0, 2, 1, 0, 0], "styles undo as one step");
+
+        assert!(!doc.table_style(id, 0, 0, 2, 2, StyleChange::Flag(marks::BOLD, true)));
+        assert_eq!(doc.table_marks(id, 0, 0), vec![0, 2, 1, 0, 0], "an empty range changes nothing");
     }
 
     #[test]

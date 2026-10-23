@@ -23,7 +23,7 @@ import type { Session } from "@/lib/quire/engine";
 import { HIGHLIGHTERS, INKS, type FlagName } from "@/lib/quire/marks";
 import { tornClip } from "@/lib/quire/torn";
 import { TextBlock } from "./text-block";
-import { TableBlock } from "./table-block";
+import { TableBlock, type CellTarget } from "./table-block";
 import { DropMenu } from "./drop-menu";
 import { imageUrl, outlineOf, type NoteMeta, type Place } from "./store";
 
@@ -157,6 +157,7 @@ export function Sheet({
   setSelectedImage,
   onSelection,
   onEdited,
+  onCellSelect,
   onImage,
   styles,
   find,
@@ -173,6 +174,7 @@ export function Sheet({
   setSelectedImage: (id: number | null) => void;
   onSelection: (blockId: number, start: number, end: number) => void;
   onEdited: () => void;
+  onCellSelect: (target: CellTarget | null) => void;
   onImage: (file: File) => void;
   styles: StyleState;
   find: FindState;
@@ -346,6 +348,7 @@ export function Sheet({
                   session={session}
                   version={tick}
                   onEdited={onEdited}
+                  onSelect={onCellSelect}
                 />
               ) : (
                 <TextBlock

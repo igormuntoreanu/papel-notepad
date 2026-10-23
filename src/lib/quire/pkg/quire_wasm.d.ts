@@ -78,8 +78,10 @@ export class Session {
     table_insert_col(id: number, at: number): boolean;
     table_insert_row(id: number, at: number): boolean;
     table_json(id: number): string;
+    table_marks(id: number, row: number, col: number): Uint32Array;
     table_set_marks(id: number, row: number, col: number, flat: Uint32Array): boolean;
     table_set_text(id: number, row: number, col: number, text: string): boolean;
+    table_style(id: number, row: number, col: number, start: number, end: number, kind: string, value: number): boolean;
     text_of(id: number): string;
     undo(): Caret | undefined;
 }
@@ -146,8 +148,10 @@ export interface InitOutput {
     readonly session_table_insert_col: (a: number, b: number, c: number) => number;
     readonly session_table_insert_row: (a: number, b: number, c: number) => number;
     readonly session_table_json: (a: number, b: number) => [number, number];
+    readonly session_table_marks: (a: number, b: number, c: number, d: number) => [number, number];
     readonly session_table_set_marks: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly session_table_set_text: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+    readonly session_table_style: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
     readonly session_text_of: (a: number, b: number) => [number, number];
     readonly session_undo: (a: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;

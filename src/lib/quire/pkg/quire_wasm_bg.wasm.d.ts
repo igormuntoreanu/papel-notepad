@@ -59,8 +59,10 @@ export const session_table_fill: (a: number, b: number, c: number, d: number, e:
 export const session_table_insert_col: (a: number, b: number, c: number) => number;
 export const session_table_insert_row: (a: number, b: number, c: number) => number;
 export const session_table_json: (a: number, b: number) => [number, number];
+export const session_table_marks: (a: number, b: number, c: number, d: number) => [number, number];
 export const session_table_set_marks: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
 export const session_table_set_text: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+export const session_table_style: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
 export const session_text_of: (a: number, b: number) => [number, number];
 export const session_undo: (a: number) => number;
 export const __wbindgen_externrefs: WebAssembly.Table;

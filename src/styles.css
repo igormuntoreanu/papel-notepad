@@ -1312,17 +1312,42 @@
   vertical-align: top;
 }
 
-.sheet-table td input {
-  display: block;
-  width: 100%;
-  min-width: 6ch;
+/* A cell is a textarea behind a styled overlay, the same trick as the page
+   editor: native caret and selection, coloured text from the <pre> behind. */
+.cell {
+  position: relative;
+  min-height: calc(var(--editor-size) * var(--editor-leading) + 8px);
+}
+
+.cell .hl,
+.cell-input {
+  margin: 0;
   padding: 4px 8px;
   border: 0;
-  background: transparent;
-  color: var(--ink);
   font-family: var(--font-mono);
   font-size: var(--editor-size);
   line-height: var(--editor-leading);
+  white-space: pre;
+}
+
+.cell .hl {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--ink);
+}
+
+.cell-input {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 6ch;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--ink);
+  overflow-x: auto;
+  resize: none;
   outline: none;
 }
 

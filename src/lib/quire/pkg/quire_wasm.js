@@ -643,6 +643,18 @@ export class Session {
      * @param {number} id
      * @param {number} row
      * @param {number} col
+     * @returns {Uint32Array}
+     */
+    table_marks(id, row, col) {
+        const ret = wasm.session_table_marks(this.__wbg_ptr, id, row, col);
+        var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @param {number} id
+     * @param {number} row
+     * @param {number} col
      * @param {Uint32Array} flat
      * @returns {boolean}
      */
@@ -663,6 +675,22 @@ export class Session {
         const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.session_table_set_text(this.__wbg_ptr, id, row, col, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
+     * @param {number} id
+     * @param {number} row
+     * @param {number} col
+     * @param {number} start
+     * @param {number} end
+     * @param {string} kind
+     * @param {number} value
+     * @returns {boolean}
+     */
+    table_style(id, row, col, start, end, kind, value) {
+        const ptr0 = passStringToWasm0(kind, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.session_table_style(this.__wbg_ptr, id, row, col, start, end, ptr0, len0, value);
         return ret !== 0;
     }
     /**
