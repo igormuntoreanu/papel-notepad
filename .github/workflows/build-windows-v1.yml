@@ -1,0 +1,112 @@
+name: Build Windows portable (v1)
+
+# Builds the Tauri/WebView2 portable build on a real Windows runner and attaches
+# the folder zip to a release when a tag is pushed (`v*`). On a branch push it
+# uploads the same zip as a workflow artifact instead, so the executable can be
+# inspected without cutting a release.
+#
+# Two host facts this workflow encodes, both learned the hard way:
+#
+#  - The static bundle must exist before cargo runs. `tauri.conf.json` points
+#    `frontendDist` at `dist-desktop/client`, which is gitignored, so a fresh
+#    checkout cannot build the shell until `build:desktop` has run.
+#  - `scripts/tauri-build.mjs` links with `rust-lld` and the self-contained CRT
+#    instead of MinGW's gcc, and needs a `dlltool` on PATH. LLVM-MinGW is
+#    installed below so the script finds it through its normal search.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to upload release assets on a tag
+  actions: read
+
+concurrency:
+  group: windows-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          # Playwright is a dev dependency used only by local smoke checks.
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      # rustup is preinstalled on windows-latest; requesting the GNU host toolchain
+      # keeps `scripts/tauri-build.mjs` and its rust-lld link flags valid.
+      - name: Install Rust (GNU host toolchain)
+        shell: pwsh
+        run: |
+          rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal
+          rustup default stable-x86_64-pc-windows-gnu
+          rustc -vV
+
+      - name: Install LLVM-MinGW (provides dlltool)
+        shell: pwsh
+        run: |
+          # LLVM-MinGW ships dlltool and is the package the project documents.
+          choco install llvm-mingw --yes --no-progress
+          $dlltool = Get-ChildItem "C:\ProgramData\chocolatey\lib" -Recurse -Filter dlltool.exe -File -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $dlltool) { throw "dlltool.exe not found after installing llvm-mingw" }
+          $dlltool.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & $dlltool.FullName --version
+
+      - name: Cache cargo target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            shells/tauri/src-tauri/target
+          key: windows-v1-${{ hashFiles('shells/tauri/src-tauri/Cargo.lock') }}
+          restore-keys: windows-v1-
+
+      - name: Build static bundle for the shell
+        run: npm run build:desktop
+
+      - name: Build the shell (bundles, links, no installer)
+        run: npm run tauri:build
+
+      - name: Package the portable folder
+        run: npm run package:v1
+
+      - name: Show what was produced
+        shell: pwsh
+        run: |
+          Get-ChildItem dist-portable/V1 | Format-Table Name, Length
+          Get-ChildItem dist-portable/*.zip | Format-Table Name, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: papel-portable-v1-windows
+          path: dist-portable/papel-*-portable-v1.zip
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $zip = Get-ChildItem dist-portable/papel-*-portable-v1.zip | Select-Object -First 1
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag $zip.FullName --title "Papel $tag (portable Windows)" --generate-notes
+          } else {
+            gh release upload $tag $zip.FullName --clobber
+          }
