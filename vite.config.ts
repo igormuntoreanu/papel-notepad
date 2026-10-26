@@ -143,25 +143,34 @@ function authPopupPlugin(): Plugin {
 }
 
 /**
- * GitHub Pages build (opt-in): a static, prerendered site at a repository
- * subpath.
+ * Static builds (opt-in): the same prerendered output for two different hosts.
  *
  * Pages cannot run the Nitro server, so this mode prerenders the routes and
  * drops the Nitro plugin, leaving plain `index.html` + hashed assets. `base`
  * must match the Pages URL path, because GitHub serves project sites from
  * `/<repo>/` and every emitted asset URL is rebased onto it.
  *
+ * The desktop shells (Tauri, Electron) serve the identical output from an
+ * application-owned scheme at the origin root, so `PAPEL_DESKTOP=1` takes the
+ * same static path with `base: "/"`. Reusing one build means the portable
+ * builds cannot drift from the web app: same files, same router, same CSS.
+ *
  * Unset by default: `npm run dev`, `vite preview` and the Vercel build follow
  * the original path unchanged.
  */
 const pagesMode = process.env.PAPEL_PAGES === "1";
 const pagesBase = process.env.PAPEL_PAGES_BASE ?? "/papel-notepad/";
+// Pages wins if both are set: it is the deployment that needs a subpath base.
+const desktopMode = !pagesMode && process.env.PAPEL_DESKTOP === "1";
+/** Either static mode: prerender, no Nitro, no runtime PWA middleware. */
+const staticMode = pagesMode || desktopMode;
+const staticBase = pagesMode ? pagesBase : desktopMode ? "/" : undefined;
 
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
 export default defineConfig(({ command, isPreview }) => ({
-  base: pagesMode ? pagesBase : undefined,
+  base: staticBase,
   server: {
     host: "0.0.0.0",
     port: 8080,
@@ -180,12 +189,12 @@ export default defineConfig(({ command, isPreview }) => ({
     // Dev-only /__app-env, read by scripts/check-auth-invariant.mjs.
     appEnvPlugin(),
     // PWA head + ?install=1 tutorial page; runs before Start/Nitro. Skipped on
-    // Pages: it is a runtime-server feature and would inject /__grok links that
-    // nothing serves there.
-    ...(pagesMode ? [] : [grokPwaPlugin()]),
+    // static builds: it is a runtime-server feature and would inject /__grok
+    // links that nothing serves there.
+    ...(staticMode ? [] : [grokPwaPlugin()]),
     tailwindcss(),
     tanstackStart(
-      pagesMode
+      staticMode
         ? {
             // Static prerendering, not `spa`: the SPA shell is an empty
             // document, which makes React hydrate `<Boot/>` against nothing
@@ -195,7 +204,7 @@ export default defineConfig(({ command, isPreview }) => ({
           }
         : undefined,
     ),
-    ...(!pagesMode && (command === "build" || isPreview)
+    ...(!staticMode && (command === "build" || isPreview)
       ? [
           nitro({
             preset: "vercel",

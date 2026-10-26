@@ -1,3 +1,7 @@
+// Relative, with extension: `text.ts` is loaded by `node --test` through type
+// stripping, where the `@/` alias does not resolve.
+import { asBytes, desktopBridge } from "../desktop/bridge.ts";
+
 export const SKINS = [
   {
     id: "ink",
@@ -174,6 +178,15 @@ export function diffText(prev: string, next: string): { start: number; end: numb
 }
 
 export function download(name: string, data: Uint8Array | string, mime: string) {
+  // A portable build asks where to save. Falling back to the download manager
+  // there would drop every sheet into Downloads instead of the user's folder.
+  const bridge = desktopBridge();
+  if (bridge) {
+    void bridge.saveFile(name, asBytes(data), mime).catch(() => {
+      /* the shell surfaces its own errors */
+    });
+    return;
+  }
   const blob =
     typeof data === "string" ? new Blob([data], { type: mime }) : new Blob([data.slice()], { type: mime });
   const url = URL.createObjectURL(blob);

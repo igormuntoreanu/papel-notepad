@@ -8,6 +8,7 @@ import { ARCHIVE_EXT, archiveFileName, formatLastBackup, mergeArchive, parseArch
 import {
   canPickFolder,
   folderEntryCount,
+  type FolderDir,
   loadFolderHandle,
   pickSyncFolder,
   removeFolderFile,
@@ -107,7 +108,7 @@ export function QuireApp() {
   const imageRef = useRef<HTMLInputElement>(null);
   const findRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const folderRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const folderRef = useRef<FolderDir | null>(null);
   const folderOkRef = useRef(false);
   const notesRef = useRef(notes);
   const orderRef = useRef(order);
@@ -147,7 +148,7 @@ export function QuireApp() {
     setNotes((list) => list.map((n) => (n.id === id ? { ...n, diskName } : n)));
   }
 
-  async function linkFolder(handle: FileSystemDirectoryHandle) {
+  async function linkFolder(handle: FolderDir) {
     folderRef.current = handle;
     folderOkRef.current = true;
     setFolderName(handle.name);

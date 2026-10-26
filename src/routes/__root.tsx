@@ -13,10 +13,15 @@ const BASE = import.meta.env.BASE_URL;
 
 /**
  * The `/__grok/*` manifest and touch icon are served at runtime by the platform
- * PWA plugin, which is not part of the static Pages build. Linking them there
- * would only produce 404s.
+ * PWA plugin, which is not part of a static build. Linking them there would
+ * only produce 404s.
+ *
+ * `BASE` alone cannot answer this: the desktop shells serve the static bundle
+ * from the origin root just like a deployed app does (`PAPEL_DESKTOP=1`), so the
+ * build flag is what distinguishes "root base because deployed" from "root base
+ * because there is no server at all".
  */
-const hasPlatformChrome = BASE === "/";
+const hasPlatformChrome = BASE === "/" && import.meta.env.VITE_DESKTOP !== "1";
 
 export const Route = createRootRoute({
   head: () => ({

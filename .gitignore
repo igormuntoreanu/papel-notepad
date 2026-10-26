@@ -17,3 +17,5 @@ AGENTS.md
 AGENTS.project.md
 .node_modules.lock
 public/__grok
+dist-desktop
+dist-portable

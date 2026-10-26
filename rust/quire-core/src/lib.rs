@@ -1,4 +1,4 @@
-﻿//! Quire document core.
+//! Quire document core.
 //!
 //! This crate is the boundary a future native shell should link against.
 //! It owns the buffer, undo, encoding, language sniff, syntax spans, and
@@ -8,7 +8,7 @@ mod detect;
 mod document;
 mod encoding;
 mod format;
-mod highlight;
+pub mod highlight;
 mod lang;
 pub mod marks;
 mod textutil;

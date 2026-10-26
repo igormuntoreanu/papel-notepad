@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Papel",
+  "version": "0.1.0",
+  "identifier": "com.papel.notepad",
+  "build": {
+    "frontendDist": "../../../dist-desktop/client"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

@@ -1,4 +1,24 @@
-/** Folder autosave via the File System Access API (Chrome / Edge). */
+/**
+ * Folder autosave.
+ *
+ * Two providers behind one surface: the File System Access API in Chrome/Edge,
+ * and the desktop bridge in the portable shells (WebView2 and Electron do not
+ * implement the FSA *picker*, so the shells supply folder I/O themselves).
+ * Everything below `pickSyncFolder` speaks the same handle shape, so callers in
+ * `quire-app.tsx` never branch on platform.
+ */
+// Relative, with extensions: this module is also loaded by `node --test`
+// through type stripping, where the `@/` alias does not resolve.
+import { desktopBridge } from "../desktop/bridge.ts";
+import {
+  DesktopDirectoryHandle,
+  type FolderDir,
+  isDesktopDir,
+  readStoredDesktopDir,
+  storedDesktopDir,
+} from "../desktop/fs-adapter.ts";
+
+export type { FolderDir };
 
 const HANDLE_KEY = "folderHandle";
 
@@ -36,14 +56,23 @@ function request<T>(req: IDBRequest<T>): Promise<T> {
   });
 }
 
+/**
+ * Whether the app can offer a sync folder at all. False here is what makes the
+ * UI say "Folder sync needs Chrome or Edge" and blocks New/Open, so the desktop
+ * bridge must be counted — it is a folder picker by any other name.
+ */
 export function canPickFolder(): boolean {
-  return typeof window !== "undefined" && typeof folderWindow().showDirectoryPicker === "function";
+  if (typeof window === "undefined") return false;
+  return typeof folderWindow().showDirectoryPicker === "function" || desktopBridge() !== null;
 }
 
-export async function saveFolderHandle(handle: DirHandle): Promise<void> {
+export async function saveFolderHandle(handle: FolderDir): Promise<void> {
+  // A live handle does not survive structured clone on desktop (the adapter
+  // carries functions), so only the address is stored; load rebuilds it.
+  const value = isDesktopDir(handle) ? storedDesktopDir(handle.dir) : handle;
   const db = await openDb();
   const tx = db.transaction("kv", "readwrite");
-  tx.objectStore("kv").put(handle, HANDLE_KEY);
+  tx.objectStore("kv").put(value, HANDLE_KEY);
   await new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -51,12 +80,21 @@ export async function saveFolderHandle(handle: DirHandle): Promise<void> {
   db.close();
 }
 
-export async function loadFolderHandle(): Promise<DirHandle | null> {
+export async function loadFolderHandle(): Promise<FolderDir | null> {
   const db = await openDb();
   const tx = db.transaction("kv", "readonly");
-  const handle = (await request(tx.objectStore("kv").get(HANDLE_KEY))) as DirHandle | undefined;
+  const value = await request(tx.objectStore("kv").get(HANDLE_KEY));
   db.close();
-  return handle ?? null;
+  if (!value) return null;
+  const desktopDir = readStoredDesktopDir(value);
+  if (desktopDir) {
+    const bridge = desktopBridge();
+    if (!bridge) return null;
+    // The folder may have been moved or deleted between sessions.
+    const resolved = await bridge.resolveDirectory(desktopDir.id);
+    return resolved ? new DesktopDirectoryHandle(bridge, resolved) : null;
+  }
+  return (value as DirHandle | undefined) ?? null;
 }
 
 export async function clearFolderHandle(): Promise<void> {
@@ -70,9 +108,9 @@ export async function clearFolderHandle(): Promise<void> {
   db.close();
 }
 
-export async function verifyFolderPermission(handle: DirHandle, ask: boolean): Promise<boolean> {
+export async function verifyFolderPermission(handle: FolderDir, ask: boolean): Promise<boolean> {
   const opts = { mode: "readwrite" as const };
-  const withPerm = handle as DirHandle & {
+  const withPerm = handle as FolderDir & {
     queryPermission?: (o: { mode: "readwrite" }) => Promise<PermissionState>;
     requestPermission?: (o: { mode: "readwrite" }) => Promise<PermissionState>;
   };
@@ -84,7 +122,16 @@ export async function verifyFolderPermission(handle: DirHandle, ask: boolean): P
   return true;
 }
 
-export async function pickSyncFolder(): Promise<DirHandle | null> {
+export async function pickSyncFolder(): Promise<FolderDir | null> {
+  const bridge = desktopBridge();
+  if (bridge) {
+    const dir = await bridge.pickDirectory();
+    if (!dir) return null;
+    const handle = new DesktopDirectoryHandle(bridge, dir);
+    await saveFolderHandle(handle);
+    return handle;
+  }
+
   const pick = folderWindow().showDirectoryPicker;
   if (!pick) return null;
   try {
@@ -99,10 +146,20 @@ export async function pickSyncFolder(): Promise<DirHandle | null> {
 }
 
 export async function writeFolderFile(
-  dir: DirHandle,
+  dir: FolderDir,
   name: string,
   data: Uint8Array | string,
 ): Promise<void> {
+  if (isDesktopDir(dir)) {
+    const file = await dir.getFileHandle(name, { create: true });
+    const writable = await file.createWritable();
+    try {
+      await writable.write(data);
+    } finally {
+      await writable.close();
+    }
+    return;
+  }
   const file = await dir.getFileHandle(name, { create: true });
   const writable = await file.createWritable();
   try {
@@ -112,7 +169,11 @@ export async function writeFolderFile(
   }
 }
 
-export async function removeFolderFile(dir: DirHandle, name: string): Promise<void> {
+export async function removeFolderFile(dir: FolderDir, name: string): Promise<void> {
+  if (isDesktopDir(dir)) {
+    await dir.removeEntry(name);
+    return;
+  }
   try {
     const file = (await dir.getFileHandle(name)) as FileHandleWithMove;
     if (typeof file.remove === "function") {
@@ -131,12 +192,18 @@ export async function removeFolderFile(dir: DirHandle, name: string): Promise<vo
 
 /** Rename on disk: prefer move(), else write-new + delete-old. */
 export async function renameFolderFile(
-  dir: DirHandle,
+  dir: FolderDir,
   oldName: string,
   newName: string,
   data: Uint8Array | string,
 ): Promise<void> {
   if (oldName === newName) {
+    await writeFolderFile(dir, newName, data);
+    return;
+  }
+  if (isDesktopDir(dir)) {
+    const file = await dir.getFileHandle(oldName);
+    await file.move(newName);
     await writeFolderFile(dir, newName, data);
     return;
   }
@@ -154,14 +221,16 @@ export async function renameFolderFile(
   if (oldName !== newName) await removeFolderFile(dir, oldName);
 }
 
-type DirIter = DirHandle & {
+type DirEntryHandle = { kind: string; name: string; getFile(): Promise<File> };
+
+type DirIter = {
   keys?: () => AsyncIterableIterator<string>;
-  entries?: () => AsyncIterableIterator<[string, FileSystemHandle]>;
+  entries?: () => AsyncIterableIterator<[string, DirEntryHandle]>;
 };
 
 /** Counts entries in the sync folder (for empty-folder migrate). */
-export async function folderEntryCount(dir: DirHandle): Promise<number> {
-  const iter = dir as DirIter;
+export async function folderEntryCount(dir: FolderDir): Promise<number> {
+  const iter = dir as unknown as DirIter;
   if (typeof iter.keys !== "function") return 0;
   let n = 0;
   for await (const _ of iter.keys()) n += 1;
@@ -170,9 +239,9 @@ export async function folderEntryCount(dir: DirHandle): Promise<number> {
 
 /** Lists syncable note files in the folder. */
 export async function listNoteFiles(
-  dir: DirHandle,
+  dir: FolderDir,
 ): Promise<Array<{ name: string; file: File }>> {
-  const iter = dir as DirIter;
+  const iter = dir as unknown as DirIter;
   const out: Array<{ name: string; file: File }> = [];
   if (typeof iter.entries !== "function") return out;
   for await (const [name, handle] of iter.entries()) {
@@ -191,7 +260,7 @@ export async function listNoteFiles(
     ) {
       continue;
     }
-    out.push({ name, file: await (handle as FileSystemFileHandle).getFile() });
+    out.push({ name, file: await handle.getFile() });
   }
   return out;
 }

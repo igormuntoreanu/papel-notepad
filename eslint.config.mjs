@@ -42,6 +42,18 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
     },
   },
+  // Electron's main and preload scripts must be CommonJS: the builtin `electron`
+  // module exposes its API dynamically, so ESM named imports resolve to nothing.
+  {
+    files: ["shells/electron/**/*.cjs"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: { ...globals.node },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
   // Disable rules that conflict with Prettier formatting.
   prettier,
 );
