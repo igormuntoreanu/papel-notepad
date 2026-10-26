@@ -55,15 +55,20 @@ jobs:
 
       - name: Install LLVM-MinGW (provides dlltool)
         shell: pwsh
+        env:
+          # Pinned: the tag + asset name are checked below, so a missing release
+          # fails loudly instead of silently picking up something else.
+          LLVM_MINGW_TAG: llvm-mingw-20250613-ucrt-x86_64
         run: |
-          # LLVM-MinGW ships dlltool and is the package the project documents.
-          choco install llvm-mingw --yes --no-progress
-          $dlltool = Get-ChildItem "C:\ProgramData\chocolatey\lib" -Recurse -Filter dlltool.exe -File -ErrorAction SilentlyContinue |
+          # There is no llvm-mingw package on Chocolatey; take the official release.
+          $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/20250613/$env:LLVM_MINGW_TAG.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\llvm-mingw.zip" -UseBasicParsing
+          Expand-Archive "$env:RUNNER_TEMP\llvm-mingw.zip" -DestinationPath "$env:RUNNER_TEMP\llvm-mingw" -Force
+          $dlltool = Get-ChildItem "$env:RUNNER_TEMP\llvm-mingw" -Recurse -Filter dlltool.exe -File |
             Select-Object -First 1
-          if (-not $dlltool) { throw "dlltool.exe not found after installing llvm-mingw" }
+          if (-not $dlltool) { throw "dlltool.exe not found in the LLVM-MinGW archive" }
           $dlltool.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-          & $dlltool.FullName --version
-
+          & $dlltool.FullName --version | Select-Object -First 1
       - name: Cache cargo target
         uses: actions/cache@v4
         with:
