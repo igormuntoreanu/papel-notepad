@@ -71,19 +71,21 @@ try {
   });
 
   await page.goto(`http://127.0.0.1:${PORT}/favicon.svg`, { waitUntil: "load" });
-  await page.evaluate(async () => {
-    const text =
-      "Toolbar wrap check.\n\nEvery button in the strip must stay visible and clickable at this width.\n";
+  const boxMode = process.argv.includes("--box");
+  const seedText = boxMode
+    ? ["SELECT *", "    FROM /SCMTMS/D_TOREXE", "    INTO TABLE @DATA(lt_log)", "    FOR ALL ENTRIES IN @lt_track_logi", "    WHERE parent_key = @lt_track_logi-chavetecnicaordemfrete.", ""].join("\n")
+    : "Toolbar wrap check.\n\nEvery button in the strip must stay visible and clickable at this width.\n";
+  await page.evaluate(async (seed) => {
     const note = {
       id: "shot-1",
       title: "Narrow window",
-      wrap: true,
+      wrap: seed.wrap,
       edited: Date.now(),
       sourceExt: "papel",
       language: "auto",
       eol: "lf",
       encoding: "utf-8",
-      blocks: [{ kind: "text", text }],
+      blocks: [{ kind: "text", text: seed.text }],
     };
     const doc = { notes: [note], order: [note.id], activeId: null };
     const prefs = { skin: "ink", zoom: 100, autocorrect: true, sort: "manual", folderName: "shot" };
@@ -105,7 +107,7 @@ try {
         tx.onerror = () => reject(tx.error);
       };
     });
-  });
+  }, { text: seedText, wrap: !boxMode });
 
   await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "load" });
   await page.getByText(/narrow window/i).first().click({ timeout: 20000 });
@@ -375,7 +377,79 @@ try {
         size: Number.parseFloat(getComputedStyle(el).fontSize),
       })),
     );
-    await page.screenshot({ path: OUT });
+    // Optional check for Alt+drag column selection: paint the rectangle, copy it, delete it.
+  if (process.argv.includes("--box")) {
+    const info = await page.evaluate(() => {
+      const ta = document.querySelector(".page .block textarea");
+      if (!ta) return null;
+      const cs = getComputedStyle(ta);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const charWidth = ctx.measureText("0000000000").width / 10;
+      const lineHeight = Number.parseFloat(cs.lineHeight);
+      const box = ta.getBoundingClientRect();
+      return { charWidth, lineHeight, left: box.left, top: box.top, lines: ta.value.split("\n") };
+    });
+    if (!info) throw new Error("no editor");
+    const at = (line, col) => ({
+      x: info.left + (col + 0.5) * info.charWidth,
+      y: info.top + (line + 0.5) * info.lineHeight,
+    });
+    const [l0, c0, l1, c1] = [1, 10, 4, 20];
+    const start = at(l0, c0);
+    const end = at(l1, c1);
+    await page.keyboard.down("Alt");
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 6 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    await page.waitForTimeout(300);
+
+    const painted = await page.evaluate(() => {
+      const rect = document.querySelector(".page .block-rect");
+      if (!rect) return null;
+      const box = rect.getBoundingClientRect();
+      return { width: Math.round(box.width), height: Math.round(box.height) };
+    });
+
+    const expected = info.lines
+      .slice(l0, l1 + 1)
+      .map((line) => line.slice(c0, c1))
+      .join("\n");
+    // Headless has no clipboard permission; record what the app puts on the event.
+    await page.evaluate(() => {
+      document.addEventListener("copy", (event) => {
+        window.__copied = event.clipboardData?.getData("text/plain") ?? null;
+      });
+    });
+    await page.keyboard.press("Control+c");
+    await page.waitForTimeout(200);
+    const copied = await page.evaluate(() => window.__copied ?? null);
+
+    await page.keyboard.press("Delete");
+    await page.waitForTimeout(400);
+    const afterDelete = await page.evaluate(() => document.querySelector(".page .block textarea")?.value);
+    const expectedAfter = info.lines
+      .map((line, i) => (i >= l0 && i <= l1 ? line.slice(0, c0) + line.slice(c1) : line))
+      .join("\n");
+
+    console.log(
+      `[box] painted=${JSON.stringify(painted)} expectedWidth=${Math.round((c1 - c0) * info.charWidth)} ` +
+        `copied=${JSON.stringify(copied)} deleted=${afterDelete === expectedAfter}`,
+    );
+    const ok =
+      painted !== null &&
+      Math.abs(painted.width - (c1 - c0) * info.charWidth) <= 2 &&
+      copied === expected &&
+      afterDelete === expectedAfter;
+    if (!ok) {
+      console.error("[box] FAIL");
+      process.exitCode = 1;
+    }
+  }
+  await page.screenshot({ path: OUT });
     console.log(`[style-menu] ${JSON.stringify(rows)}`);
     const descending = rows.every((row, i) => i === 0 || row.size <= rows[i - 1].size);
     const ok = rows.length === 7 && descending && rows[0].size > rows[6].size + 4;
@@ -384,6 +458,78 @@ try {
       process.exitCode = 1;
     }
     await page.keyboard.press("Escape");
+  }
+  // Optional check for Alt+drag column selection: paint the rectangle, copy it, delete it.
+  if (process.argv.includes("--box")) {
+    const info = await page.evaluate(() => {
+      const ta = document.querySelector(".page .block textarea");
+      if (!ta) return null;
+      const cs = getComputedStyle(ta);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const charWidth = ctx.measureText("0000000000").width / 10;
+      const lineHeight = Number.parseFloat(cs.lineHeight);
+      const box = ta.getBoundingClientRect();
+      return { charWidth, lineHeight, left: box.left, top: box.top, lines: ta.value.split("\n") };
+    });
+    if (!info) throw new Error("no editor");
+    const at = (line, col) => ({
+      x: info.left + (col + 0.5) * info.charWidth,
+      y: info.top + (line + 0.5) * info.lineHeight,
+    });
+    const [l0, c0, l1, c1] = [1, 10, 4, 20];
+    const start = at(l0, c0);
+    const end = at(l1, c1);
+    await page.keyboard.down("Alt");
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 6 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    await page.waitForTimeout(300);
+
+    const painted = await page.evaluate(() => {
+      const rect = document.querySelector(".page .block-rect");
+      if (!rect) return null;
+      const box = rect.getBoundingClientRect();
+      return { width: Math.round(box.width), height: Math.round(box.height) };
+    });
+
+    const expected = info.lines
+      .slice(l0, l1 + 1)
+      .map((line) => line.slice(c0, c1))
+      .join("\n");
+    // Headless has no clipboard permission; record what the app puts on the event.
+    await page.evaluate(() => {
+      document.addEventListener("copy", (event) => {
+        window.__copied = event.clipboardData?.getData("text/plain") ?? null;
+      });
+    });
+    await page.keyboard.press("Control+c");
+    await page.waitForTimeout(200);
+    const copied = await page.evaluate(() => window.__copied ?? null);
+
+    await page.keyboard.press("Delete");
+    await page.waitForTimeout(400);
+    const afterDelete = await page.evaluate(() => document.querySelector(".page .block textarea")?.value);
+    const expectedAfter = info.lines
+      .map((line, i) => (i >= l0 && i <= l1 ? line.slice(0, c0) + line.slice(c1) : line))
+      .join("\n");
+
+    console.log(
+      `[box] painted=${JSON.stringify(painted)} expectedWidth=${Math.round((c1 - c0) * info.charWidth)} ` +
+        `copied=${JSON.stringify(copied)} deleted=${afterDelete === expectedAfter}`,
+    );
+    const ok =
+      painted !== null &&
+      Math.abs(painted.width - (c1 - c0) * info.charWidth) <= 2 &&
+      copied === expected &&
+      afterDelete === expectedAfter;
+    if (!ok) {
+      console.error("[box] FAIL");
+      process.exitCode = 1;
+    }
   }
   await page.screenshot({ path: OUT });
   console.log(`[narrow] ${WIDTH}x${HEIGHT} -> ${OUT}`);

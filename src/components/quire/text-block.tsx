@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import type { Session } from "@/lib/quire/engine";
 import { correctionAt } from "@/lib/quire/autocorrect";
 import { continueBullet } from "@/lib/quire/blocks";
@@ -7,6 +7,9 @@ import { parseDelimited } from "@/lib/quire/blocks";
 import { paint, readMarks } from "@/lib/quire/marks";
 import { diffText } from "@/lib/quire/text";
 import type { Place } from "./store";
+
+/** A rectangular selection: anchor and focus as line + character column. */
+type Box = { aLine: number; aCol: number; fLine: number; fCol: number };
 
 /**
  * Notes up to this size repaint their highlight on every keystroke. That covers
@@ -207,6 +210,51 @@ export function TextBlock({
     onEdited();
   }
 
+  /** A rectangular (column) selection, in whole lines and character columns. */
+  const [box, setBox] = useState<Box | null>(null);
+  const drag = useRef<Box | null>(null);
+
+  const boxText = (rect: Box): string => {
+    const ta = taRef.current;
+    if (!ta) return "";
+    const lines = ta.value.split("\n");
+    const [first, last] = [Math.min(rect.aLine, rect.fLine), Math.max(rect.aLine, rect.fLine)];
+    const [left, right] = [Math.min(rect.aCol, rect.fCol), Math.max(rect.aCol, rect.fCol)];
+    const out: string[] = [];
+    for (let line = first; line <= last; line += 1) out.push((lines[line] ?? "").slice(left, right));
+    return out.join("\n");
+  };
+
+  /** Removes the rectangle, from the last line up so offsets stay valid. */
+  const deleteBox = () => {
+    const ta = taRef.current;
+    if (!ta || !box) return;
+    const lines = ta.value.split("\n");
+    const starts: number[] = [];
+    let offset = 0;
+    for (const line of lines) {
+      starts.push(offset);
+      offset += line.length + 1;
+    }
+    const [first, last] = [Math.min(box.aLine, box.fLine), Math.max(box.aLine, box.fLine)];
+    const [left, right] = [Math.min(box.aCol, box.fCol), Math.max(box.aCol, box.fCol)];
+    const cuts: { start: number; end: number }[] = [];
+    for (let line = first; line <= last; line += 1) {
+      const length = (lines[line] ?? "").length;
+      const start = starts[line]! + Math.min(left, length);
+      const end = starts[line]! + Math.min(right, length);
+      if (end > start) cuts.push({ start, end });
+    }
+    cuts.sort((a, b) => b.start - a.start);
+    for (const cut of cuts) session.edit(blockId, cut.start, cut.end, "", false);
+    const next = session.text_of(blockId);
+    ta.value = next;
+    prev.current = next;
+    setBox(null);
+    onEdited();
+    fit(ta, wrap);
+    paintExact();
+  };
   return (
     <div
       className={grow ? "block grow" : "block"}
@@ -216,6 +264,10 @@ export function TextBlock({
       data-align={look?.align ?? undefined}
     >
       <pre ref={preRef} className="hl" aria-hidden="true" />
+      {box && taRef.current && (
+        // Alt+drag selection: a rectangle over the text, independent of line ends.
+        <div className="block-rect" aria-hidden="true" style={boxPixels(taRef.current, box)} />
+      )}
       <textarea
         ref={taRef}
         className="editor"
@@ -229,6 +281,35 @@ export function TextBlock({
         onSelect={report}
         onKeyUp={report}
         onClick={report}
+        onMouseDown={(e) => {
+          if (!e.altKey) {
+            if (box) setBox(null);
+            return;
+          }
+          // Column geometry needs unwrapped lines; with wrap on, Alt+drag stays a
+          // normal selection.
+          if (wrap) return;
+          e.preventDefault();
+          const point = pointAt(e.currentTarget, e.clientX, e.clientY);
+          const next = { aLine: point.line, aCol: point.col, fLine: point.line, fCol: point.col };
+          drag.current = next;
+          setBox(next);
+        }}
+        onMouseMove={(e) => {
+          if (!drag.current || (e.buttons & 1) === 0) return;
+          const point = pointAt(e.currentTarget, e.clientX, e.clientY);
+          const next = { ...drag.current, fLine: point.line, fCol: point.col };
+          drag.current = next;
+          setBox(next);
+        }}
+        onMouseUp={() => {
+          drag.current = null;
+        }}
+        onCopy={(e) => {
+          if (!box) return;
+          e.preventDefault();
+          e.clipboardData.setData("text/plain", boxText(box));
+        }}
         onCompositionStart={() => {
           composing.current = true;
         }}
@@ -249,6 +330,16 @@ export function TextBlock({
           sync(burst && small, native.inputType === "insertText" ? native.data : null);
         }}
         onKeyDown={(e) => {
+          // The box selection owns Delete/Backspace and Escape while it is painted.
+          if (box && (e.key === "Delete" || e.key === "Backspace")) {
+            e.preventDefault();
+            deleteBox();
+            return;
+          }
+          if (box && e.key === "Escape") {
+            setBox(null);
+            return;
+          }
           // Ctrl+Shift+V asks for a plain paste even when the clipboard is a grid.
           if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "v" || e.key === "V")) {
             plainPaste.current = true;
@@ -359,4 +450,42 @@ function fit(ta: HTMLTextAreaElement, wrap: boolean) {
   // scroll viewport, letting painted marks drift away from the glyphs they mark.
   const pre = ta.parentElement?.querySelector("pre");
   if (pre instanceof HTMLElement) pre.style.width = ta.style.width;
+}
+
+/** Width of one character. The editor is monospace, so this is the column grid. */
+function charWidthOf(ta: HTMLTextAreaElement): number {
+  const style = getComputedStyle(ta);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) return 8;
+  context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  return context.measureText("0000000000").width / 10 || 8;
+}
+
+/** Turns a pointer position into a line and character column inside the textarea. */
+function pointAt(ta: HTMLTextAreaElement, clientX: number, clientY: number): { line: number; col: number } {
+  const box = ta.getBoundingClientRect();
+  const style = getComputedStyle(ta);
+  const lineHeight = Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.6;
+  const width = charWidthOf(ta);
+  const lines = ta.value.split("\n");
+  const line = Math.min(lines.length - 1, Math.max(0, Math.floor((clientY - box.top + ta.scrollTop) / lineHeight)));
+  const text = lines[line] ?? "";
+  const col = Math.min(text.length, Math.max(0, Math.round((clientX - box.left + ta.scrollLeft) / width)));
+  return { line, col };
+}
+
+/** Pixel rectangle for the painted box selection, in the block's coordinate space. */
+function boxPixels(ta: HTMLTextAreaElement, rect: Box) {
+  const style = getComputedStyle(ta);
+  const lineHeight = Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.6;
+  const width = charWidthOf(ta);
+  const [first, last] = [Math.min(rect.aLine, rect.fLine), Math.max(rect.aLine, rect.fLine)];
+  const [left, right] = [Math.min(rect.aCol, rect.fCol), Math.max(rect.aCol, rect.fCol)];
+  return {
+    left: left * width - ta.scrollLeft,
+    top: first * lineHeight - ta.scrollTop,
+    width: (right - left) * width,
+    height: (last - first + 1) * lineHeight,
+  };
 }

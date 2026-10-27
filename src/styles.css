@@ -2282,3 +2282,12 @@
   opacity: 0.62;
   letter-spacing: 0.02em;
 }
+
+/* Alt+drag column selection: painted over the text, never interactive. */
+.block-rect {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  background: rgb(58 110 180 / 0.24);
+  border-radius: 2px;
+}
