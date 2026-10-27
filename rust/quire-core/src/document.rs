@@ -1010,6 +1010,12 @@ impl Document {
     }
 
     /// Inserts an empty `rows` × `cols` table after block `after`, or at the end.
+    ///
+    /// A text block is always left directly after the table when the next block is
+    /// not already text. Without it a table dropped at the end of the document is a
+    /// dead end: there is nothing below to put the caret in, so writing cannot
+    /// continue past the table. `insert_image` splits its text block for the same
+    /// reason.
     pub fn insert_table(&mut self, after: u32, cols: usize, rows: usize) -> u32 {
         let id = self.alloc_id();
         let cols = cols.clamp(1, 20);
@@ -1023,6 +1029,10 @@ impl Document {
             .unwrap_or(self.blocks.len());
         self.blocks
             .insert(at, Block::Table { id, cols, cells: vec![Cell::default(); cols * rows] });
+        if !matches!(self.blocks.get(at + 1), Some(Block::Text { .. })) {
+            let text_id = self.alloc_id();
+            self.blocks.insert(at + 1, Block::Text { id: text_id, body: String::new(), marks: Vec::new() });
+        }
         let caret = self.fallback_caret();
         self.push_structure(before, caret, caret);
         id
@@ -1579,6 +1589,32 @@ mod tests {
         let mut doc = Document::new();
         let id = doc.restore_table(3, vec![Cell::default(), Cell::default()]);
         assert_eq!(doc.table_shape(id), Some((1, 3)));
+    }
+
+    #[test]
+    fn a_table_always_leaves_room_to_keep_typing_below_it() {
+        let mut doc = Document::new();
+        let text = doc.first_text_id();
+        doc.edit(text, 0, 0, "above", false);
+
+        // Inserted after the only block, the table used to become the last block and
+        // there was nowhere to put the caret: writing could not continue past it.
+        let table = doc.insert_table(text, 2, 1);
+        let outline = doc.outline();
+        let position = outline.iter().position(|item| item.id == table).expect("table in outline");
+        let after = outline.get(position + 1).expect("a block after the table");
+        assert_eq!(after.kind, "text", "a text block must follow the table");
+
+        doc.edit(after.id, 0, 0, "below", false);
+        assert!(doc.export_text().contains("below"));
+
+        // A table inserted in front of existing text must not duplicate the block.
+        let first = doc.first_text_id();
+        let second = doc.insert_table(first, 1, 1);
+        let texts = doc.outline().iter().filter(|item| item.kind == "text").count();
+        let tables = doc.outline().iter().filter(|item| item.kind == "table").count();
+        assert_eq!(tables, 2);
+        assert_eq!(texts, 3, "two tables add exactly one trailing block, not two: {second}");
     }
 
     #[test]

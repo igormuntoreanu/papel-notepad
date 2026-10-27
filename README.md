@@ -11,6 +11,19 @@ A light notepad on paper. Notes are torn-paper cards on a kraft desk; open one a
 
 Plain text saves as `.txt`. A sheet with pasted images or text styles saves as `.papel` (JSON, version 2 adds style marks; version 1 and `.quire` files still open).
 
+## Desktop (Windows)
+
+The Desktop build is **v1**: a Tauri 2 shell that wraps the web app in WebView2 and owns the
+filesystem through a small bridge, shipped as a folder-portable zip. Build it with:
+
+```bash
+npm run build:desktop     # static bundle the shell embeds
+npm run tauri:build       # the shell itself
+npm run package:v1        # dist-portable/papel-<version>-portable-v1.zip
+```
+
+The Electron and Rust/egui experiments are retired for now and are not part of the build path;
+their sources are not tracked in this repository.
 ## Run
 
 ```bash
