@@ -1,4 +1,4 @@
-import type { FontId, StyleId } from "@/lib/quire/typefaces";
+import type { AlignId, FontId, StyleId } from "@/lib/quire/typefaces";
 import type { SkinId } from "@/lib/quire/text";
 
 export type StoredBlock =
@@ -10,6 +10,8 @@ export type StoredBlock =
       font?: FontId;
       /** Paragraph style (Title..Body); absent means Body. */
       style?: StyleId;
+      /** Paragraph alignment; absent means left. */
+      align?: AlignId;
     }
   | { kind: "image"; mime: string; bytes: ArrayBuffer };
 

@@ -2253,3 +2253,24 @@
 .block[data-font="jetbrains-mono"] textarea {
   font-family: var(--font-jetbrains-mono);
 }
+
+/* ---------- Alignment and Word Wrap ---------- */
+
+/* Paragraph alignment, offered in the toolbar while Word Wrap is off. The highlight
+   overlay and the textarea must agree or painted marks drift. */
+.block[data-align="center"] pre,
+.block[data-align="center"] textarea {
+  text-align: center;
+}
+
+.block[data-align="right"] pre,
+.block[data-align="right"] textarea {
+  text-align: right;
+}
+
+/* Word Wrap off: a long line grows past the page and the block scrolls sideways
+   instead of hiding the end of the line. */
+.page[data-wrap="off"] .block {
+  overflow-x: auto;
+  overflow-y: hidden;
+}

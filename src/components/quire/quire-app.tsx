@@ -590,7 +590,8 @@ export function QuireApp() {
         const next = { ...(looks[key] ?? {}), ...patch };
         if (!next.font) delete next.font;
         if (!next.style) delete next.style;
-        if (next.font || next.style) looks[key] = next;
+        if (!next.align) delete next.align;
+        if (next.font || next.style || next.align) looks[key] = next;
         else delete looks[key];
         return { ...n, looks: Object.keys(looks).length ? looks : undefined };
       }),
@@ -723,6 +724,23 @@ export function QuireApp() {
     setMessage(from === "paste" ? "Image pasted onto the sheet." : "Image inserted");
     touch(activeId);
     bump({ block_id: next.block_id, start: next.start, end: next.end });
+  }
+
+  /** Grid-shaped clipboard text becomes a real table after the block it was pasted into. */
+  function pasteTable(blockId: number, rows: string[][]) {
+    if (!session || !activeId) return;
+    const cols = rows[0]?.length ?? 0;
+    if (cols < 2 || rows.length === 0) return;
+    const id = session.insert_table(blockId, cols, rows.length);
+    rows.forEach((row, r) => {
+      row.forEach((value, c) => {
+        if (value) session.table_set_text(id, r, c, value);
+      });
+    });
+    setSel({ blockId: id, start: 0, end: 0 });
+    setMessage(`Pasted ${rows.length} × ${cols} as a table`);
+    touch(activeId);
+    bump();
   }
 
   function deleteTable(tableId: number) {
@@ -1133,6 +1151,7 @@ export function QuireApp() {
     close: () => activeId && closeNote(activeId),
     deleteImage,
     deleteTable,
+    pasteTable,
     zoomIn: () => setZoom((current) => clampZoom(current + 1)),
     zoomOut: () => setZoom((current) => clampZoom(current - 1)),
     look: setBlockLook,

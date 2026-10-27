@@ -1,10 +1,37 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { correctionAt } from "./autocorrect.ts";
-import { continueBullet, tableSkeleton, toggleBullets } from "./blocks.ts";
+import { continueBullet, parseDelimited, tableSkeleton, toggleBullets } from "./blocks.ts";
 import { distance, searchNotes } from "./fuzzy.ts";
 import { FLAG, paint, rangeHas, readMarks } from "./marks.ts";
 
+describe("parseDelimited", () => {
+  it("reads Excel cells as a rectangle and pads ragged rows", () => {
+    assert.deepEqual(parseDelimited("a\tb\tc\n1\t2\n"), [
+      ["a", "b", "c"],
+      ["1", "2", ""],
+    ]);
+  });
+
+  it("reads comma and semicolon CSV, honouring quoted fields", () => {
+    assert.deepEqual(parseDelimited('name,note\n"Smith, J",hello\n'), [
+      ["name", "note"],
+      ["Smith, J", "hello"],
+    ]);
+    assert.deepEqual(parseDelimited('a;b\n1;2'), [
+      ["a", "b"],
+      ["1", "2"],
+    ]);
+    assert.deepEqual(parseDelimited('a\tb\n"say ""hi"""\tz'), [["a", "b"], ['say "hi"', "z"]]);
+  });
+
+  it("refuses prose, single rows and one-column text", () => {
+    assert.equal(parseDelimited("just one line"), null);
+    assert.equal(parseDelimited("hello, world\nthis is prose"), null);
+    assert.equal(parseDelimited("a,b\n1,2,3"), null, "mismatched columns are not a grid");
+    assert.equal(parseDelimited("   "), null);
+  });
+});
 describe("tableSkeleton", () => {
   it("draws a box with one row per requested row", () => {
     const lines = tableSkeleton(3, 3).split("\n");

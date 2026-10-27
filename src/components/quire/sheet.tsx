@@ -1,4 +1,7 @@
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowLeft,
   Bold,
   Clock,
@@ -24,6 +27,7 @@ import { useState, type KeyboardEvent, type MutableRefObject, type ReactNode, ty
 import type { Session } from "@/lib/quire/engine";
 import { HIGHLIGHTERS, INKS, type FlagName } from "@/lib/quire/marks";
 import {
+  ALIGNMENTS,
   DEFAULT_FONT,
   DEFAULT_STYLE,
   FONTS,
@@ -123,6 +127,8 @@ export type SheetActions = {
   deleteImage: (id: number) => void;
   /** Removes a table block; one undo brings it back. */
   deleteTable: (id: number) => void;
+  /** Turns grid-shaped clipboard text into a table after the given block. */
+  pasteTable: (blockId: number, rows: string[][]) => void;
   table: (rows: number, cols: number) => void;
   bullets: () => void;
   /** Sets the face and/or paragraph style of one text block. */
@@ -424,6 +430,26 @@ export function Sheet({
                   <Keep label="Word wrap" title="Toggle word wrap" pressed={note.wrap} onPress={actions.wrap}>
                     <WrapText />
                   </Keep>
+                  {!note.wrap && activeBlockId !== null && (
+                    <>
+                      {ALIGNMENTS.map((align) => {
+                        const Icon =
+                          align.id === "left" ? AlignLeft : align.id === "center" ? AlignCenter : AlignRight;
+                        const on = (currentLook.align ?? "left") === align.id;
+                        return (
+                          <Keep
+                            key={align.id}
+                            label={align.name}
+                            title={align.name}
+                            pressed={on}
+                            onPress={() => actions.look(activeBlockId, { align: align.id })}
+                          >
+                            <Icon />
+                          </Keep>
+                        );
+                      })}
+                    </>
+                  )}
                   <Keep label="Zoom out" title="Zoom out (Ctrl+-)" onPress={actions.zoomOut}>
                     <ZoomOut />
                   </Keep>
@@ -506,6 +532,7 @@ export function Sheet({
                   onEdited={onEdited}
                   onImage={onImage}
                   look={looks[String(item.id)]}
+                  onPasteTable={(rows) => actions.pasteTable(item.id, rows)}
                 />
               ),
             )}

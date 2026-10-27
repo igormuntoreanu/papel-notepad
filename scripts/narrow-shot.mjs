@@ -142,10 +142,16 @@ try {
     await page.getByRole("menuitemradio", { name: "Title", exact: true }).click();
     await page.getByRole("button", { name: /^Font:/ }).click();
     await page.getByRole("menuitemradio", { name: "Inter", exact: true }).click();
+    // Alignment is part of the same block look; it applies while wrap is off.
+    const wrapBtn = page.getByRole("button", { name: /^Word wrap$/ });
+    if ((await wrapBtn.getAttribute("aria-pressed")) === "true") await wrapBtn.click();
+    await page.waitForTimeout(200);
+    await page.getByRole("button", { name: "Align right" }).click();
     await page.waitForTimeout(400);
     const applied = {
       style: await page.getAttribute(cell, "data-style"),
       font: await page.getAttribute(cell, "data-font"),
+      align: await page.getAttribute(cell, "data-align"),
       computed: await page.evaluate(() => {
         const area = document.querySelector(".page .block textarea");
         if (!area) return null;
@@ -161,11 +167,12 @@ try {
     const after = {
       style: await page.getAttribute(cell, "data-style"),
       font: await page.getAttribute(cell, "data-font"),
+      align: await page.getAttribute(cell, "data-align"),
     };
     console.log(
-      `[looks] default=${beforeStyle ?? "body"} applied=${applied.style}/${applied.font} ` +
+      `[looks] default=${beforeStyle ?? "body"} applied=${applied.style}/${applied.font}/${applied.align} ` +
         `computed=${applied.computed?.fontSize}/${applied.computed?.fontFamily} ` +
-        `afterReload=${after.style}/${after.font}`,
+        `afterReload=${after.style}/${after.font}/${after.align}`,
     );
     // Save the sheet and read the bytes the bridge was handed: the look must be in the
     // file, not only in browser storage, or opening the .papel elsewhere would lose it.
@@ -177,12 +184,13 @@ try {
       return JSON.parse(new TextDecoder().decode(new Uint8Array(saved.bytes)));
     });
     const textBlock = payload?.blocks?.find((b) => b.type === "text");
-    console.log(`[looks] .papel block: ${JSON.stringify({ font: textBlock?.font, style: textBlock?.style })}`);
-    const fileOk = textBlock?.font === "inter" && textBlock?.style === "title";
+    console.log(`[looks] .papel block: ${JSON.stringify({ font: textBlock?.font, style: textBlock?.style, align: textBlock?.align })}`);
+    const fileOk = textBlock?.font === "inter" && textBlock?.style === "title" && textBlock?.align === "right";
 
     const ok = fileOk &&
       applied.style === "title" &&
       applied.font === "inter" &&
+      applied.align === "right" &&
       after.style === "title" &&
       after.font === "inter" &&
       applied.computed?.fontSize === "30px";
@@ -303,6 +311,59 @@ try {
     }
     await page.getByRole("button", { name: /^Zoom in$/ }).click();
     await page.waitForTimeout(200);
+  }
+  // Optional check for Word Wrap: grid paste becomes a table, alignment applies when
+  // wrap is off, and a long line scrolls sideways instead of being clipped.
+  if (process.argv.includes("--wrap")) {
+    await page.evaluate(() => {
+      const ta = document.querySelector(".page .block textarea");
+      ta.focus();
+      const data = new DataTransfer();
+      data.setData("text/plain", "name\tqty\tprice\nApple\t3\t1.20\nPear\t5\t0.90");
+      ta.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    });
+    await page.waitForTimeout(700);
+    const pasted = await page.evaluate(() => {
+      const table = document.querySelector(".page .table-block");
+      if (!table) return null;
+      const cells = [...table.querySelectorAll("td textarea")].map((ta) => ta.value);
+      return { cells, columns: table.querySelectorAll("tbody tr:first-child td").length };
+    });
+
+    // Turn Word Wrap off: the alignment buttons appear.
+    const wrapButton = page.getByRole("button", { name: /^Word wrap$/ });
+    const wrapWasOn = await wrapButton.getAttribute("aria-pressed");
+    if (wrapWasOn === "true") await wrapButton.click();
+    await page.waitForTimeout(300);
+    const alignVisible = await page.getByRole("button", { name: "Align centre" }).isVisible();
+
+    const area = page.locator(".page .block textarea").first();
+    await area.click();
+    await page.waitForTimeout(200);
+    await page.getByRole("button", { name: "Align centre" }).click();
+    await page.waitForTimeout(300);
+    const alignment = await page.evaluate(() => {
+      const block = document.querySelector(".page .block:not(.table-block)");
+      const ta = block?.querySelector("textarea");
+      return { attr: block?.getAttribute("data-align"), textAlign: ta ? getComputedStyle(ta).textAlign : null,
+        overflowX: block ? getComputedStyle(block).overflowX : null };
+    });
+
+    console.log(
+      `[wrap] pasted=${JSON.stringify(pasted)} alignBtn=${alignVisible} ` +
+        `align=${alignment.attr}/${alignment.textAlign} overflowX=${alignment.overflowX}`,
+    );
+    const ok =
+      pasted?.columns === 3 &&
+      pasted.cells.join("|") === "name|qty|price|Apple|3|1.20|Pear|5|0.90" &&
+      alignVisible &&
+      alignment.attr === "center" &&
+      alignment.textAlign === "center" &&
+      alignment.overflowX === "auto";
+    if (!ok) {
+      console.error("[wrap] FAIL");
+      process.exitCode = 1;
+    }
   }
   await page.screenshot({ path: OUT });
   console.log(`[narrow] ${WIDTH}x${HEIGHT} -> ${OUT}`);

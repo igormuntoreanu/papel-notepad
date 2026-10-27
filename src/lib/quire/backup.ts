@@ -3,7 +3,7 @@ export const ARCHIVE_VERSION = 1;
 export const ARCHIVE_EXT = "papel-archive";
 
 export type ArchiveBlock =
-  | { kind: "text"; text: string; marks?: number[]; font?: string; style?: string }
+  | { kind: "text"; text: string; marks?: number[]; font?: string; style?: string; align?: string }
   | { kind: "image"; mime: string; data: string }
   | { kind: "table"; cols: number; cells: unknown[] };
 

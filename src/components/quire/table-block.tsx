@@ -124,7 +124,12 @@ export function TableBlock({
   return (
     <div className="block table-block" ref={rootRef} onBlur={flush}>
       <div className="table-scroll">
-        <table className="sheet-table">
+        <table
+          className="sheet-table"
+          /* A wide sheet expands to the right and scrolls instead of squeezing every
+             column into the page width. */
+          style={{ minWidth: `${cols * 108}px` }}
+        >
           <tbody>
             {Array.from({ length: rows }, (_, row) => (
               <tr key={row}>

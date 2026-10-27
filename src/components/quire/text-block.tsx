@@ -3,6 +3,7 @@ import type { Session } from "@/lib/quire/engine";
 import { correctionAt } from "@/lib/quire/autocorrect";
 import { continueBullet } from "@/lib/quire/blocks";
 import type { BlockLook } from "@/lib/quire/typefaces";
+import { parseDelimited } from "@/lib/quire/blocks";
 import { paint, readMarks } from "@/lib/quire/marks";
 import { diffText } from "@/lib/quire/text";
 import type { Place } from "./store";
@@ -35,6 +36,7 @@ export function TextBlock({
   autocorrect,
   findHit,
   look,
+  onPasteTable,
   onSelection,
   onEdited,
   onImage,
@@ -51,6 +53,8 @@ export function TextBlock({
   findHit?: { start: number; end: number } | null;
   /** Face and paragraph style for this block; absent means the paper default. */
   look?: BlockLook;
+  /** Grid-shaped clipboard text (Excel/CSV) becomes a table instead of a paste. */
+  onPasteTable: (rows: string[][]) => void;
   onSelection: (start: number, end: number) => void;
   onEdited: () => void;
   onImage: (file: File) => void;
@@ -60,6 +64,8 @@ export function TextBlock({
   const prev = useRef(session.text_of(blockId));
   const lastAt = useRef(0);
   const composing = useRef(false);
+  /** Set by Ctrl+Shift+V so the next paste stays text instead of becoming a table. */
+  const plainPaste = useRef(false);
   const fresh = useRef(false);
   /** Above EXACT_LIMIT the overlay has already shown its colours for a block. */
   const exactShown = useRef<{ block: number; done: boolean }>({ block: -1, done: false });
@@ -207,6 +213,7 @@ export function TextBlock({
       data-note={noteId}
       data-font={look?.font ?? undefined}
       data-style={look?.style ?? undefined}
+      data-align={look?.align ?? undefined}
     >
       <pre ref={preRef} className="hl" aria-hidden="true" />
       <textarea
@@ -242,6 +249,13 @@ export function TextBlock({
           sync(burst && small, native.inputType === "insertText" ? native.data : null);
         }}
         onKeyDown={(e) => {
+          // Ctrl+Shift+V asks for a plain paste even when the clipboard is a grid.
+          if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "v" || e.key === "V")) {
+            plainPaste.current = true;
+            window.setTimeout(() => {
+              plainPaste.current = false;
+            }, 700);
+          }
           if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
             const ta = e.currentTarget;
             const at = ta.selectionStart ?? 0;
@@ -279,6 +293,20 @@ export function TextBlock({
           }
         }}
         onPaste={(e) => {
+          // Grid-shaped text (Excel/Sheets cells, CSV) becomes a table; anything else --
+          // including Ctrl+Shift+V plain text, where the clipboard has no grid -- pastes
+          // as text through the normal path.
+          const plain = e.clipboardData?.getData("text/plain") ?? "";
+          if (plainPaste.current) {
+            plainPaste.current = false;
+          } else if (plain) {
+            const rows = parseDelimited(plain);
+            if (rows) {
+              e.preventDefault();
+              onPasteTable(rows);
+              return;
+            }
+          }
           const items = e.clipboardData?.items;
           if (!items) return;
           for (const item of items) {
@@ -326,4 +354,9 @@ function fit(ta: HTMLTextAreaElement, wrap: boolean) {
     ta.style.width = "100%";
   }
   ta.style.height = `${ta.scrollHeight}px`;
+  // With wrap off the textarea is wider than its block, so the block scrolls. The
+  // highlight overlay is absolutely positioned and would otherwise stay the width of the
+  // scroll viewport, letting painted marks drift away from the glyphs they mark.
+  const pre = ta.parentElement?.querySelector("pre");
+  if (pre instanceof HTMLElement) pre.style.width = ta.style.width;
 }

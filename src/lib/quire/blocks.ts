@@ -88,3 +88,59 @@ export function continueBullet(text: string, caret: number): TextChange | null {
   if (/^\s*• $/.test(before)) return { start: from, end: caret, insert: "" };
   return null;
 }
+
+/** Splits one delimited line, honouring "quoted" fields with "" as an escaped quote. */
+function splitLine(line: string, delimiter: string): string[] {
+  if (!line.includes('"')) return line.split(delimiter);
+  const fields: string[] = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i]!;
+    if (quoted) {
+      if (char === '"' && line[i + 1] === '"') {
+        field += '"';
+        i += 1;
+      } else if (char === '"') quoted = false;
+      else field += char;
+    } else if (char === '"') quoted = true;
+    else if (char === delimiter) {
+      fields.push(field);
+      field = "";
+    } else field += char;
+  }
+  fields.push(field);
+  return fields;
+}
+
+/**
+ * Reads clipboard text that is laid out as a grid.
+ *
+ * Copying cells in Excel, LibreOffice or Google Sheets puts tab-separated rows on the
+ * clipboard; a CSV file has commas or semicolons. Anything that does not look like a
+ * grid — a paragraph, a two-word line, prose that happens to contain commas — returns
+ * null so it pastes as text.
+ *
+ * Tab-separated data may be ragged (trailing empty cells are dropped by the source) and
+ * is padded to a rectangle. Comma/semicolon data must have a consistent, matching column
+ * count, which is what keeps prose with commas from becoming a table.
+ */
+export function parseDelimited(text: string): string[][] | null {
+  const normalised = text.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+  if (!normalised.trim()) return null;
+  const lines = normalised.split("\n");
+  if (lines.length < 2) return null;
+
+  const tabs = lines.some((line) => line.includes("\t"));
+  const semicolons = !tabs && lines.filter((line) => line.includes(";")).length >= 2;
+  const delimiter = tabs ? "\t" : semicolons ? ";" : ",";
+  if (!tabs && !semicolons && !lines.some((line) => line.includes(delimiter))) return null;
+
+  const rows = lines.map((line) => splitLine(line, delimiter));
+  if (rows.some((row) => row.length < 2)) return null;
+
+  const width = Math.max(...rows.map((row) => row.length));
+  if (!tabs && !semicolons && rows.some((row) => row.length !== width)) return null;
+
+  return rows.map((row) => [...row, ...Array.from({ length: width - row.length }, () => "")]);
+}

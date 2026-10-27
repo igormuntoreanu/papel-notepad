@@ -115,7 +115,7 @@ export async function ensureLoaded(): Promise<Loaded> {
               // The look travels inside the block, so the id this restore just handed
               // out is the right key even when block ids were renumbered.
               const look = readLook(block);
-              if (look.font || look.style) looks[String(blockId)] = look;
+              if (look.font || look.style || look.align) looks[String(blockId)] = look;
             } else session.restore_image(block.mime, new Uint8Array(block.bytes));
           }
           session.restore_end(stored.language, stored.eol, stored.encoding);
@@ -176,6 +176,7 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
             ...(marks.length ? { marks: [...marks] } : {}),
             ...(look.font ? { font: look.font } : {}),
             ...(look.style ? { style: look.style } : {}),
+            ...(look.align ? { align: look.align } : {}),
           };
         });
         return {
@@ -214,6 +215,7 @@ export function toPapel(session: Session, looks: Record<string, BlockLook> = {})
       ...(marks.length ? { marks: [...marks] } : {}),
       ...(look.font ? { font: look.font } : {}),
       ...(look.style ? { style: look.style } : {}),
+            ...(look.align ? { align: look.align } : {}),
     };
   });
   return JSON.stringify({
@@ -239,6 +241,7 @@ type PapelFile = {
     /** Optional per-block face and paragraph style. */
     font?: string;
     style?: string;
+    align?: string;
     cols?: number;
     cells?: unknown[];
   }>;
@@ -271,7 +274,7 @@ export function fromPapel(
       const id = session.restore_text(block.text ?? "");
       if (Array.isArray(block.marks) && block.marks.length) pending.push([id, block.marks]);
       const look = readLook(block);
-      if (outLooks && (look.font || look.style)) outLooks[String(id)] = look;
+      if (outLooks && (look.font || look.style || look.align)) outLooks[String(id)] = look;
     }
   }
   session.restore_end(parsed.language || "auto", parsed.eol || "lf", parsed.encoding || "utf-8");
@@ -328,6 +331,7 @@ function blocksToArchive(session: Session, looks: Record<string, BlockLook> = {}
       ...(marks.length ? { marks: [...marks] } : {}),
       ...(look.font ? { font: look.font } : {}),
       ...(look.style ? { style: look.style } : {}),
+            ...(look.align ? { align: look.align } : {}),
     };
   });
 }
@@ -393,6 +397,7 @@ export function sessionFromArchiveNote(note: ArchiveNote): {
         ...(block.marks?.length ? { marks: block.marks } : {}),
         ...(block.font ? { font: block.font } : {}),
         ...(block.style ? { style: block.style } : {}),
+        ...(block.align ? { align: block.align } : {}),
       };
     }),
   };

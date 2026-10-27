@@ -19,8 +19,8 @@ export const FONTS = [
 
 export type FontId = (typeof FONTS)[number]["id"];
 
-/** The look of one text block. Both parts are optional; absent means the default. */
-export type BlockLook = { font?: FontId; style?: StyleId };
+/** The look of one text block. Every part is optional; absent means the default. */
+export type BlockLook = { font?: FontId; style?: StyleId; align?: AlignId };
 
 export const TEXT_STYLES = [
   { id: "title", name: "Title" },
@@ -34,6 +34,15 @@ export const TEXT_STYLES = [
 
 export type StyleId = (typeof TEXT_STYLES)[number]["id"];
 
+/** Paragraph alignment, offered while Word Wrap is off. */
+export const ALIGNMENTS = [
+  { id: "left", name: "Align left" },
+  { id: "center", name: "Align centre" },
+  { id: "right", name: "Align right" },
+] as const;
+
+export type AlignId = (typeof ALIGNMENTS)[number]["id"];
+
 export const DEFAULT_FONT: FontId = "plex-sans";
 export const DEFAULT_STYLE: StyleId = "body";
 
@@ -45,11 +54,18 @@ export function isStyleId(value: unknown): value is StyleId {
   return typeof value === "string" && TEXT_STYLES.some((style) => style.id === value);
 }
 
+export function isAlignId(value: unknown): value is AlignId {
+  return typeof value === "string" && ALIGNMENTS.some((align) => align.id === value);
+}
+
 /** Reads a look from untrusted JSON, dropping anything unrecognised. */
-export function readLook(raw: { font?: unknown; style?: unknown } | null | undefined): BlockLook {
+export function readLook(
+  raw: { font?: unknown; style?: unknown; align?: unknown } | null | undefined,
+): BlockLook {
   const look: BlockLook = {};
   if (isFontId(raw?.font)) look.font = raw.font;
   if (isStyleId(raw?.style)) look.style = raw.style;
+  if (isAlignId(raw?.align)) look.align = raw.align;
   return look;
 }
 
