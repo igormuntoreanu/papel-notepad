@@ -7,7 +7,7 @@ import {
 } from "@/lib/quire/backup";
 import { bootEngine, createSession, type Session } from "@/lib/quire/engine";
 import { loadPersisted, type Persisted, type Prefs, type SortMode, type StoredBlock, type StoredNote } from "@/lib/quire/persist";
-import { base64ToBytes, bytesToBase64, copyBytes, langLabel, SKINS, type SkinId } from "@/lib/quire/text";
+import { base64ToBytes, bytesToBase64, copyBytes, SKINS, type SkinId } from "@/lib/quire/text";
 import { nextUntitled } from "@/lib/quire/titles";
 import { readLook, type BlockLook } from "@/lib/quire/typefaces";
 
@@ -134,7 +134,8 @@ export async function ensureLoaded(): Promise<Loaded> {
           order.push(id);
         }
       }
-      const skin = SKINS.some((s) => s.id === prefs?.skin) ? (prefs!.skin as SkinId) : "ink";
+      // Sulphite is the house default for a fresh profile; a saved skin always wins.
+      const skin = SKINS.some((s) => s.id === prefs?.skin) ? (prefs!.skin as SkinId) : "sulphite";
       loadedCache = {
         notes,
         order,
@@ -289,16 +290,15 @@ export function cardInfo(id: string, stamp: string): CardInfo | null {
   const outline = outlineOf(session);
   const text = session.export_text();
   const images = outline.filter((i) => i.kind === "image");
-  const setting = session.language();
-  const effective = setting === "auto" ? session.effective_language(session.first_text_id()) : setting;
   const trimmed = text.replace(/^\s+/, "");
   const info: CardInfo = {
     text,
     preview: trimmed.split("\n").slice(0, 8).join("\n").slice(0, 420),
     words: (text.match(/\S+/g) ?? []).length,
     lines: text.length ? text.split("\n").length : 0,
-    lang: langLabel(effective),
-    code: effective !== "plain",
+    // One language only: cards never advertise a code language or a mono preview.
+    lang: "Plain text",
+    code: false,
     image: images[0] ? imageUrl(id, images[0].id, session) : null,
     images: images.length,
     dirty: session.is_dirty(),

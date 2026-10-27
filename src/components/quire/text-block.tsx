@@ -70,7 +70,9 @@ export function TextBlock({
     if (!ta || !pre) return;
     pre.innerHTML = paint(
       ta.value,
-      session.highlight(blockId),
+      // No syntax spans: sheets are plain text by decision, so no code colouring is
+      // requested from the engine even when a file arrived with a language hint.
+      [],
       readMarks(session.marks(blockId)),
       findHit && findHit.end > findHit.start ? findHit : null,
     );

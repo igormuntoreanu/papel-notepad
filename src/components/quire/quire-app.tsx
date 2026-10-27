@@ -25,7 +25,6 @@ import {
   FILE_ACCEPT,
   fileStamp,
   langFromFilename,
-  langLabel,
   mimeForExtension,
   safeName,
   SKINS,
@@ -77,7 +76,7 @@ export function QuireApp() {
   const [order, setOrder] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [view, setView] = useState<"board" | "focus">("board");
-  const [skin, setSkin] = useState<SkinId>("ink");
+  const [skin, setSkin] = useState<SkinId>("sulphite");
   const [zoom, setZoom] = useState(16);
   const [autocorrect, setAutocorrect] = useState(true);
   const [sort, setSort] = useState<SortMode>("manual");
@@ -100,7 +99,6 @@ export function QuireApp() {
   const [cellTarget, setCellTarget] = useState<CellTarget | null>(null);
   const [query, setQuery] = useState("");
   const [committed, setCommitted] = useState("");
-  const [langFilter, setLangFilter] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const focusRef = useRef<Place | null>(null);
   const anchor = useRef<Place | null>(null);
@@ -773,11 +771,6 @@ export function QuireApp() {
     bump({ block_id: blockId, start: pos, end: pos });
   }
 
-  function runFormat() {
-    // Pretty-printer parked: keep the hook so re-enabling the toolbar is one line.
-    setMessage("Autoformat is turned off for now.");
-  }
-
   function doUndo(redo: boolean) {
     if (!session) return;
     const next = redo ? session.redo() : session.undo();
@@ -1013,11 +1006,9 @@ export function QuireApp() {
     : null;
   const snippets = new Map(hits?.filter((h) => h.snippet).map((h) => [h.id, h.snippet]) ?? []);
   let visible = hits ? hits.map((h) => h.id) : order.slice();
-  if (langFilter) visible = visible.filter((id) => infoFor(id)?.lang === langFilter);
   if (!hits && sort === "recent") visible.sort((a, b) => (metaById.get(b)?.edited ?? 0) - (metaById.get(a)?.edited ?? 0));
   if (!hits && sort === "title") visible.sort((a, b) => (metaById.get(a)?.title ?? "").localeCompare(metaById.get(b)?.title ?? ""));
-  const canReorder = sort === "manual" && !hits && !langFilter;
-  const langs = [...new Set(order.map((id) => infoFor(id)?.lang).filter((l): l is string => Boolean(l)))].sort();
+  const canReorder = sort === "manual" && !hits;
   const unsaved = order.filter((id) => sessions.get(id)?.is_dirty()).length;
   const hint =
     trimmed && trimmed.length < MIN_QUERY && !committed
@@ -1039,9 +1030,6 @@ export function QuireApp() {
 
   const blockId = sel.blockId || session?.first_text_id() || 0;
   const metrics = session ? session.metrics(blockId, sel.start) : [1, 1, 1, 0];
-  const langSetting = session?.language() ?? "auto";
-  const effective = session ? session.effective_language(blockId) : "plain";
-  const langText = langSetting === "auto" ? `Auto · ${langLabel(effective)}` : langLabel(langSetting);
   const richNow = session ? sessionRich(session) : false;
   const saveExts = note ? saveExtensions({ rich: richNow, sourceExt: note.sourceExt }) : ["papel"];
   const saveExt = saveExts[0] ?? "papel";
@@ -1101,7 +1089,6 @@ export function QuireApp() {
     rename: (title) => activeId && rename(activeId, title),
     undo: () => doUndo(false),
     redo: () => doUndo(true),
-    format: runFormat,
     find: () => (findOpen ? setFindOpen(false) : openFind()),
     date: insertDate,
     image: () => imageRef.current?.click(),
@@ -1172,13 +1159,9 @@ export function QuireApp() {
         }}
         onGo={() => {
           setCommitted(trimmed);
-          if (!trimmed) setLangFilter("");
         }}
         searchRef={searchRef}
         hint={hint}
-        langs={langs}
-        lang={langFilter}
-        setLang={setLangFilter}
         sort={sort}
         setSort={setSort}
         onNew={createNote}
@@ -1219,7 +1202,6 @@ export function QuireApp() {
         }}
         session={session}
         metrics={metrics}
-        langText={langText}
         zoom={zoom}
         message={message}
         total={order.length}
@@ -1243,8 +1225,8 @@ export function QuireApp() {
             <div className="empty-sheet">
               <h2>Nothing matches.</h2>
               <p>
-                No sheet fits {applied ? <>“{applied}”</> : "this filter"}
-                {langFilter ? ` in ${langFilter}` : ""}. Try fewer letters, or clear the filters.
+                No sheet fits {applied ? <>“{applied}”</> : "this filter"}. Try fewer letters, or clear the
+                filters.
               </p>
               <button
                 type="button"
@@ -1252,7 +1234,6 @@ export function QuireApp() {
                 onClick={() => {
                   setQuery("");
                   setCommitted("");
-                  setLangFilter("");
                 }}
               >
                 Clear filters

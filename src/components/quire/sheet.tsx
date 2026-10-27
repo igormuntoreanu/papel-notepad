@@ -1,7 +1,6 @@
 import {
   ArrowLeft,
   Bold,
-  Braces,
   Clock,
   Eraser,
   ImagePlus,
@@ -109,7 +108,6 @@ export type SheetActions = {
   rename: (title: string) => void;
   undo: () => void;
   redo: () => void;
-  format: () => void;
   find: () => void;
   date: (style?: DateStampStyle) => void;
   image: () => void;
@@ -365,9 +363,6 @@ export function Sheet({
                   </Keep>
                   <Keep label="Redo" title="Redo (Ctrl+Y)" disabled={!session.can_redo()} onPress={actions.redo}>
                     <Redo2 />
-                  </Keep>
-                  <Keep label="Autoformat code (coming back soon)" title="Autoformat code (coming back soon)" disabled onPress={() => {}}>
-                    <Braces />
                   </Keep>
                   <Keep label="Find, replace, go to line" title="Find (Ctrl+F)" pressed={find.open} onPress={actions.find}>
                     <Search />

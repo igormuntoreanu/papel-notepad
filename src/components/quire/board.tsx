@@ -257,9 +257,7 @@ function NoteCardView({
                 </button>
               </h3>
             )}
-            <p className="card-sub">
-              {info.lang} · {edited}
-            </p>
+            <p className="card-sub">{edited}</p>
           </div>
           {info.dirty && <span className="dirty" role="img" aria-label="Unsaved" title="Not saved to a file" />}
           <div onClick={(e) => e.stopPropagation()}>
@@ -331,7 +329,6 @@ function NoteCardView({
             <span className="card-meta">
               {info.lines} {info.lines === 1 ? "line" : "lines"}
             </span>
-            <span className="badge">{info.lang}</span>
           </footer>
         )}
       </article>

@@ -168,9 +168,11 @@ describe("ui strings stay valid UTF-8", () => {
       assert.equal(text.includes("â€"), false, `${name} contains â€`);
       assert.equal(text.includes("Â·"), false, `${name} contains Â·`);
     }
-    // Spot-check the strings that used to garble in the UI.
+    // Spot-check the strings that used to garble in the UI. The language chip that
+    // carried "Auto · ..." is gone, so the curly quotes and the em dash below are the
+    // samples that still ship.
     const app = await fs.readFile(path.join(root, "quire-app.tsx"), "utf8");
-    assert.match(app, /Auto · /);
+    assert.match(app, /“\{applied\}”/);
     assert.match(app, /— Papel/);
     const sheet = await fs.readFile(path.join(root, "sheet.tsx"), "utf8");
     assert.match(sheet, /\d+ × \d+/);

@@ -11,7 +11,7 @@ import {
 import { useState, type RefObject } from "react";
 import type { Session } from "@/lib/quire/engine";
 import { tornClip } from "@/lib/quire/torn";
-import { LANGUAGES, SKINS, type SkinId } from "@/lib/quire/text";
+import { SKINS, type SkinId } from "@/lib/quire/text";
 import type { SortMode } from "@/lib/quire/persist";
 import { DropMenu } from "./drop-menu";
 
@@ -38,9 +38,6 @@ export function HeaderStrip({
   onGo,
   searchRef,
   hint,
-  langs,
-  lang,
-  setLang,
   sort,
   setSort,
   onNew,
@@ -58,7 +55,6 @@ export function HeaderStrip({
   onPickFolder,
   session,
   metrics,
-  langText,
   zoom,
   message,
   total,
@@ -78,9 +74,6 @@ export function HeaderStrip({
   onGo: () => void;
   searchRef: RefObject<HTMLInputElement | null>;
   hint: string;
-  langs: string[];
-  lang: string;
-  setLang: (v: string) => void;
   sort: SortMode;
   setSort: (v: SortMode) => void;
   onNew: () => void;
@@ -98,8 +91,7 @@ export function HeaderStrip({
   onPickFolder: () => void;
   session: Session | null;
   metrics: ArrayLike<number>;
-  langText: string;
-  zoom: number;
+ zoom: number;
   message: string;
   total: number;
   unsaved: number;
@@ -108,9 +100,9 @@ export function HeaderStrip({
   onMessage: (m: string) => void;
 }) {
   const [fieldsOpen, setFieldsOpen] = useState(false);
-  const filterOn = Boolean(lang) || sort !== "manual";
+  const filterOn = sort !== "manual";
   const filterLabel = filterOn
-    ? [lang || null, sort === "recent" ? "Recent" : sort === "title" ? "Title" : null].filter(Boolean).join(" · ") || "Filters"
+    ? (sort === "recent" ? "Last edited" : sort === "title" ? "Title" : null) ?? "Filters"
     : "Filters";
 
   return (
@@ -157,25 +149,8 @@ export function HeaderStrip({
                   Ln {metrics[0]}, Col {metrics[1]}
                 </span>
                 <span title="Character count in this sheet">{metrics[3]} chars</span>
-                <DropMenu
-                  className="tool status-chip"
-                  label={langText}
-                  title="Language for this sheet"
-                  align="end"
-                  items={LANGUAGES.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={item.id === session.language() ? "menu-item is-on" : "menu-item"}
-                      onClick={() => {
-                        session.set_language(item.id);
-                        onChanged();
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                />
+                {/* One language only: every sheet is plain text, so there is nothing to pick. */}
+                <span title="Every sheet is plain text">Plain text</span>
                 <DropMenu
                   className="tool status-chip"
                   label={session.encoding_label()}
@@ -365,7 +340,7 @@ export function HeaderStrip({
           </label>
           <DropMenu
             className={filterOn ? "filter-chip is-on" : "filter-chip"}
-            ariaLabel="Language and sort filters"
+            ariaLabel="Sort order"
             title={filterLabel}
             label={
               <>
@@ -379,19 +354,6 @@ export function HeaderStrip({
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
               >
-                <label className="field">
-                  <span>Language</span>
-                  <span className="field-box">
-                    <select value={lang} onChange={(e) => setLang(e.target.value)}>
-                      <option value="">Any</option>
-                      {langs.map((l) => (
-                        <option key={l} value={l}>
-                          {l}
-                        </option>
-                      ))}
-                    </select>
-                  </span>
-                </label>
                 <label className="field">
                   <span>Sort</span>
                   <span className="field-box">
