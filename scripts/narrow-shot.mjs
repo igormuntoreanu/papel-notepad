@@ -191,6 +191,43 @@ try {
       process.exitCode = 1;
     }
   }
+  // Optional check for the table fix: insert a table through the toolbar and prove a
+  // text block still exists below it and accepts typing. The core test covers the
+  // document model; this covers the editor the user actually clicks in.
+  if (process.argv.includes("--table")) {
+    await page.getByRole("button", { name: /^Insert table$/ }).click();
+    await page.getByRole("button", { name: "Insert a 2 by 2 table" }).click();
+    await page.waitForTimeout(600);
+
+    const structure = await page.evaluate(() => {
+      const page = document.querySelector(".page");
+      if (!page) return null;
+      const kids = [...page.children].map((el) =>
+        el.classList.contains("table-block") ? "table" : el.classList.contains("block") ? "text" : "other",
+      );
+      const tableAt = kids.indexOf("table");
+      return { kids, tableAt, after: kids[tableAt + 1] ?? null };
+    });
+
+    // Type into the block after the table, exactly as a user would.
+    const tail = page.locator(".page > .block:not(.table-block) textarea").last();
+    await tail.click();
+    await page.keyboard.type("written below the table");
+    await page.waitForTimeout(500);
+    const tailText = await tail.inputValue();
+
+    console.log(
+      `[table] structure=${JSON.stringify(structure)} typed=${JSON.stringify(tailText.slice(-24))}`,
+    );
+    const ok =
+      structure?.after === "text" &&
+      structure.tableAt >= 0 &&
+      tailText.includes("written below the table");
+    if (!ok) {
+      console.error("[table] FAIL: no editable block below the table, or typing did not land");
+      process.exitCode = 1;
+    }
+  }
   await page.screenshot({ path: OUT });
   console.log(`[narrow] ${WIDTH}x${HEIGHT} -> ${OUT}`);
   console.log(`[narrow] toolbar: ${JSON.stringify(overflow)}`);
