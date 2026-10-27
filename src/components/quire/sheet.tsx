@@ -11,6 +11,7 @@ import {
   Search,
   Strikethrough,
   Table2,
+  Trash2,
   ChevronDown,
   Underline,
   Undo2,
@@ -115,6 +116,8 @@ export type SheetActions = {
   save: (ext?: string) => void;
   close: () => void;
   deleteImage: (id: number) => void;
+  /** Removes a table block; one undo brings it back. */
+  deleteTable: (id: number) => void;
   table: (rows: number, cols: number) => void;
   bullets: () => void;
   /** Sets the face and/or paragraph style of one text block. */
@@ -174,6 +177,7 @@ export function Sheet({
   findHit,
   looks,
   activeBlockId,
+  activeKind,
   saveExt,
   saveExts,
   actions,
@@ -199,6 +203,8 @@ export function Sheet({
   looks: Record<string, BlockLook>;
   /** The block that holds the caret: where a style or font choice applies. */
   activeBlockId: number | null;
+  /** Kind of the active block: text, table or image. */
+  activeKind: string | null;
   /** Default extension for Ctrl+S, e.g. `papel` or `txt`. */
   saveExt: string;
   /** Every extension this note can be written as, default first. */
@@ -401,6 +407,15 @@ export function Sheet({
                   <Keep label="Insert image" title="Insert image" onPress={actions.image}>
                     <ImagePlus />
                   </Keep>
+                  {activeKind === "table" && activeBlockId !== null && (
+                    <Keep
+                      label="Delete table"
+                      title="Delete this table (Ctrl+Z restores it)"
+                      onPress={() => actions.deleteTable(activeBlockId)}
+                    >
+                      <Trash2 />
+                    </Keep>
+                  )}
                   <Keep label="Word wrap" title="Toggle word wrap" pressed={note.wrap} onPress={actions.wrap}>
                     <WrapText />
                   </Keep>
@@ -455,6 +470,7 @@ export function Sheet({
                   version={tick}
                   onEdited={onEdited}
                   onSelect={onCellSelect}
+                  onDelete={() => actions.deleteTable(item.id)}
                 />
               ) : (
                 <TextBlock

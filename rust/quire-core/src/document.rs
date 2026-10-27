@@ -460,7 +460,39 @@ impl Document {
         Some(caret)
     }
 
+    /// Removes a table, and with it the empty text block `insert_table` left below.
+    ///
+    /// Recorded as one structural step, so a single undo restores the table and any
+    /// cell content. The caret lands at the end of the text block above the table.
+    pub fn delete_table(&mut self, table_id: u32) -> Option<Caret> {
+        let idx = self.blocks.iter().position(|b| matches!(b, Block::Table { id, .. } if *id == table_id))?;
+        let before = self.blocks.clone();
+        let caret_before = Caret { block_id: table_id, start: 0, end: 0 };
+        self.blocks.remove(idx);
+        // Only an empty block is dropped: text the user already typed below the table
+        // is theirs and must survive its removal.
+        if let Some(Block::Text { body, .. }) = self.blocks.get(idx) {
+            if body.is_empty() {
+                self.blocks.remove(idx);
+            }
+        }
+        if !self.blocks.iter().any(|b| matches!(b, Block::Text { .. })) {
+            let id = self.alloc_id();
+            self.blocks.push(text_block(id, String::new()));
+        }
+        let caret = match idx.checked_sub(1).and_then(|p| self.blocks.get(p)) {
+            Some(Block::Text { id, body, .. }) => {
+                let at = utf16_len(body) as u32;
+                Caret { block_id: *id, start: at, end: at }
+            }
+            _ => self.fallback_caret(),
+        };
+        self.push_structure(before, caret_before, caret);
+        Some(caret)
+    }
+
     fn fallback_caret(&self) -> Caret {
+
         if let Some(Block::Text { id, .. }) = self.blocks.iter().find(|b| matches!(b, Block::Text { .. })) {
             Caret { block_id: *id, start: 0, end: 0 }
         } else {
@@ -1615,6 +1647,38 @@ mod tests {
         let tables = doc.outline().iter().filter(|item| item.kind == "table").count();
         assert_eq!(tables, 2);
         assert_eq!(texts, 3, "two tables add exactly one trailing block, not two: {second}");
+    }
+
+    #[test]
+    fn a_table_can_be_deleted_and_undone() {
+        let mut doc = Document::new();
+        let text = doc.first_text_id();
+        doc.edit(text, 0, 0, "above", false);
+        let table = doc.insert_table(text, 2, 2);
+        assert!(doc.outline().iter().any(|item| item.id == table));
+
+        // Deleting removes the table and the empty block that came with it.
+        let caret = doc.delete_table(table).expect("the table is deletable");
+        assert!(!doc.outline().iter().any(|item| item.id == table), "table is gone");
+        assert_eq!(doc.outline().len(), 1, "the empty trailing block goes with it");
+        assert_eq!(doc.outline()[0].kind, "text");
+        assert_eq!(caret.block_id, text);
+
+        // One undo brings the table back.
+        doc.undo();
+        assert!(doc.outline().iter().any(|item| item.id == table), "undo restores the table");
+
+        // Text typed below the table is not thrown away with it.
+        let below = doc
+            .outline()
+            .into_iter()
+            .find(|item| item.kind == "text" && item.id != text)
+            .expect("the trailing text block")
+            .id;
+        doc.edit(below, 0, 0, "keep me", false);
+        doc.delete_table(table).expect("the table deletes again");
+        assert!(doc.outline().iter().any(|item| item.id == below), "typed text survives");
+        assert!(doc.export_text().contains("keep me"));
     }
 
     #[test]

@@ -108,6 +108,15 @@ export class Session {
         return ret === 0 ? undefined : Caret.__wrap(ret);
     }
     /**
+     * Removes a table block (one undoable step); returns where the caret should go.
+     * @param {number} table_id
+     * @returns {Caret | undefined}
+     */
+    delete_table(table_id) {
+        const ret = wasm.session_delete_table(this.__wbg_ptr, table_id);
+        return ret === 0 ? undefined : Caret.__wrap(ret);
+    }
+    /**
      * @param {number} id
      * @param {number} start
      * @param {number} end

@@ -20,6 +20,10 @@ export class Session {
     can_redo(): boolean;
     can_undo(): boolean;
     delete_image(image_id: number): Caret | undefined;
+    /**
+     * Removes a table block (one undoable step); returns where the caret should go.
+     */
+    delete_table(table_id: number): Caret | undefined;
     edit(id: number, start: number, end: number, text: string, coalesce: boolean): void;
     effective_language(id: number): string;
     encoding(): string;
@@ -103,6 +107,7 @@ export interface InitOutput {
     readonly session_can_redo: (a: number) => number;
     readonly session_can_undo: (a: number) => number;
     readonly session_delete_image: (a: number, b: number) => number;
+    readonly session_delete_table: (a: number, b: number) => number;
     readonly session_edit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly session_effective_language: (a: number, b: number) => [number, number];
     readonly session_encoding: (a: number) => [number, number];

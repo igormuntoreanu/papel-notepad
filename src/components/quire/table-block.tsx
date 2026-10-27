@@ -33,12 +33,15 @@ export function TableBlock({
   version,
   onEdited,
   onSelect,
+  onDelete,
 }: {
   blockId: number;
   session: Session;
   version: number;
   onEdited: () => void;
   onSelect: (target: CellTarget) => void;
+  /** Removes the whole table; the sheet owns the undoable step. */
+  onDelete: () => void;
 }) {
   const table = useMemo<TableData>(() => {
     try {
@@ -271,6 +274,17 @@ export function TableBlock({
               onClick={() => change(() => session.table_delete_col(blockId, menu.col))}
             >
               Delete column
+            </button>
+            {/* One undoable step removes the table and the empty block below it. */}
+            <button
+              type="button"
+              className="menu-item is-danger"
+              onClick={() => {
+                setMenu(null);
+                onDelete();
+              }}
+            >
+              Delete table
             </button>
           </div>,
           document.querySelector(".desk") ?? document.body,

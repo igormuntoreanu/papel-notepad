@@ -702,6 +702,15 @@ export function QuireApp() {
     bump({ block_id: next.block_id, start: next.start, end: next.end });
   }
 
+  function deleteTable(tableId: number) {
+    if (!session || !activeId) return;
+    const next = session.delete_table(tableId);
+    if (!next) return;
+    touch(activeId);
+    setSel({ blockId: next.block_id, start: next.start, end: next.start });
+    bump({ block_id: next.block_id, start: next.start, end: next.end });
+  }
+
   function deleteImage(imageId: number) {
     if (!session || !activeId) return;
     const next = session.delete_image(imageId);
@@ -1030,6 +1039,8 @@ export function QuireApp() {
 
   const blockId = sel.blockId || session?.first_text_id() || 0;
   const metrics = session ? session.metrics(blockId, sel.start) : [1, 1, 1, 0];
+  // Which kind of block holds the caret: the toolbar shows Delete table only for one.
+  const activeBlock = session ? outlineOf(session).find((item) => item.id === sel.blockId) : undefined;
   const richNow = session ? sessionRich(session) : false;
   const saveExts = note ? saveExtensions({ rich: richNow, sourceExt: note.sourceExt }) : ["papel"];
   const saveExt = saveExts[0] ?? "papel";
@@ -1098,6 +1109,7 @@ export function QuireApp() {
     bullets: toggleBulletList,
     close: () => activeId && closeNote(activeId),
     deleteImage,
+    deleteTable,
     look: setBlockLook,
   };
 
@@ -1277,6 +1289,7 @@ export function QuireApp() {
                 saveExts={saveExts}
                 looks={note.looks ?? {}}
                 activeBlockId={sel.blockId ?? null}
+                activeKind={activeBlock ? activeBlock.kind : null}
                 actions={sheetActions}
               />
             ) : (

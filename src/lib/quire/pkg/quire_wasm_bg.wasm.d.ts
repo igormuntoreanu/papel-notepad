@@ -13,6 +13,7 @@ export const session_apply_style: (a: number, b: number, c: number, d: number, e
 export const session_can_redo: (a: number) => number;
 export const session_can_undo: (a: number) => number;
 export const session_delete_image: (a: number, b: number) => number;
+export const session_delete_table: (a: number, b: number) => number;
 export const session_edit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const session_effective_language: (a: number, b: number) => [number, number];
 export const session_encoding: (a: number) => [number, number];

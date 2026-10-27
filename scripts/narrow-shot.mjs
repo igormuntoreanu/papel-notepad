@@ -228,6 +228,44 @@ try {
       process.exitCode = 1;
     }
   }
+  // Optional check for deleting a table: from the toolbar and from the right-click menu,
+  // with Ctrl+Z restoring it.
+  if (process.argv.includes("--delete-table")) {
+    const tables = () => page.evaluate(() => document.querySelectorAll(".page .table-block").length);
+    await page.getByRole("button", { name: /^Insert table$/ }).click();
+    await page.getByRole("button", { name: "Insert a 2 by 2 table" }).click();
+    await page.waitForTimeout(500);
+    const inserted = await tables();
+    await page.locator(".page .sheet-table td textarea").first().click();
+    await page.waitForTimeout(200);
+    const button = page.getByRole("button", { name: /^Delete table$/ });
+    const buttonVisible = await button.isVisible();
+    await button.click();
+    await page.waitForTimeout(500);
+    const afterToolbar = await tables();
+    await page.keyboard.press("Control+z");
+    await page.waitForTimeout(400);
+    const afterUndo = await tables();
+
+    // Right-click the cell: the menu offers the same removal.
+    await page.locator(".page .sheet-table td textarea").first().click({ button: "right" });
+    await page.waitForTimeout(300);
+    const deleteItem = page.locator(".cell-menu button", { hasText: "Delete table" });
+    const menuHasDelete = await deleteItem.isVisible().catch(() => false);
+    await deleteItem.click();
+    await page.waitForTimeout(500);
+    const afterMenu = await tables();
+
+    console.log(
+      `[delete-table] inserted=${inserted} toolbarBtn=${buttonVisible} afterToolbar=${afterToolbar} ` +
+        `afterUndo=${afterUndo} contextMenu=${menuHasDelete} afterMenu=${afterMenu}`,
+    );
+    const ok = inserted === 1 && buttonVisible && afterToolbar === 0 && afterUndo === 1 && menuHasDelete && afterMenu === 0;
+    if (!ok) {
+      console.error("[delete-table] FAIL");
+      process.exitCode = 1;
+    }
+  }
   await page.screenshot({ path: OUT });
   console.log(`[narrow] ${WIDTH}x${HEIGHT} -> ${OUT}`);
   console.log(`[narrow] toolbar: ${JSON.stringify(overflow)}`);

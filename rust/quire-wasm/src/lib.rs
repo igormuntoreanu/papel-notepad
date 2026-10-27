@@ -92,6 +92,11 @@ impl Session {
         self.doc.delete_image(image_id).map(Caret::from)
     }
 
+    /// Removes a table block (one undoable step); returns where the caret should go.
+    pub fn delete_table(&mut self, table_id: u32) -> Option<Caret> {
+        self.doc.delete_table(table_id).map(Caret::from)
+    }
+
     pub fn undo(&mut self) -> Option<Caret> {
         self.doc.undo().map(Caret::from)
     }
