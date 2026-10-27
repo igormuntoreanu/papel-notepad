@@ -60,6 +60,14 @@ import {
 type Ask = { title: string; body: string; confirm: string; tone?: "danger"; run: () => void };
 type Sel = { blockId: number; start: number; end: number };
 
+const ZOOM_MIN = 10;
+const ZOOM_MAX = 40;
+const ZOOM_DEFAULT = 16;
+
+function clampZoom(size: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(size)));
+}
+
 function sessionRich(session: Session): boolean {
   const outline = outlineOf(session);
   return richFlags({
@@ -245,6 +253,21 @@ export function QuireApp() {
     }, 400);
     return () => window.clearTimeout(handle);
   }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, lastBackup, folderName, tick]);
+
+  // Ctrl + wheel zooms the sheet like a document viewer. A plain wheel keeps
+  // scrolling, and the listener only swallows the gesture over the page so the board
+  // never zooms by accident.
+  useEffect(() => {
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      const target = event.target as Element | null;
+      if (!target || !target.closest(".page")) return;
+      event.preventDefault();
+      setZoom((current) => clampZoom(current + (event.deltaY < 0 ? 1 : -1)));
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, []);
 
   useEffect(() => {
     if (!ready || !folderOkRef.current || !folderRef.current) return;
@@ -967,13 +990,13 @@ export function QuireApp() {
         doUndo(true);
       } else if (meta && (e.key === "=" || e.key === "+")) {
         e.preventDefault();
-        setZoom((z) => Math.min(28, z + 1));
+        setZoom((z) => clampZoom(z + 1));
       } else if (meta && e.key === "-") {
         e.preventDefault();
-        setZoom((z) => Math.max(12, z - 1));
+        setZoom((z) => clampZoom(z - 1));
       } else if (meta && e.key === "0") {
         e.preventDefault();
-        setZoom(16);
+        setZoom(ZOOM_DEFAULT);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -1110,6 +1133,8 @@ export function QuireApp() {
     close: () => activeId && closeNote(activeId),
     deleteImage,
     deleteTable,
+    zoomIn: () => setZoom((current) => clampZoom(current + 1)),
+    zoomOut: () => setZoom((current) => clampZoom(current - 1)),
     look: setBlockLook,
   };
 

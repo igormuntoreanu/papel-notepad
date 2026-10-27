@@ -17,6 +17,8 @@ import {
   Undo2,
   WrapText,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { useState, type KeyboardEvent, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import type { Session } from "@/lib/quire/engine";
@@ -113,6 +115,9 @@ export type SheetActions = {
   date: (style?: DateStampStyle) => void;
   image: () => void;
   wrap: () => void;
+  /** Larger / smaller text, clamped by the app (Ctrl+wheel does the same). */
+  zoomIn: () => void;
+  zoomOut: () => void;
   save: (ext?: string) => void;
   close: () => void;
   deleteImage: (id: number) => void;
@@ -418,6 +423,12 @@ export function Sheet({
                   )}
                   <Keep label="Word wrap" title="Toggle word wrap" pressed={note.wrap} onPress={actions.wrap}>
                     <WrapText />
+                  </Keep>
+                  <Keep label="Zoom out" title="Zoom out (Ctrl+-)" onPress={actions.zoomOut}>
+                    <ZoomOut />
+                  </Keep>
+                  <Keep label="Zoom in" title="Zoom in (Ctrl++)" onPress={actions.zoomIn}>
+                    <ZoomIn />
                   </Keep>
                 </div>
               </div>

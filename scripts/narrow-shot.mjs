@@ -266,6 +266,44 @@ try {
       process.exitCode = 1;
     }
   }
+  // Optional check for zoom: the two toolbar buttons, Ctrl+wheel over the page, and
+  // the 10..40 px clamp that the readout turns into 63%..250%.
+  if (process.argv.includes("--zoom")) {
+    const percent = () =>
+      page.evaluate(() => {
+        const span = [...document.querySelectorAll(".strip-status span")].find((s) => /^\d+%$/.test(s.textContent ?? ""));
+        return span ? Number.parseInt(span.textContent, 10) : null;
+      });
+    const start = await percent();
+    await page.getByRole("button", { name: /^Zoom in$/ }).click();
+    await page.waitForTimeout(250);
+    const afterButton = await percent();
+
+    const box = await page.locator(".page").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, -120);
+    await page.keyboard.up("Control");
+    await page.waitForTimeout(250);
+    const afterWheel = await percent();
+
+    // Push past the top: it must stop at 40 px (250%).
+    for (let i = 0; i < 30; i += 1) await page.getByRole("button", { name: /^Zoom in$/ }).click();
+    await page.waitForTimeout(250);
+    const top = await percent();
+    for (let i = 0; i < 40; i += 1) await page.getByRole("button", { name: /^Zoom out$/ }).click();
+    await page.waitForTimeout(250);
+    const bottom = await percent();
+
+    console.log(`[zoom] start=${start} button=${afterButton} wheel=${afterWheel} top=${top} bottom=${bottom}`);
+    const ok = afterButton > start && afterWheel > afterButton && top === 250 && bottom === 63;
+    if (!ok) {
+      console.error("[zoom] FAIL");
+      process.exitCode = 1;
+    }
+    await page.getByRole("button", { name: /^Zoom in$/ }).click();
+    await page.waitForTimeout(200);
+  }
   await page.screenshot({ path: OUT });
   console.log(`[narrow] ${WIDTH}x${HEIGHT} -> ${OUT}`);
   console.log(`[narrow] toolbar: ${JSON.stringify(overflow)}`);
