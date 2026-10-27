@@ -9,6 +9,7 @@ import { bootEngine, createSession, type Session } from "@/lib/quire/engine";
 import { loadPersisted, type Persisted, type Prefs, type SortMode, type StoredBlock, type StoredNote } from "@/lib/quire/persist";
 import { base64ToBytes, bytesToBase64, copyBytes, langLabel, SKINS, type SkinId } from "@/lib/quire/text";
 import { nextUntitled } from "@/lib/quire/titles";
+import { readLook, type BlockLook } from "@/lib/quire/typefaces";
 
 export type NoteMeta = {
   id: string;
@@ -19,6 +20,8 @@ export type NoteMeta = {
   sourceExt?: string;
   /** Exact filename last written to the sync folder (e.g. `Untitled 2.papel`). */
   diskName?: string;
+  /** Per-block face and paragraph style, keyed by block id as a string. */
+  looks?: Record<string, BlockLook>;
 };
 export type OutlineItem = { id: number; kind: string; mime: string };
 export type Place = { block_id: number; start: number; end: number };
@@ -71,14 +74,18 @@ export function blankNote(titles: string[]): NoteMeta {
   return { id, title: nextUntitled(titles), wrap: true, edited: Date.now() };
 }
 
-/** Deep-copies a live session (content only; caller owns id/order/meta). */
-export function duplicateSession(sourceId: string): Session | null {
+/** Deep-copies a live session plus its per-block looks (caller owns id/order/meta). */
+export function duplicateSession(
+  sourceId: string,
+  looks: Record<string, BlockLook> = {},
+): { session: Session; looks: Record<string, BlockLook> } | null {
   const source = sessions.get(sourceId);
   if (!source) return null;
   const session = createSession();
-  if (!fromPapel(session, new TextEncoder().encode(toPapel(source)))) return null;
+  const copied: Record<string, BlockLook> = {};
+  if (!fromPapel(session, new TextEncoder().encode(toPapel(source, looks)), copied)) return null;
   session.mark_dirty();
-  return session;
+  return { session, looks: copied };
 }
 
 const SORTS: SortMode[] = ["manual", "recent", "title"];
@@ -100,10 +107,15 @@ export async function ensureLoaded(): Promise<Loaded> {
           const session = createSession();
           session.restore_begin();
           const pending: [number, number[]][] = [];
+          const looks: Record<string, BlockLook> = {};
           for (const block of stored.blocks) {
             if (block.kind === "text") {
               const blockId = session.restore_text(block.text);
               if (block.marks?.length) pending.push([blockId, block.marks]);
+              // The look travels inside the block, so the id this restore just handed
+              // out is the right key even when block ids were renumbered.
+              const look = readLook(block);
+              if (look.font || look.style) looks[String(blockId)] = look;
             } else session.restore_image(block.mime, new Uint8Array(block.bytes));
           }
           session.restore_end(stored.language, stored.eol, stored.encoding);
@@ -116,6 +128,7 @@ export async function ensureLoaded(): Promise<Loaded> {
             edited: stored.edited ?? Date.now(),
             sourceExt: stored.sourceExt,
             diskName: stored.diskName,
+            looks: Object.keys(looks).length ? looks : undefined,
           });
           if (stored.dirty) session.mark_dirty();
           order.push(id);
@@ -155,9 +168,14 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
             return { kind: "image", mime: item.mime || "image/png", bytes: copyBytes(session.image_of(item.id)) };
           }
           const marks = session.marks(item.id);
-          return marks.length
-            ? { kind: "text", text: session.text_of(item.id), marks: [...marks] }
-            : { kind: "text", text: session.text_of(item.id) };
+          const look = meta.looks?.[String(item.id)] ?? {};
+          return {
+            kind: "text" as const,
+            text: session.text_of(item.id),
+            ...(marks.length ? { marks: [...marks] } : {}),
+            ...(look.font ? { font: look.font } : {}),
+            ...(look.style ? { style: look.style } : {}),
+          };
         });
         return {
           id,
@@ -177,8 +195,8 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
   };
 }
 
-/** Serialises a note to the .papel JSON format (v3 adds table blocks). */
-export function toPapel(session: Session): string {
+/** Serialises a note to the .papel JSON format (v3 adds table blocks; text blocks may carry a look). */
+export function toPapel(session: Session, looks: Record<string, BlockLook> = {}): string {
   const blocks = outlineOf(session).map((item) => {
     if (item.kind === "image") {
       return { type: "image", mime: item.mime || "image/png", data: bytesToBase64(session.image_of(item.id)) };
@@ -188,9 +206,14 @@ export function toPapel(session: Session): string {
       return { type: "table", cols: table.cols, cells: table.cells };
     }
     const marks = session.marks(item.id);
-    return marks.length
-      ? { type: "text", text: session.text_of(item.id), marks: [...marks] }
-      : { type: "text", text: session.text_of(item.id) };
+    const look = looks[String(item.id)] ?? {};
+    return {
+      type: "text",
+      text: session.text_of(item.id),
+      ...(marks.length ? { marks: [...marks] } : {}),
+      ...(look.font ? { font: look.font } : {}),
+      ...(look.style ? { style: look.style } : {}),
+    };
   });
   return JSON.stringify({
     format: "papel",
@@ -212,13 +235,24 @@ type PapelFile = {
     mime?: string;
     data?: string;
     marks?: number[];
+    /** Optional per-block face and paragraph style. */
+    font?: string;
+    style?: string;
     cols?: number;
     cells?: unknown[];
   }>;
 };
 
-/** Loads .papel / .quire JSON into a session. Returns false when the file is not valid JSON. */
-export function fromPapel(session: Session, bytes: Uint8Array): boolean {
+/**
+ * Loads .papel / .quire JSON into a session. Returns false when the file is not valid
+ * JSON. Pass `outLooks` to collect the per-block faces and paragraph styles that were
+ * stored in the file, keyed by the block id the restore handed out.
+ */
+export function fromPapel(
+  session: Session,
+  bytes: Uint8Array,
+  outLooks?: Record<string, BlockLook>,
+): boolean {
   let parsed: PapelFile;
   try {
     parsed = JSON.parse(new TextDecoder().decode(bytes)) as PapelFile;
@@ -235,6 +269,8 @@ export function fromPapel(session: Session, bytes: Uint8Array): boolean {
     } else {
       const id = session.restore_text(block.text ?? "");
       if (Array.isArray(block.marks) && block.marks.length) pending.push([id, block.marks]);
+      const look = readLook(block);
+      if (outLooks && (look.font || look.style)) outLooks[String(id)] = look;
     }
   }
   session.restore_end(parsed.language || "auto", parsed.eol || "lf", parsed.encoding || "utf-8");
@@ -275,7 +311,7 @@ export function forgetCard(id: string) {
   cardCache.delete(id);
 }
 
-function blocksToArchive(session: Session): ArchiveBlock[] {
+function blocksToArchive(session: Session, looks: Record<string, BlockLook> = {}): ArchiveBlock[] {
   return outlineOf(session).map((item) => {
     if (item.kind === "image") {
       return { kind: "image", mime: item.mime || "image/png", data: bytesToBase64(session.image_of(item.id)) };
@@ -285,15 +321,27 @@ function blocksToArchive(session: Session): ArchiveBlock[] {
       return { kind: "table", cols: table.cols, cells: table.cells };
     }
     const marks = session.marks(item.id);
-    return marks.length
-      ? { kind: "text", text: session.text_of(item.id), marks: [...marks] }
-      : { kind: "text", text: session.text_of(item.id) };
+    const look = looks[String(item.id)] ?? {};
+    return {
+      kind: "text" as const,
+      text: session.text_of(item.id),
+      ...(marks.length ? { marks: [...marks] } : {}),
+      ...(look.font ? { font: look.font } : {}),
+      ...(look.style ? { style: look.style } : {}),
+    };
   });
 }
 
 /** Builds a full-board backup archive from the live sessions. */
 export function buildArchive(
-  notes: Array<{ id: string; title: string; wrap: boolean; edited: number; sourceExt?: string }>,
+  notes: Array<{
+    id: string;
+    title: string;
+    wrap: boolean;
+    edited: number;
+    sourceExt?: string;
+    looks?: Record<string, BlockLook>;
+  }>,
   order: string[],
 ): PapelArchive {
   const exportedAt = new Date().toISOString();
@@ -312,7 +360,7 @@ export function buildArchive(
       language: session.language(),
       eol: session.eol(),
       encoding: session.encoding(),
-      blocks: blocksToArchive(session),
+      blocks: blocksToArchive(session, meta.looks ?? {}),
     });
   }
   return {
@@ -324,8 +372,11 @@ export function buildArchive(
   };
 }
 
-/** Loads an archive note into a live session. */
-export function sessionFromArchiveNote(note: ArchiveNote): Session {
+/** Loads an archive note into a live session, with its per-block looks. */
+export function sessionFromArchiveNote(note: ArchiveNote): {
+  session: Session;
+  looks: Record<string, BlockLook>;
+} {
   const session = createSession();
   const papel = {
     format: "papel",
@@ -336,12 +387,17 @@ export function sessionFromArchiveNote(note: ArchiveNote): Session {
     blocks: note.blocks.map((block) => {
       if (block.kind === "image") return { type: "image", mime: block.mime, data: block.data };
       if (block.kind === "table") return { type: "table", cols: block.cols, cells: block.cells };
-      return block.marks?.length
-        ? { type: "text", text: block.text, marks: block.marks }
-        : { type: "text", text: block.text };
+      return {
+        type: "text",
+        text: block.text,
+        ...(block.marks?.length ? { marks: block.marks } : {}),
+        ...(block.font ? { font: block.font } : {}),
+        ...(block.style ? { style: block.style } : {}),
+      };
     }),
   };
-  const ok = fromPapel(session, new TextEncoder().encode(JSON.stringify(papel)));
+  const looks: Record<string, BlockLook> = {};
+  const ok = fromPapel(session, new TextEncoder().encode(JSON.stringify(papel)), looks);
   if (!ok) {
     session.restore_begin();
     session.restore_text("");
@@ -349,7 +405,7 @@ export function sessionFromArchiveNote(note: ArchiveNote): Session {
   }
   if (note.dirty) session.mark_dirty();
   else session.mark_clean();
-  return session;
+  return { session, looks };
 }
 
 export function relativeTime(at: number, now = Date.now()): string {

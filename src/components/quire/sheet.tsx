@@ -12,6 +12,7 @@ import {
   Search,
   Strikethrough,
   Table2,
+  ChevronDown,
   Underline,
   Undo2,
   WrapText,
@@ -20,6 +21,15 @@ import {
 import { useState, type KeyboardEvent, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import type { Session } from "@/lib/quire/engine";
 import { HIGHLIGHTERS, INKS, type FlagName } from "@/lib/quire/marks";
+import {
+  DEFAULT_FONT,
+  DEFAULT_STYLE,
+  FONTS,
+  TEXT_STYLES,
+  fontName,
+  styleName,
+  type BlockLook,
+} from "@/lib/quire/typefaces";
 import type { DateStampStyle } from "@/lib/quire/text";
 import { tornClip } from "@/lib/quire/torn";
 import { TextBlock } from "./text-block";
@@ -109,6 +119,8 @@ export type SheetActions = {
   deleteImage: (id: number) => void;
   table: (rows: number, cols: number) => void;
   bullets: () => void;
+  /** Sets the face and/or paragraph style of one text block. */
+  look: (blockId: number, patch: BlockLook) => void;
 };
 
 /** Toolbar buttons that must not steal focus (and the selection) from the editor. */
@@ -162,6 +174,8 @@ export function Sheet({
   styles,
   find,
   findHit,
+  looks,
+  activeBlockId,
   saveExt,
   saveExts,
   actions,
@@ -183,6 +197,10 @@ export function Sheet({
   find: FindState;
   /** Active Find match to keep highlighted while Find stays focused. */
   findHit: { blockId: number; start: number; end: number } | null;
+  /** Face and paragraph style per text block, keyed by block id. */
+  looks: Record<string, BlockLook>;
+  /** The block that holds the caret: where a style or font choice applies. */
+  activeBlockId: number | null;
   /** Default extension for Ctrl+S, e.g. `papel` or `txt`. */
   saveExt: string;
   /** Every extension this note can be written as, default first. */
@@ -194,6 +212,8 @@ export function Sheet({
   const outline = outlineOf(session);
   const noSel = !styles.hasSelection;
   const selHint = noSel ? " (select text first)" : "";
+  // Where a paragraph style or font choice applies: the block holding the caret.
+  const currentLook: BlockLook = activeBlockId === null ? {} : (looks[String(activeBlockId)] ?? {});
 
   return (
     <section className="sheet-wrap" data-edge={edge} aria-label={note.title}>
@@ -237,6 +257,61 @@ export function Sheet({
               <FindBar find={find} />
             ) : (
               <div className="sheet-tools" role="toolbar" aria-label="Text and sheet tools">
+                <div className="tool-group" role="group" aria-label="Paragraph style and font">
+                  <DropMenu
+                    className="tool text-only"
+                    ariaLabel={`Paragraph style: ${styleName(currentLook.style)}`}
+                    title="Paragraph style for this block"
+                    label={
+                      <span>
+                        {styleName(currentLook.style)} <ChevronDown size={13} aria-hidden="true" />
+                      </span>
+                    }
+                    items={TEXT_STYLES.map((style) => {
+                      const on = (currentLook.style ?? DEFAULT_STYLE) === style.id;
+                      return (
+                        <button
+                          key={style.id}
+                          type="button"
+                          className="menu-item"
+                          role="menuitemradio"
+                          aria-checked={on}
+                          disabled={activeBlockId === null}
+                          onClick={() => activeBlockId !== null && actions.look(activeBlockId, { style: style.id })}
+                        >
+                          {on ? `${style.name} ✓` : style.name}
+                        </button>
+                      );
+                    })}
+                  />
+                  <DropMenu
+                    className="tool text-only"
+                    ariaLabel={`Font: ${fontName(currentLook.font)}`}
+                    title="Font for this block"
+                    label={
+                      <span>
+                        {fontName(currentLook.font)} <ChevronDown size={13} aria-hidden="true" />
+                      </span>
+                    }
+                    items={FONTS.map((font) => {
+                      const on = (currentLook.font ?? DEFAULT_FONT) === font.id;
+                      return (
+                        <button
+                          key={font.id}
+                          type="button"
+                          className="menu-item"
+                          role="menuitemradio"
+                          aria-checked={on}
+                          disabled={activeBlockId === null}
+                          onClick={() => activeBlockId !== null && actions.look(activeBlockId, { font: font.id })}
+                        >
+                          <span style={{ fontFamily: font.css }}>{font.name}</span>
+                          {on ? " ✓" : ""}
+                        </button>
+                      );
+                    })}
+                  />
+                </div>
                 <div className="tool-group" role="group" aria-label="Text style">
                   <Keep label={`Bold${selHint}`} title="Bold (Ctrl+B)" pressed={styles.active.bold} disabled={noSel} onPress={() => styles.toggle("bold")}>
                     <Bold />
@@ -408,6 +483,7 @@ export function Sheet({
                   }}
                   onEdited={onEdited}
                   onImage={onImage}
+                  look={looks[String(item.id)]}
                 />
               ),
             )}

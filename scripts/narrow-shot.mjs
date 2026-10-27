@@ -62,7 +62,11 @@ try {
       async writeFile() { return true; },
       async removeFile() { return true; },
       async listFiles() { return []; },
-      async saveFile() { return true; },
+      // The shell intercepts saves, so record what the app asked it to write.
+      async saveFile(name, bytes) {
+        window.__saved = { name, bytes: Array.from(bytes) };
+        return true;
+      },
     };
   });
 
@@ -75,7 +79,7 @@ try {
       title: "Narrow window",
       wrap: true,
       edited: Date.now(),
-      sourceExt: "txt",
+      sourceExt: "papel",
       language: "auto",
       eol: "lf",
       encoding: "utf-8",
@@ -127,6 +131,66 @@ try {
     };
   });
 
+  // Optional end-to-end check for the paragraph style and font pickers, including
+  // the reload, because "it looks right now" is not the same as "it was saved".
+  const looksReport = await page.evaluate(() => null);
+  if (process.argv.includes("--looks")) {
+    const cell = ".page .block";
+    const beforeStyle = await page.getAttribute(cell, "data-style");
+    await page.getByRole("button", { name: /^Paragraph style/ }).click();
+    await page.waitForTimeout(300);
+    await page.getByRole("menuitemradio", { name: "Title", exact: true }).click();
+    await page.getByRole("button", { name: /^Font:/ }).click();
+    await page.getByRole("menuitemradio", { name: "Inter", exact: true }).click();
+    await page.waitForTimeout(400);
+    const applied = {
+      style: await page.getAttribute(cell, "data-style"),
+      font: await page.getAttribute(cell, "data-font"),
+      computed: await page.evaluate(() => {
+        const area = document.querySelector(".page .block textarea");
+        if (!area) return null;
+        const cs = getComputedStyle(area);
+        return { fontSize: cs.fontSize, fontFamily: cs.fontFamily };
+      }),
+    };
+    // The autosave effect is debounced; give it time before reloading.
+    await page.waitForTimeout(1200);
+    await page.reload({ waitUntil: "load" });
+    await page.getByText(/narrow window/i).first().click({ timeout: 20000 });
+    await page.waitForTimeout(800);
+    const after = {
+      style: await page.getAttribute(cell, "data-style"),
+      font: await page.getAttribute(cell, "data-font"),
+    };
+    console.log(
+      `[looks] default=${beforeStyle ?? "body"} applied=${applied.style}/${applied.font} ` +
+        `computed=${applied.computed?.fontSize}/${applied.computed?.fontFamily} ` +
+        `afterReload=${after.style}/${after.font}`,
+    );
+    // Save the sheet and read the bytes the bridge was handed: the look must be in the
+    // file, not only in browser storage, or opening the .papel elsewhere would lose it.
+    await page.getByRole("button", { name: /^Save \(\.papel\)/ }).click();
+    await page.waitForTimeout(600);
+    const payload = await page.evaluate(() => {
+      const saved = window.__saved;
+      if (!saved) return null;
+      return JSON.parse(new TextDecoder().decode(new Uint8Array(saved.bytes)));
+    });
+    const textBlock = payload?.blocks?.find((b) => b.type === "text");
+    console.log(`[looks] .papel block: ${JSON.stringify({ font: textBlock?.font, style: textBlock?.style })}`);
+    const fileOk = textBlock?.font === "inter" && textBlock?.style === "title";
+
+    const ok = fileOk &&
+      applied.style === "title" &&
+      applied.font === "inter" &&
+      after.style === "title" &&
+      after.font === "inter" &&
+      applied.computed?.fontSize === "30px";
+    if (!ok) {
+      console.error("[looks] FAIL: the look did not apply, take effect, or survive a reload");
+      process.exitCode = 1;
+    }
+  }
   await page.screenshot({ path: OUT });
   console.log(`[narrow] ${WIDTH}x${HEIGHT} -> ${OUT}`);
   console.log(`[narrow] toolbar: ${JSON.stringify(overflow)}`);

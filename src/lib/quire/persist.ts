@@ -1,7 +1,16 @@
+import type { FontId, StyleId } from "@/lib/quire/typefaces";
 import type { SkinId } from "@/lib/quire/text";
 
 export type StoredBlock =
-  | { kind: "text"; text: string; marks?: number[] }
+  | {
+      kind: "text";
+      text: string;
+      marks?: number[];
+      /** Chosen face for this block; absent means the paper default. */
+      font?: FontId;
+      /** Paragraph style (Title..Body); absent means Body. */
+      style?: StyleId;
+    }
   | { kind: "image"; mime: string; bytes: ArrayBuffer };
 
 export type StoredNote = {

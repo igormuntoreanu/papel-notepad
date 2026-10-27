@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, type MutableRefObject } from "react
 import type { Session } from "@/lib/quire/engine";
 import { correctionAt } from "@/lib/quire/autocorrect";
 import { continueBullet } from "@/lib/quire/blocks";
+import type { BlockLook } from "@/lib/quire/typefaces";
 import { paint, readMarks } from "@/lib/quire/marks";
 import { diffText } from "@/lib/quire/text";
 import type { Place } from "./store";
@@ -33,6 +34,7 @@ export function TextBlock({
   focusRef,
   autocorrect,
   findHit,
+  look,
   onSelection,
   onEdited,
   onImage,
@@ -47,6 +49,8 @@ export function TextBlock({
   autocorrect: boolean;
   /** Current Find match in this block — kept painted while Find stays focused. */
   findHit?: { start: number; end: number } | null;
+  /** Face and paragraph style for this block; absent means the paper default. */
+  look?: BlockLook;
   onSelection: (start: number, end: number) => void;
   onEdited: () => void;
   onImage: (file: File) => void;
@@ -196,7 +200,12 @@ export function TextBlock({
   }
 
   return (
-    <div className={grow ? "block grow" : "block"} data-note={noteId}>
+    <div
+      className={grow ? "block grow" : "block"}
+      data-note={noteId}
+      data-font={look?.font ?? undefined}
+      data-style={look?.style ?? undefined}
+    >
       <pre ref={preRef} className="hl" aria-hidden="true" />
       <textarea
         ref={taRef}

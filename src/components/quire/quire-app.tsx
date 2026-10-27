@@ -38,6 +38,7 @@ import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
 import type { CellTarget } from "./table-block";
+import type { BlockLook } from "@/lib/quire/typefaces";
 import {
   blankNote,
   buildArchive,
@@ -121,7 +122,7 @@ export function QuireApp() {
 
   function notePayload(s: Session, meta: NoteMeta): { ext: string; data: string | Uint8Array } {
     const ext = defaultSaveExt({ sourceExt: meta.sourceExt });
-    if (ext === "papel") return { ext, data: toPapel(s) };
+    if (ext === "papel") return { ext, data: toPapel(s, meta.looks ?? {}) };
     return { ext, data: s.export_bytes() };
   }
 
@@ -405,11 +406,12 @@ export function QuireApp() {
       return;
     }
     const meta = notesRef.current.find((n) => n.id === id);
-    const session = duplicateSession(id);
-    if (!meta || !session) {
+    const copy = duplicateSession(id, meta?.looks ?? {});
+    if (!meta || !copy) {
       showAlert("Could not duplicate that sheet.");
       return;
     }
+    const session = copy.session;
     const freshId = crypto.randomUUID();
     sessions.set(freshId, session);
     const titles = notesRef.current.map((n) => n.title);
@@ -419,6 +421,7 @@ export function QuireApp() {
       wrap: meta.wrap,
       edited: Date.now(),
       sourceExt: meta.sourceExt,
+      looks: copy.looks,
     };
     setNotes((list) => [...list, fresh]);
     insertAfter(id, freshId);
@@ -543,13 +546,37 @@ export function QuireApp() {
     function writePapel() {
       if (!s || !meta) return;
       const name = safeName(meta.title, "papel");
-      download(name, toPapel(s), "application/json");
+      download(name, toPapel(s, meta.looks ?? {}), "application/json");
       s.mark_clean();
       setMessage(`Saved ${name}`);
       setTick((n) => n + 1);
     }
   }
 
+  /**
+   * Applies a paragraph style or face to one text block. The look is presentation,
+   * not content, so it lives on the note meta and is written into each .papel block;
+   * it is deliberately not part of the core's undo history.
+   */
+  function setBlockLook(blockId: number, patch: BlockLook) {
+    const id = activeRef.current;
+    if (!id) return;
+    setNotes((list) =>
+      list.map((n) => {
+        if (n.id !== id) return n;
+        const looks = { ...(n.looks ?? {}) };
+        const key = String(blockId);
+        const next = { ...(looks[key] ?? {}), ...patch };
+        if (!next.font) delete next.font;
+        if (!next.style) delete next.style;
+        if (next.font || next.style) looks[key] = next;
+        else delete looks[key];
+        return { ...n, looks: Object.keys(looks).length ? looks : undefined };
+      }),
+    );
+    sessions.get(id)?.mark_dirty();
+    edited();
+  }
   async function importBackup(file: File) {
     const text = await file.text();
     const archive = parseArchive(text);
@@ -566,8 +593,8 @@ export function QuireApp() {
     const metas: NoteMeta[] = [];
     const ids: string[] = [];
     for (const note of incoming) {
-      const session = sessionFromArchiveNote(note);
-      sessions.set(note.id, session);
+      const restored = sessionFromArchiveNote(note);
+      sessions.set(note.id, restored.session);
       const taken = [...notesRef.current, ...metas].map((n) => n.title);
       metas.push({
         id: note.id,
@@ -575,6 +602,7 @@ export function QuireApp() {
         wrap: note.wrap,
         edited: note.edited ?? Date.now(),
         sourceExt: note.sourceExt,
+        looks: Object.keys(restored.looks).length ? restored.looks : undefined,
       });
       ids.push(note.id);
     }
@@ -612,8 +640,9 @@ export function QuireApp() {
       const lower = file.name.toLowerCase();
       const sourceExt = extFromFilename(file.name) ?? undefined;
       const plainExt = sourceExt === "papel" || sourceExt === "quire" ? undefined : sourceExt;
+      let importedLooks: Record<string, BlockLook> = {};
       if (lower.endsWith(".papel") || lower.endsWith(".quire")) {
-        if (!fromPapel(s, bytes)) {
+        if (!fromPapel(s, bytes, importedLooks)) {
           showAlert(`${file.name} is not a Papel file.`);
           continue;
         }
@@ -630,6 +659,7 @@ export function QuireApp() {
         wrap: true,
         edited: file.lastModified || Date.now(),
         sourceExt: plainExt,
+        looks: Object.keys(importedLooks).length ? importedLooks : undefined,
       };
       pending.push(meta);
       first = first ?? id;
@@ -1081,6 +1111,7 @@ export function QuireApp() {
     bullets: toggleBulletList,
     close: () => activeId && closeNote(activeId),
     deleteImage,
+    look: setBlockLook,
   };
 
   const boardStamp = [
@@ -1263,6 +1294,8 @@ export function QuireApp() {
                 }
                 saveExt={saveExt}
                 saveExts={saveExts}
+                looks={note.looks ?? {}}
+                activeBlockId={sel.blockId ?? null}
                 actions={sheetActions}
               />
             ) : (
