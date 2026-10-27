@@ -38,6 +38,8 @@ import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
 import type { CellTarget } from "./table-block";
 import type { BlockLook } from "@/lib/quire/typefaces";
+import { applyListStyle } from "@/lib/quire/lists";
+import type { ListKind } from "@/lib/quire/lists";
 import {
   blankNote,
   buildArchive,
@@ -727,6 +729,18 @@ export function QuireApp() {
   }
 
   /** Grid-shaped clipboard text becomes a real table after the block it was pasted into. */
+  /** Applies or toggles a list style across the selected lines of the active block. */
+  function applyList(kind: ListKind) {
+    if (!session || !activeId) return;
+    const id = sel.blockId || session.first_text_id();
+    const text = session.text_of(id);
+    const change = applyListStyle(text, sel.start, sel.end, kind);
+    session.edit(id, change.start, change.end, change.insert, false);
+    setSel({ blockId: id, start: change.insert.length, end: change.insert.length });
+    setMessage(change.removed ? "List removed" : "List applied");
+    touch(activeId);
+    bump();
+  }
   function pasteTable(blockId: number, rows: string[][]) {
     if (!session || !activeId) return;
     const cols = rows[0]?.length ?? 0;
@@ -1152,6 +1166,7 @@ export function QuireApp() {
     deleteImage,
     deleteTable,
     pasteTable,
+    list: applyList,
     zoomIn: () => setZoom((current) => clampZoom(current + 1)),
     zoomOut: () => setZoom((current) => clampZoom(current - 1)),
     look: setBlockLook,

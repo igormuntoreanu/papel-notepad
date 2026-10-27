@@ -72,7 +72,10 @@ try {
 
   await page.goto(`http://127.0.0.1:${PORT}/favicon.svg`, { waitUntil: "load" });
   const boxMode = process.argv.includes("--box");
-  const seedText = boxMode
+  const listMode = process.argv.includes("--lists");
+  const seedText = listMode
+    ? "one\ntwo\nthree"
+    : boxMode
     ? ["SELECT *", "    FROM /SCMTMS/D_TOREXE", "    INTO TABLE @DATA(lt_log)", "    FOR ALL ENTRIES IN @lt_track_logi", "    WHERE parent_key = @lt_track_logi-chavetecnicaordemfrete.", ""].join("\n")
     : "Toolbar wrap check.\n\nEvery button in the strip must stay visible and clickable at this width.\n";
   await page.evaluate(async (seed) => {
@@ -449,6 +452,42 @@ try {
       process.exitCode = 1;
     }
   }
+  // Optional check for lists: apply numbering, split an item with Enter, nest with Tab.
+  if (process.argv.includes("--lists")) {
+    await page.locator(".page .block textarea").first().click();
+    await page.keyboard.press("Control+a");
+    await page.waitForTimeout(200);
+    await page.getByRole("button", { name: /^Lists$/ }).click();
+    await page.locator(".popover button", { hasText: "Numbered 1." }).click();
+    await page.waitForTimeout(500);
+    const numbered = await page.locator(".page .block textarea").first().inputValue();
+
+    // Enter at the end of the first line splits the list and renumbers the rest.
+    const area = page.locator(".page .block textarea").first();
+    await area.click();
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("inserted");
+    await page.waitForTimeout(500);
+    const split = await area.inputValue();
+
+    // Tab nests the item that now holds the caret.
+    await page.keyboard.press("Tab");
+    await page.waitForTimeout(500);
+    const nested = await area.inputValue();
+    await page.screenshot({ path: OUT });
+
+    console.log(`[lists] numbered=${JSON.stringify(numbered)}\n[lists] split=${JSON.stringify(split)}\n[lists] nested=${JSON.stringify(nested)}`);
+    const ok =
+      numbered === "1. one\n2. two\n3. three" &&
+      split === "1. one\n2. inserted\n3. two\n4. three" &&
+      nested === "1. one\n  1.1. inserted\n2. two\n3. three";
+    if (!ok) {
+      console.error("[lists] FAIL");
+      process.exitCode = 1;
+    }
+  }
   await page.screenshot({ path: OUT });
     console.log(`[style-menu] ${JSON.stringify(rows)}`);
     const descending = rows.every((row, i) => i === 0 || row.size <= rows[i - 1].size);
@@ -528,6 +567,42 @@ try {
       afterDelete === expectedAfter;
     if (!ok) {
       console.error("[box] FAIL");
+      process.exitCode = 1;
+    }
+  }
+  // Optional check for lists: apply numbering, split an item with Enter, nest with Tab.
+  if (process.argv.includes("--lists")) {
+    await page.locator(".page .block textarea").first().click();
+    await page.keyboard.press("Control+a");
+    await page.waitForTimeout(200);
+    await page.getByRole("button", { name: /^Lists$/ }).click();
+    await page.locator(".popover button", { hasText: "Numbered 1." }).click();
+    await page.waitForTimeout(500);
+    const numbered = await page.locator(".page .block textarea").first().inputValue();
+
+    // Enter at the end of the first line splits the list and renumbers the rest.
+    const area = page.locator(".page .block textarea").first();
+    await area.click();
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("inserted");
+    await page.waitForTimeout(500);
+    const split = await area.inputValue();
+
+    // Tab nests the item that now holds the caret.
+    await page.keyboard.press("Tab");
+    await page.waitForTimeout(500);
+    const nested = await area.inputValue();
+    await page.screenshot({ path: OUT });
+
+    console.log(`[lists] numbered=${JSON.stringify(numbered)}\n[lists] split=${JSON.stringify(split)}\n[lists] nested=${JSON.stringify(nested)}`);
+    const ok =
+      numbered === "1. one\n2. two\n3. three" &&
+      split === "1. one\n2. inserted\n3. two\n4. three" &&
+      nested === "1. one\n  1.1. inserted\n2. two\n3. three";
+    if (!ok) {
+      console.error("[lists] FAIL");
       process.exitCode = 1;
     }
   }

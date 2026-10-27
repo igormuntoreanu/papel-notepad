@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import type { Session } from "@/lib/quire/engine";
 import { correctionAt } from "@/lib/quire/autocorrect";
-import { continueBullet } from "@/lib/quire/blocks";
+import { continueList, indentList, renumberLists } from "@/lib/quire/lists";
 import type { BlockLook } from "@/lib/quire/typefaces";
 import { parseDelimited } from "@/lib/quire/blocks";
 import { paint, readMarks } from "@/lib/quire/marks";
@@ -354,12 +354,18 @@ export function TextBlock({
             // `ta.value` is the block text already: reading it here avoids a
             // full copy out of WASM on every Enter press.
             const text = ta.value;
-            const change = continueBullet(text, at);
+            // Lists handle bullets and numbers: same level, next number.
+            const change = continueList(text, at);
             if (!change) return;
             e.preventDefault();
-            session.edit(blockId, change.start, change.end, change.insert, false);
-            const next = text.slice(0, change.start) + change.insert + text.slice(change.end);
-            const pos = change.start + change.insert.length;
+            // The new item can push later numbers along (1., 2. becomes 1., 2., 3.), so
+            // the whole block is renumbered and replaced as one undo step.
+            const grown = text.slice(0, change.start) + change.insert + text.slice(change.end);
+            const caretLine = (text.slice(0, change.start).match(/\n/g) ?? []).length + 1;
+            const next = renumberLists(grown.split("\n")).join("\n");
+            session.edit(blockId, 0, text.length, next, false);
+            const lines = next.split("\n");
+            const pos = lines.slice(0, caretLine).reduce((sum, line) => sum + line.length + 1, 0) + (lines[caretLine]?.length ?? 0);
             ta.value = next;
             prev.current = next;
             ta.setSelectionRange(pos, pos);
@@ -368,11 +374,28 @@ export function TextBlock({
             onEdited();
             return;
           }
-          if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
+          if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             const ta = e.currentTarget;
             const start = ta.selectionStart ?? 0;
             const end = ta.selectionEnd ?? start;
+            // On list lines Tab nests one level and Shift+Tab lifts one; the whole
+            // block is rewritten so parents keep their numbers.
+            const moved = indentList(ta.value, start, end, e.shiftKey ? -1 : 1);
+            if (moved) {
+              e.preventDefault();
+              session.edit(blockId, moved.start, moved.end, moved.insert, false);
+              const next = session.text_of(blockId);
+              ta.value = next;
+              prev.current = next;
+              const pos = Math.max(0, start + (e.shiftKey ? -2 : 2));
+              ta.setSelectionRange(Math.min(pos, next.length), Math.min(pos, next.length));
+              paintNow();
+              report();
+              onEdited();
+              return;
+            }
+            if (e.shiftKey) return;
+            e.preventDefault();
             session.edit(blockId, start, end, "\t", false);
             const next = session.text_of(blockId);
             ta.value = next;

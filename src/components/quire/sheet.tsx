@@ -26,6 +26,7 @@ import {
 import { useState, type KeyboardEvent, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import type { Session } from "@/lib/quire/engine";
 import { HIGHLIGHTERS, INKS, type FlagName } from "@/lib/quire/marks";
+import type { ListKind } from "@/lib/quire/lists";
 import {
   ALIGNMENTS,
   DEFAULT_FONT,
@@ -130,6 +131,8 @@ export type SheetActions = {
   deleteTable: (id: number) => void;
   /** Turns grid-shaped clipboard text into a table after the given block. */
   pasteTable: (blockId: number, rows: string[][]) => void;
+  /** Applies or toggles a list style on the selected lines. */
+  list: (kind: ListKind) => void;
   table: (rows: number, cols: number) => void;
   bullets: () => void;
   /** Sets the face and/or paragraph style of one text block. */
@@ -409,9 +412,24 @@ export function Sheet({
                       </>
                     }
                   />
-                  <Keep label="Bulleted list" title="Bulleted list" onPress={actions.bullets}>
-                    <List />
-                  </Keep>
+                  <DropMenu
+                    className="tool"
+                    ariaLabel="Lists"
+                    title="Lists: bullet, 1., 1) or a."
+                    label={<List />}
+                    items={(
+                      [
+                        ["bullet", "Bullet •"],
+                        ["dot", "Numbered 1."],
+                        ["paren", "Numbered 1)"],
+                        ["letter", "Lettered a."],
+                      ] as [ListKind, string][]
+                    ).map(([kind, label]) => (
+                      <button key={kind} type="button" className="menu-item" onClick={() => actions.list(kind)}>
+                        {label}
+                      </button>
+                    ))}
+                  />
                   <DropMenu
                     className="tool"
                     align="end"
