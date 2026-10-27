@@ -122,7 +122,28 @@ export function TableBlock({
   const rows = Math.max(1, Math.ceil(table.cells.length / cols));
 
   return (
-    <div className="block table-block" ref={rootRef} onBlur={flush}>
+    <div
+      className="block table-block"
+      ref={rootRef}
+      onBlur={flush}
+      onContextMenu={(event) => {
+        // A right-click anywhere on the table opens the menu; the cell under the
+        // pointer wins, the top-left cell is the fallback.
+        const cell = (event.target as HTMLElement).closest("td");
+        const cells = [...rootRef.current!.querySelectorAll("td")];
+        const index = cell ? cells.indexOf(cell as HTMLTableCellElement) : 0;
+        const cols = Math.max(1, table.cols);
+        const safe = index >= 0 ? index : 0;
+        event.preventDefault();
+        setMenu({
+          row: Math.floor(safe / cols),
+          col: safe % cols,
+          x: event.clientX,
+          y: event.clientY,
+          sheet: false,
+        });
+      }}
+    >
       <div className="table-scroll">
         <table
           className="sheet-table"
@@ -190,16 +211,7 @@ export function TableBlock({
         </table>
       </div>
 
-      {active && !menu && (
-        <button
-          type="button"
-          className="table-tools"
-          aria-label="Table options"
-          onClick={() => setMenu({ ...active, x: 0, y: 0, sheet: true })}
-        >
-          Table
-        </button>
-      )}
+
 
       {menu &&
         createPortal(

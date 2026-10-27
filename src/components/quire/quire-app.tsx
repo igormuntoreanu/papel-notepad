@@ -109,6 +109,8 @@ export function QuireApp() {
   const [cellTarget, setCellTarget] = useState<CellTarget | null>(null);
   const [query, setQuery] = useState("");
   const [committed, setCommitted] = useState("");
+  /** Ctrl+A selects every text block in the sheet, not just the focused one. */
+  const [selectAll, setSelectAll] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const focusRef = useRef<Place | null>(null);
   const anchor = useRef<Place | null>(null);
@@ -259,6 +261,34 @@ export function QuireApp() {
   // Ctrl + wheel zooms the sheet like a document viewer. A plain wheel keeps
   // scrolling, and the listener only swallows the gesture over the page so the board
   // never zooms by accident.
+  // While the whole sheet is selected, Ctrl+C copies the document text, Delete clears it
+  // and Escape drops the selection. The browser's per-textarea selection cannot do this.
+  useEffect(() => {
+    if (!selectAll) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setSelectAll(false);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "C")) {
+        event.preventDefault();
+        event.stopPropagation();
+        const text = session ? session.export_text() : "";
+        void navigator.clipboard?.writeText(text).catch(() => undefined);
+        setMessage("Sheet copied");
+        return;
+      }
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        event.stopPropagation();
+        clearWholeSheet();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  });
   useEffect(() => {
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey) return;
@@ -757,6 +787,29 @@ export function QuireApp() {
     bump();
   }
 
+  function selectWholeSheet() {
+    if (!session) return;
+    setSelectAll(true);
+    setMessage("Whole sheet selected");
+  }
+
+  /** Clears the whole sheet: text, tables and images, as one visible action. */
+  function clearWholeSheet() {
+    if (!session || !activeId) return;
+    for (const item of outlineOf(session)) {
+      if (item.kind === "text") {
+        const text = session.text_of(item.id);
+        if (text.length) session.edit(item.id, 0, text.length, "", false);
+      } else if (item.kind === "table") {
+        session.delete_table(item.id);
+      } else if (item.kind === "image") {
+        session.delete_image(item.id);
+      }
+    }
+    setSelectAll(false);
+    touch(activeId);
+    bump({ block_id: session.first_text_id(), start: 0, end: 0 });
+  }
   function deleteTable(tableId: number) {
     if (!session || !activeId) return;
     const next = session.delete_table(tableId);
@@ -916,6 +969,22 @@ export function QuireApp() {
     window.setTimeout(() => findRef.current?.focus(), 0);
   }
 
+  /**
+   * The selection to act on. Reads the focused editor directly instead of trusting the
+   * last React state: a mark applied in the same tick as a fresh selection used to act on
+   * the previous range and look like nothing happened.
+   */
+  function liveSelection(): Sel {
+    const el = document.activeElement;
+    if (el instanceof HTMLTextAreaElement && el.classList.contains("editor")) {
+      const host = el.closest<HTMLElement>(".block");
+      const blockId = Number(host?.dataset.blockId ?? "");
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? start;
+      if (Number.isFinite(blockId) && end > start) return { blockId, start, end };
+    }
+    return selRef.current;
+  }
   function applyStyle(kind: string, value: number) {
     if (!session) return;
     // A focused table cell takes the style, not the page text behind it.
@@ -931,7 +1000,7 @@ export function QuireApp() {
       }
       return;
     }
-    const { blockId, start, end } = selRef.current;
+    const { blockId, start, end } = liveSelection();
     if (end <= start) {
       setMessage("Select some text first.");
       return;
@@ -948,7 +1017,7 @@ export function QuireApp() {
       applyStyle(flag, on ? 0 : 1);
       return;
     }
-    const { blockId, start, end } = selRef.current;
+    const { blockId, start, end } = liveSelection();
     const on = rangeHas(readMarks(session.marks(blockId)), start, end, FLAG[flag]);
     applyStyle(flag, on ? 0 : 1);
   }
@@ -1349,6 +1418,9 @@ export function QuireApp() {
                 looks={note.looks ?? {}}
                 activeBlockId={sel.blockId ?? null}
                 activeKind={activeBlock ? activeBlock.kind : null}
+                selectAll={selectAll}
+                onSelectAll={selectWholeSheet}
+                onClearSelectAll={() => setSelectAll(false)}
                 actions={sheetActions}
               />
             ) : (

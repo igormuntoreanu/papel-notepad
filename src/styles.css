@@ -457,6 +457,11 @@
   display: none;
 }
 
+/* The magnifier opens the search band even while a sheet is open. */
+.strip[data-fields="open"] .filters {
+  display: flex;
+}
+
 .desk[data-view="focus"] .strip-paper {
   padding-bottom: 6px;
 }
@@ -540,7 +545,7 @@
 }
 
 .fields-toggle {
-  display: none;
+  display: inline-flex;
 }
 
 .strip-status {
@@ -1840,7 +1845,9 @@
 
 /* Find match stays visible even when focus is in the Find field. */
 .hl .find-hit {
-  background: var(--selection);
+  /* Yellow in both search boxes, not the grey selection colour. */
+  background: #f0d44a;
+  color: var(--ink);
   border-radius: 1px;
 }
 

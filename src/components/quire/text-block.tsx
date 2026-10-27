@@ -40,6 +40,10 @@ export function TextBlock({
   findHit,
   look,
   onPasteTable,
+  selectedAll,
+  onSelectAll,
+  onClearSelectAll,
+  onWrapOff,
   onSelection,
   onEdited,
   onImage,
@@ -58,6 +62,12 @@ export function TextBlock({
   look?: BlockLook;
   /** Grid-shaped clipboard text (Excel/CSV) becomes a table instead of a paste. */
   onPasteTable: (rows: string[][]) => void;
+  /** True while Ctrl+A has selected the whole sheet. */
+  selectedAll?: boolean;
+  onSelectAll: () => void;
+  onClearSelectAll: () => void;
+  /** Turns Word Wrap off so a column selection has unwrapped lines. */
+  onWrapOff: () => void;
   onSelection: (start: number, end: number) => void;
   onEdited: () => void;
   onImage: (file: File) => void;
@@ -83,11 +93,12 @@ export function TextBlock({
       // requested from the engine even when a file arrived with a language hint.
       [],
       readMarks(session.marks(blockId)),
-      findHit && findHit.end > findHit.start ? findHit : null,
+      selectedAll ? { start: 0, end: Number.MAX_SAFE_INTEGER } : findHit && findHit.end > findHit.start ? findHit : null,
     );
     fit(ta, wrap);
   };
 
+  const paintNowRef = useRef<() => void>(() => undefined);
   const paintNow = () => {
     const ta = taRef.current;
     const pre = preRef.current;
@@ -124,6 +135,9 @@ export function TextBlock({
   const reportRef = useRef(report);
   reportRef.current = report;
 
+  // paintNow is defined above; keep a stable handle for the select-all effect.
+  paintNowRef.current = paintNow;
+
   // React's onSelect misses selection changes Chrome reports on the textarea itself
   // (script, touch handles, select-all), so listen natively as well.
   useEffect(() => {
@@ -140,6 +154,10 @@ export function TextBlock({
     };
   }, []);
 
+  // The select-all overlay is painted by paint(), so a flag change must repaint.
+  useLayoutEffect(() => {
+    paintNowRef.current();
+  }, [selectedAll]);
   useLayoutEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
@@ -259,6 +277,7 @@ export function TextBlock({
     <div
       className={grow ? "block grow" : "block"}
       data-note={noteId}
+      data-block-id={blockId}
       data-font={look?.font ?? undefined}
       data-style={look?.style ?? undefined}
       data-align={look?.align ?? undefined}
@@ -284,12 +303,13 @@ export function TextBlock({
         onMouseDown={(e) => {
           if (!e.altKey) {
             if (box) setBox(null);
+            onClearSelectAll();
             return;
           }
-          // Column geometry needs unwrapped lines; with wrap on, Alt+drag stays a
-          // normal selection.
-          if (wrap) return;
           e.preventDefault();
+          // A column needs unwrapped lines, so Alt+drag turns Word Wrap off for this
+          // sheet instead of silently doing nothing.
+          if (wrap) onWrapOff();
           const point = pointAt(e.currentTarget, e.clientX, e.clientY);
           const next = { aLine: point.line, aCol: point.col, fLine: point.line, fCol: point.col };
           drag.current = next;
@@ -330,6 +350,12 @@ export function TextBlock({
           sync(burst && small, native.inputType === "insertText" ? native.data : null);
         }}
         onKeyDown={(e) => {
+          // Ctrl+A selects the whole sheet, not just this block.
+          if ((e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A")) {
+            e.preventDefault();
+            onSelectAll();
+            return;
+          }
           // The box selection owns Delete/Backspace and Escape while it is painted.
           if (box && (e.key === "Delete" || e.key === "Backspace")) {
             e.preventDefault();
@@ -354,41 +380,52 @@ export function TextBlock({
             // `ta.value` is the block text already: reading it here avoids a
             // full copy out of WASM on every Enter press.
             const text = ta.value;
-            // Lists handle bullets and numbers: same level, next number.
+            // Lists handle bullets and numbers: the marker continues at the same level and
+            // the whole block is renumbered, so later items shift as one undo step.
             const change = continueList(text, at);
             if (!change) return;
             e.preventDefault();
-            // The new item can push later numbers along (1., 2. becomes 1., 2., 3.), so
-            // the whole block is renumbered and replaced as one undo step.
             const grown = text.slice(0, change.start) + change.insert + text.slice(change.end);
             const caretLine = (text.slice(0, change.start).match(/\n/g) ?? []).length + 1;
             const next = renumberLists(grown.split("\n")).join("\n");
             session.edit(blockId, 0, text.length, next, false);
             const lines = next.split("\n");
-            const pos = lines.slice(0, caretLine).reduce((sum, line) => sum + line.length + 1, 0) + (lines[caretLine]?.length ?? 0);
+            const pos =
+              lines.slice(0, caretLine).reduce((sum, line) => sum + line.length + 1, 0) +
+              (lines[caretLine]?.length ?? 0);
             ta.value = next;
             prev.current = next;
             ta.setSelectionRange(pos, pos);
             paintNow();
             report();
-            onEdited();
-            return;
+            onEdited();            return;
           }
           if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             const ta = e.currentTarget;
             const start = ta.selectionStart ?? 0;
             const end = ta.selectionEnd ?? start;
-            // On list lines Tab nests one level and Shift+Tab lifts one; the whole
-            // block is rewritten so parents keep their numbers.
-            const moved = indentList(ta.value, start, end, e.shiftKey ? -1 : 1);
+            const before = ta.value;
+            const moved = indentList(before, start, end, e.shiftKey ? -1 : 1);
             if (moved) {
               e.preventDefault();
+              // Renumbering rewrites the marker (1. becomes 1.1.), so the caret is placed
+              // after the new text exists: end of its line when it was at the end there.
+              const lineIndex = (before.slice(0, start).match(/\n/g) ?? []).length;
+              const linesBefore = before.split("\n");
+              const lineStartBefore = linesBefore.slice(0, lineIndex).reduce((n, line) => n + line.length + 1, 0);
+              const oldLine = linesBefore[lineIndex] ?? "";
+              const oldCol = start - lineStartBefore;
+              const atEnd = oldCol >= oldLine.length;
               session.edit(blockId, moved.start, moved.end, moved.insert, false);
               const next = session.text_of(blockId);
               ta.value = next;
               prev.current = next;
-              const pos = Math.max(0, start + (e.shiftKey ? -2 : 2));
-              ta.setSelectionRange(Math.min(pos, next.length), Math.min(pos, next.length));
+              const lines = next.split("\n");
+              const lineStart = lines.slice(0, lineIndex).reduce((n, line) => n + line.length + 1, 0);
+              const newLine = lines[lineIndex] ?? "";
+              const col = atEnd ? newLine.length : Math.min(newLine.length, Math.max(0, oldCol + (newLine.length - oldLine.length)));
+              const pos = Math.min(next.length, lineStart + col);
+              ta.setSelectionRange(pos, pos);
               paintNow();
               report();
               onEdited();
@@ -403,45 +440,7 @@ export function TextBlock({
             ta.setSelectionRange(start + 1, start + 1);
             paintNow();
             report();
-            onEdited();
-          }
-        }}
-        onPaste={(e) => {
-          // Grid-shaped text (Excel/Sheets cells, CSV) becomes a table; anything else --
-          // including Ctrl+Shift+V plain text, where the clipboard has no grid -- pastes
-          // as text through the normal path.
-          const plain = e.clipboardData?.getData("text/plain") ?? "";
-          if (plainPaste.current) {
-            plainPaste.current = false;
-          } else if (plain) {
-            const rows = parseDelimited(plain);
-            if (rows) {
-              e.preventDefault();
-              onPasteTable(rows);
-              return;
-            }
-          }
-          const items = e.clipboardData?.items;
-          if (!items) return;
-          for (const item of items) {
-            if (item.type.startsWith("image/")) {
-              const file = item.getAsFile();
-              if (!file) return;
-              e.preventDefault();
-              const ta = e.currentTarget;
-              const start = ta.selectionStart ?? 0;
-              const end = ta.selectionEnd ?? start;
-              if (start !== end) {
-                session.edit(blockId, start, end, "", false);
-                const next = session.text_of(blockId);
-                ta.value = next;
-                prev.current = next;
-              }
-              onSelection(start, start);
-              onImage(file);
-              return;
-            }
-          }
+            onEdited();       }
         }}
       />
     </div>

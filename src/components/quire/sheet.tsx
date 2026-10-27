@@ -193,6 +193,9 @@ export function Sheet({
   looks,
   activeBlockId,
   activeKind,
+  selectAll,
+  onSelectAll,
+  onClearSelectAll,
   saveExt,
   saveExts,
   actions,
@@ -220,6 +223,10 @@ export function Sheet({
   activeBlockId: number | null;
   /** Kind of the active block: text, table or image. */
   activeKind: string | null;
+  /** Ctrl+A selected the whole sheet. */
+  selectAll: boolean;
+  onSelectAll: () => void;
+  onClearSelectAll: () => void;
   /** Default extension for Ctrl+S, e.g. `papel` or `txt`. */
   saveExt: string;
   /** Every extension this note can be written as, default first. */
@@ -453,7 +460,7 @@ export function Sheet({
                   <Keep label="Word wrap" title="Toggle word wrap" pressed={note.wrap} onPress={actions.wrap}>
                     <WrapText />
                   </Keep>
-                  {!note.wrap && activeBlockId !== null && (
+                  {activeBlockId !== null && (
                     <>
                       {ALIGNMENTS.map((align) => {
                         const Icon =
@@ -556,6 +563,12 @@ export function Sheet({
                   onImage={onImage}
                   look={looks[String(item.id)]}
                   onPasteTable={(rows) => actions.pasteTable(item.id, rows)}
+                  selectedAll={selectAll}
+                  onSelectAll={onSelectAll}
+                  onClearSelectAll={onClearSelectAll}
+                  onWrapOff={() => {
+                    if (note.wrap) actions.wrap();
+                  }}
                 />
               ),
             )}
