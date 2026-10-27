@@ -365,6 +365,26 @@ try {
       process.exitCode = 1;
     }
   }
+  // Optional check for the paragraph-style menu: each row previews at its own size.
+  if (process.argv.includes("--style-menu")) {
+    await page.getByRole("button", { name: /^Paragraph style/ }).click();
+    await page.waitForTimeout(300);
+    const rows = await page.evaluate(() =>
+      [...document.querySelectorAll(".popover [role=menuitemradio]")].map((el) => ({
+        text: el.firstChild?.textContent?.trim() ?? "",
+        size: Number.parseFloat(getComputedStyle(el).fontSize),
+      })),
+    );
+    await page.screenshot({ path: OUT });
+    console.log(`[style-menu] ${JSON.stringify(rows)}`);
+    const descending = rows.every((row, i) => i === 0 || row.size <= rows[i - 1].size);
+    const ok = rows.length === 7 && descending && rows[0].size > rows[6].size + 4;
+    if (!ok) {
+      console.error("[style-menu] FAIL: previews do not follow the style sizes");
+      process.exitCode = 1;
+    }
+    await page.keyboard.press("Escape");
+  }
   await page.screenshot({ path: OUT });
   console.log(`[narrow] ${WIDTH}x${HEIGHT} -> ${OUT}`);
   console.log(`[narrow] toolbar: ${JSON.stringify(overflow)}`);

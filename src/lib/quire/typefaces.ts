@@ -34,6 +34,17 @@ export const TEXT_STYLES = [
 
 export type StyleId = (typeof TEXT_STYLES)[number]["id"];
 
+/** Rendered size of each paragraph style, in px. The menu previews at 0.6x of these. */
+export const STYLE_SIZES: Record<StyleId, number> = {
+  title: 32,
+  subtitle: 26,
+  heading: 22.5,
+  subheading: 20,
+  section: 18,
+  subsection: 17,
+  body: 16,
+};
+
 /** Paragraph alignment, offered while Word Wrap is off. */
 export const ALIGNMENTS = [
   { id: "left", name: "Align left" },

@@ -2154,37 +2154,37 @@
    background reads --line, which is derived from --editor-size, so overriding both
    keeps the rules aligned with the text. */
 .block[data-style="title"] {
-  --editor-size: 30px;
+  --editor-size: 32px;
   --editor-leading: 1.25;
   --line: calc(var(--editor-size) * var(--editor-leading));
 }
 
 .block[data-style="subtitle"] {
-  --editor-size: 24px;
+  --editor-size: 26px;
   --editor-leading: 1.3;
   --line: calc(var(--editor-size) * var(--editor-leading));
 }
 
 .block[data-style="heading"] {
-  --editor-size: 20px;
+  --editor-size: 22.5px;
   --editor-leading: 1.35;
   --line: calc(var(--editor-size) * var(--editor-leading));
 }
 
 .block[data-style="subheading"] {
-  --editor-size: 17.5px;
+  --editor-size: 20px;
   --editor-leading: 1.4;
   --line: calc(var(--editor-size) * var(--editor-leading));
 }
 
 .block[data-style="section"] {
-  --editor-size: 15.5px;
+  --editor-size: 18px;
   --editor-leading: 1.45;
   --line: calc(var(--editor-size) * var(--editor-leading));
 }
 
 .block[data-style="subsection"] {
-  --editor-size: 14px;
+  --editor-size: 17px;
   --editor-leading: 1.5;
   --line: calc(var(--editor-size) * var(--editor-leading));
 }
@@ -2273,4 +2273,12 @@
 .page[data-wrap="off"] .block {
   overflow-x: auto;
   overflow-y: hidden;
+}
+
+/* Paragraph-style menu: the preview size carries the meaning, the hint names it. */
+.menu-hint {
+  margin-left: 8px;
+  font-size: 11px;
+  opacity: 0.62;
+  letter-spacing: 0.02em;
 }

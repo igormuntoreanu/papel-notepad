@@ -30,6 +30,7 @@ import {
   ALIGNMENTS,
   DEFAULT_FONT,
   DEFAULT_STYLE,
+  STYLE_SIZES,
   FONTS,
   TEXT_STYLES,
   fontName,
@@ -293,8 +294,12 @@ export function Sheet({
                           aria-checked={on}
                           disabled={activeBlockId === null}
                           onClick={() => activeBlockId !== null && actions.look(activeBlockId, { style: style.id })}
+                          // Preview at 0.6x the real size so Title reads bigger than Body
+                          // without any row overflowing the menu.
+                          style={{ fontSize: `${Math.round(STYLE_SIZES[style.id] * 0.6)}px` }}
                         >
-                          {on ? `${style.name} ✓` : style.name}
+                          {style.name}
+                          <span className="menu-hint">{STYLE_SIZES[style.id]} px{on ? " ✓" : ""}</span>
                         </button>
                       );
                     })}
