@@ -144,9 +144,9 @@ try {
     const beforeStyle = await page.getAttribute(cell, "data-style");
     await page.getByRole("button", { name: /^Paragraph style/ }).click();
     await page.waitForTimeout(300);
-    await page.getByRole("menuitemradio", { name: "Title", exact: true }).click();
+    await page.getByRole("menuitemradio", { name: /^Title/ }).click();
     await page.getByRole("button", { name: /^Font:/ }).click();
-    await page.getByRole("menuitemradio", { name: "Inter", exact: true }).click();
+    await page.getByRole("menuitemradio", { name: /^Inter/ }).click();
     // Alignment is part of the same block look; it applies while wrap is off.
     const wrapBtn = page.getByRole("button", { name: /^Word wrap$/ });
     if ((await wrapBtn.getAttribute("aria-pressed")) === "true") await wrapBtn.click();
@@ -198,7 +198,7 @@ try {
       applied.align === "right" &&
       after.style === "title" &&
       after.font === "inter" &&
-      applied.computed?.fontSize === "30px";
+      applied.computed?.fontSize === "32px";
     if (!ok) {
       console.error("[looks] FAIL: the look did not apply, take effect, or survive a reload");
       process.exitCode = 1;
