@@ -476,7 +476,44 @@ try {
     await page.keyboard.press("Tab");
     await page.waitForTimeout(500);
     const nested = await area.inputValue();
-    await page.screenshot({ path: OUT });
+    // Optional regression check for text marks: select with the mouse, then bold, highlight
+  // and ink each land as a span on the overlay. This is the path a user reported broken.
+  if (process.argv.includes("--marks")) {
+    const area = page.locator(".page .block textarea").first();
+    const box = await area.boundingBox();
+    // The textarea can be taller than its text; drag along the first text line.
+    const lineY = box.y + 12;
+    await page.mouse.move(box.x + 6, lineY);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 90, lineY, { steps: 8 });
+    await page.mouse.up();
+    const state = await page.evaluate(() => ({
+      start: document.querySelector(".page .block textarea")?.selectionStart,
+      end: document.querySelector(".page .block textarea")?.selectionEnd,
+      active: document.activeElement?.tagName,
+      boldDisabled: document.querySelector("button[aria-label^=\"Bold\"]")?.disabled,
+    }));
+    console.log(`[marks] state=${JSON.stringify(state)}`);
+    await page.getByRole("button", { name: /^Bold/ }).click();
+    await page.getByRole("button", { name: /Yellow highlighter/ }).click();
+    await page.waitForTimeout(400);
+    const painted = await page.evaluate(() => {
+      const pre = document.querySelector(".page .block pre");
+      const span = pre?.querySelector("span");
+      return {
+        html: pre?.innerHTML?.slice(0, 120) ?? null,
+        classes: span?.className ?? null,
+        background: span ? getComputedStyle(span).backgroundColor : null,
+      };
+    });
+    console.log(`[marks] ${JSON.stringify(painted)}`);
+    const ok = Boolean(painted.classes?.includes("sb")) && Boolean(painted.classes?.includes("hl1"));
+    if (!ok) {
+      console.error("[marks] FAIL: bold or highlight did not paint after a mouse selection");
+      process.exitCode = 1;
+    }
+  }
+  await page.screenshot({ path: OUT });
 
     console.log(`[lists] numbered=${JSON.stringify(numbered)}\n[lists] split=${JSON.stringify(split)}\n[lists] nested=${JSON.stringify(nested)}`);
     const ok =
@@ -485,6 +522,43 @@ try {
       nested === "1. one\n  1.1. inserted\n2. two\n3. three";
     if (!ok) {
       console.error("[lists] FAIL");
+      process.exitCode = 1;
+    }
+  }
+  // Optional regression check for text marks: select with the mouse, then bold, highlight
+  // and ink each land as a span on the overlay. This is the path a user reported broken.
+  if (process.argv.includes("--marks")) {
+    const area = page.locator(".page .block textarea").first();
+    const box = await area.boundingBox();
+    // The textarea can be taller than its text; drag along the first text line.
+    const lineY = box.y + 12;
+    await page.mouse.move(box.x + 6, lineY);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 90, lineY, { steps: 8 });
+    await page.mouse.up();
+    const state = await page.evaluate(() => ({
+      start: document.querySelector(".page .block textarea")?.selectionStart,
+      end: document.querySelector(".page .block textarea")?.selectionEnd,
+      active: document.activeElement?.tagName,
+      boldDisabled: document.querySelector("button[aria-label^=\"Bold\"]")?.disabled,
+    }));
+    console.log(`[marks] state=${JSON.stringify(state)}`);
+    await page.getByRole("button", { name: /^Bold/ }).click();
+    await page.getByRole("button", { name: /Yellow highlighter/ }).click();
+    await page.waitForTimeout(400);
+    const painted = await page.evaluate(() => {
+      const pre = document.querySelector(".page .block pre");
+      const span = pre?.querySelector("span");
+      return {
+        html: pre?.innerHTML?.slice(0, 120) ?? null,
+        classes: span?.className ?? null,
+        background: span ? getComputedStyle(span).backgroundColor : null,
+      };
+    });
+    console.log(`[marks] ${JSON.stringify(painted)}`);
+    const ok = Boolean(painted.classes?.includes("sb")) && Boolean(painted.classes?.includes("hl1"));
+    if (!ok) {
+      console.error("[marks] FAIL: bold or highlight did not paint after a mouse selection");
       process.exitCode = 1;
     }
   }
@@ -594,7 +668,44 @@ try {
     await page.keyboard.press("Tab");
     await page.waitForTimeout(500);
     const nested = await area.inputValue();
-    await page.screenshot({ path: OUT });
+    // Optional regression check for text marks: select with the mouse, then bold, highlight
+  // and ink each land as a span on the overlay. This is the path a user reported broken.
+  if (process.argv.includes("--marks")) {
+    const area = page.locator(".page .block textarea").first();
+    const box = await area.boundingBox();
+    // The textarea can be taller than its text; drag along the first text line.
+    const lineY = box.y + 12;
+    await page.mouse.move(box.x + 6, lineY);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 90, lineY, { steps: 8 });
+    await page.mouse.up();
+    const state = await page.evaluate(() => ({
+      start: document.querySelector(".page .block textarea")?.selectionStart,
+      end: document.querySelector(".page .block textarea")?.selectionEnd,
+      active: document.activeElement?.tagName,
+      boldDisabled: document.querySelector("button[aria-label^=\"Bold\"]")?.disabled,
+    }));
+    console.log(`[marks] state=${JSON.stringify(state)}`);
+    await page.getByRole("button", { name: /^Bold/ }).click();
+    await page.getByRole("button", { name: /Yellow highlighter/ }).click();
+    await page.waitForTimeout(400);
+    const painted = await page.evaluate(() => {
+      const pre = document.querySelector(".page .block pre");
+      const span = pre?.querySelector("span");
+      return {
+        html: pre?.innerHTML?.slice(0, 120) ?? null,
+        classes: span?.className ?? null,
+        background: span ? getComputedStyle(span).backgroundColor : null,
+      };
+    });
+    console.log(`[marks] ${JSON.stringify(painted)}`);
+    const ok = Boolean(painted.classes?.includes("sb")) && Boolean(painted.classes?.includes("hl1"));
+    if (!ok) {
+      console.error("[marks] FAIL: bold or highlight did not paint after a mouse selection");
+      process.exitCode = 1;
+    }
+  }
+  await page.screenshot({ path: OUT });
 
     console.log(`[lists] numbered=${JSON.stringify(numbered)}\n[lists] split=${JSON.stringify(split)}\n[lists] nested=${JSON.stringify(nested)}`);
     const ok =
@@ -603,6 +714,43 @@ try {
       nested === "1. one\n  1.1. inserted\n2. two\n3. three";
     if (!ok) {
       console.error("[lists] FAIL");
+      process.exitCode = 1;
+    }
+  }
+  // Optional regression check for text marks: select with the mouse, then bold, highlight
+  // and ink each land as a span on the overlay. This is the path a user reported broken.
+  if (process.argv.includes("--marks")) {
+    const area = page.locator(".page .block textarea").first();
+    const box = await area.boundingBox();
+    // The textarea can be taller than its text; drag along the first text line.
+    const lineY = box.y + 12;
+    await page.mouse.move(box.x + 6, lineY);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 90, lineY, { steps: 8 });
+    await page.mouse.up();
+    const state = await page.evaluate(() => ({
+      start: document.querySelector(".page .block textarea")?.selectionStart,
+      end: document.querySelector(".page .block textarea")?.selectionEnd,
+      active: document.activeElement?.tagName,
+      boldDisabled: document.querySelector("button[aria-label^=\"Bold\"]")?.disabled,
+    }));
+    console.log(`[marks] state=${JSON.stringify(state)}`);
+    await page.getByRole("button", { name: /^Bold/ }).click();
+    await page.getByRole("button", { name: /Yellow highlighter/ }).click();
+    await page.waitForTimeout(400);
+    const painted = await page.evaluate(() => {
+      const pre = document.querySelector(".page .block pre");
+      const span = pre?.querySelector("span");
+      return {
+        html: pre?.innerHTML?.slice(0, 120) ?? null,
+        classes: span?.className ?? null,
+        background: span ? getComputedStyle(span).backgroundColor : null,
+      };
+    });
+    console.log(`[marks] ${JSON.stringify(painted)}`);
+    const ok = Boolean(painted.classes?.includes("sb")) && Boolean(painted.classes?.includes("hl1"));
+    if (!ok) {
+      console.error("[marks] FAIL: bold or highlight did not paint after a mouse selection");
       process.exitCode = 1;
     }
   }
