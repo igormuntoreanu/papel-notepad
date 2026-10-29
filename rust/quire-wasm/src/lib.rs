@@ -252,6 +252,14 @@ impl Session {
         self.doc.insert_table(after, cols as usize, rows as usize)
     }
 
+    /// Splits text block `id` at UTF-16 offset `at` and inserts a table there.
+    /// Returns the caret for the text below the table.
+    pub fn insert_table_at(&mut self, id: u32, at: u32, cols: u32, rows: u32) -> Option<Caret> {
+        self.doc
+            .insert_table_at(id, at, cols as usize, rows as usize)
+            .map(Caret::from)
+    }
+
     /// Loads a table from `{"cols":n,"cells":[{"t":"…","m":[…],"f":n}]}`.
     pub fn restore_table(&mut self, json: &str) -> u32 {
         #[derive(serde::Deserialize)]

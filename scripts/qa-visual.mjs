@@ -171,6 +171,10 @@ await page.screenshot({ path: join(OUT, "triage-ctrl-a.png"), fullPage: false })
 shots.push({ file: "triage-ctrl-a.png", title: "Triage: Ctrl+A", note: "Whole-sheet select overlay." });
 await page.keyboard.press("Escape");
 await page.waitForTimeout(200);
+if (!(await page.evaluate(() => Boolean(document.querySelector(".page"))))) {
+  await page.getByText(/qa visual/i).first().click();
+  await page.waitForTimeout(600);
+}
 
 const wrapPressed = await page.getByRole("button", { name: /^Word wrap$/ }).getAttribute("aria-pressed");
 await page.screenshot({ path: join(OUT, "triage-wrap-align.png"), fullPage: false });
@@ -187,6 +191,36 @@ shots.push({
   file: "triage-header-search.png",
   title: "Triage: header search (lupe)",
   note: "Board/header search control opened from the toolbar/filters affordance.",
+});
+await page.keyboard.press("Escape");
+await page.waitForTimeout(200);
+if (!(await page.evaluate(() => Boolean(document.querySelector(".page"))))) {
+  await page.getByText(/qa visual/i).first().click();
+  await page.waitForTimeout(600);
+}
+
+// 03 — table inserts at caret in long pasted text (not only at the end)
+await page.evaluate(() => {
+  const ta = document.querySelector(".page .block textarea.editor");
+  const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+  const body =
+    "Line one of a long paste.\nLine two.\nCARET_HERE\nLine four stays below the table.\n" +
+    Array.from({ length: 40 }, (_, i) => `filler ${i}`).join("\n");
+  nativeSet?.call(ta, body);
+  ta.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertFromPaste", data: body }));
+  ta.focus();
+  const at = body.indexOf("CARET_HERE");
+  ta.setSelectionRange(at, at);
+});
+await page.waitForTimeout(300);
+await page.getByRole("button", { name: /^Insert table$/ }).click();
+await page.getByRole("button", { name: "Insert a 2 by 2 table" }).click();
+await page.waitForTimeout(500);
+await page.screenshot({ path: join(OUT, "03-table-at-caret.png"), fullPage: false });
+shots.push({
+  file: "03-table-at-caret.png",
+  title: "Table at caret",
+  note: "After a long paste, Insert table splits at the caret — text above and below the table; viewport stays near the insert.",
 });
 
 const index = `# Visual QA ${VERSION}

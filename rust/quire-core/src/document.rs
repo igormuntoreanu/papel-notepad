@@ -1046,8 +1046,8 @@ impl Document {
     /// A text block is always left directly after the table when the next block is
     /// not already text. Without it a table dropped at the end of the document is a
     /// dead end: there is nothing below to put the caret in, so writing cannot
-    /// continue past the table. `insert_image` splits its text block for the same
-    /// reason.
+    /// continue past the table. Prefer [`Self::insert_table_at`] when the caret is
+    /// inside a text block so the table splits that block mid-content.
     pub fn insert_table(&mut self, after: u32, cols: usize, rows: usize) -> u32 {
         let id = self.alloc_id();
         let cols = cols.clamp(1, 20);
@@ -1068,6 +1068,60 @@ impl Document {
         let caret = self.fallback_caret();
         self.push_structure(before, caret, caret);
         id
+    }
+
+    /// Inserts a table at UTF-16 offset `at` inside text block `id`, splitting that
+    /// block the same way [`Self::insert_image`] does: left text | table | right text.
+    ///
+    /// Returns the caret for the text block below the table (ready to keep typing).
+    /// When `id` is not a text block, falls back to inserting after that block.
+    pub fn insert_table_at(&mut self, id: u32, at: u32, cols: usize, rows: usize) -> Option<Caret> {
+        let cols = cols.clamp(1, 20);
+        let rows = rows.clamp(1, 20);
+        let idx = self.blocks.iter().position(|b| b.id() == id)?;
+        let body = match &self.blocks[idx] {
+            Block::Text { body, .. } => body.clone(),
+            _ => {
+                let table_id = self.insert_table(id, cols, rows);
+                let outline = self.outline();
+                let pos = outline.iter().position(|item| item.id == table_id)?;
+                let below = outline.get(pos + 1).filter(|item| item.kind == "text")?;
+                return Some(Caret { block_id: below.id, start: 0, end: 0 });
+            }
+        };
+        let before = self.blocks.clone();
+        let at = at.min(utf16_len(&body) as u32);
+        let left = slice_utf16(&body, 0, at as usize);
+        let right = slice_utf16(&body, at as usize, utf16_len(&body));
+        let table_id = self.alloc_id();
+        let right_id = self.alloc_id();
+        let mut right_marks = Vec::new();
+        if let Block::Text { body, marks: m, .. } = &mut self.blocks[idx] {
+            *body = left;
+            let (l, r) = marks::split(m, at);
+            *m = l;
+            right_marks = r;
+        }
+        self.blocks.insert(
+            idx + 1,
+            Block::Table {
+                id: table_id,
+                cols,
+                cells: vec![Cell::default(); cols * rows],
+            },
+        );
+        self.blocks.insert(
+            idx + 2,
+            Block::Text {
+                id: right_id,
+                body: right,
+                marks: right_marks,
+            },
+        );
+        let caret_before = Caret { block_id: id, start: at, end: at };
+        let caret_after = Caret { block_id: right_id, start: 0, end: 0 };
+        self.push_structure(before, caret_before, caret_after);
+        Some(caret_after)
     }
 
     /// Applies a style change over `start..end` inside one cell.
@@ -1621,6 +1675,23 @@ mod tests {
         let mut doc = Document::new();
         let id = doc.restore_table(3, vec![Cell::default(), Cell::default()]);
         assert_eq!(doc.table_shape(id), Some((1, 3)));
+    }
+
+    #[test]
+    fn insert_table_at_splits_text_at_the_caret() {
+        let mut doc = Document::new();
+        let text = doc.first_text_id();
+        doc.edit(text, 0, 0, "helloWORLD", false);
+        // Caret between hello and WORLD (offset 5).
+        let caret = doc.insert_table_at(text, 5, 2, 2).expect("split insert");
+        let outline = doc.outline();
+        assert_eq!(outline.len(), 3);
+        assert_eq!(outline[0].kind, "text");
+        assert_eq!(outline[1].kind, "table");
+        assert_eq!(outline[2].kind, "text");
+        assert_eq!(doc.text_of(text), "hello");
+        assert_eq!(doc.text_of(caret.block_id), "WORLD");
+        assert_eq!(caret.start, 0);
     }
 
     #[test]

@@ -567,6 +567,10 @@ function revealCaret(ta: HTMLTextAreaElement) {
 }
 
 function fit(ta: HTMLTextAreaElement, wrap: boolean) {
+  // Measuring height via height:0 collapses the sheet for a frame and jumps scroll
+  // to the top on long notes — keep the sheet's scrollTop across the reflow.
+  const sheet = ta.closest(".sheet");
+  const scrollTop = sheet instanceof HTMLElement ? sheet.scrollTop : null;
   ta.style.height = "0px";
   if (!wrap) {
     ta.style.width = "0px";
@@ -580,6 +584,7 @@ function fit(ta: HTMLTextAreaElement, wrap: boolean) {
   // scroll viewport, letting painted marks drift away from the glyphs they mark.
   const pre = ta.parentElement?.querySelector("pre");
   if (pre instanceof HTMLElement) pre.style.width = ta.style.width;
+  if (sheet instanceof HTMLElement && scrollTop !== null) sheet.scrollTop = scrollTop;
 }
 
 /** Width of one character. The editor is monospace, so this is the column grid. */

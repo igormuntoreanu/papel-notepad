@@ -775,16 +775,19 @@ export function QuireApp() {
     if (!session || !activeId) return;
     const cols = rows[0]?.length ?? 0;
     if (cols < 2 || rows.length === 0) return;
-    const id = session.insert_table(blockId, cols, rows.length);
+    const caret = liveCaret();
+    const at = caret.blockId === blockId ? Math.min(caret.start, caret.end) : session.text_of(blockId).length;
+    const placed = splitInsertTable(blockId, at, cols, rows.length);
+    if (!placed) return;
     rows.forEach((row, r) => {
       row.forEach((value, c) => {
-        if (value) session.table_set_text(id, r, c, value);
+        if (value) session.table_set_text(placed.tableId, r, c, value);
       });
     });
-    setSel({ blockId: id, start: 0, end: 0 });
+    setSel({ blockId: placed.belowId, start: 0, end: 0 });
     setMessage(`Pasted ${rows.length} × ${cols} as a table`);
     touch(activeId);
-    bump();
+    bump({ block_id: placed.belowId, start: 0, end: 0 });
   }
 
   function selectWholeSheet() {
@@ -866,15 +869,74 @@ export function QuireApp() {
     return index;
   }
 
-  /** Inserts a monospace table skeleton as text: one edit, one undo step. */
+  /**
+   * Splits text block `id` at UTF-16 offset `at`, inserts a table, and returns
+   * `{ tableId, belowId }` for the new table and the text block under it.
+   * Mirrors image insert: left text | table | right text.
+   */
+  function splitInsertTable(id: number, at: number, cols: number, rows: number): { tableId: number; belowId: number } | null {
+    if (!session) return null;
+    const full = session.text_of(id);
+    const cut = Math.max(0, Math.min(at, full.length));
+    const outlineBefore = outlineOf(session);
+    const blockIndex = outlineBefore.findIndex((item) => item.id === id);
+
+    // Caret at the end: keep the classic "table after this block" behaviour.
+    if (cut >= full.length) {
+      const tableId = session.insert_table(id, cols, rows);
+      const outline = outlineOf(session);
+      const tIdx = outline.findIndex((item) => item.id === tableId);
+      const below = tIdx >= 0 ? outline[tIdx + 1] : undefined;
+      return { tableId, belowId: below?.kind === "text" ? below.id : tableId };
+    }
+
+    // Caret at the start: insert after the previous block so we do not leave an
+    // empty text block above the table.
+    if (cut === 0 && blockIndex > 0) {
+      const prev = outlineBefore[blockIndex - 1]!;
+      const tableId = session.insert_table(prev.id, cols, rows);
+      return { tableId, belowId: id };
+    }
+
+    const left = full.slice(0, cut);
+    const right = full.slice(cut);
+    const priorMarks = readMarks(session.marks(id));
+    session.edit(id, 0, full.length, left, false);
+    const tableId = session.insert_table(id, cols, rows);
+    const outline = outlineOf(session);
+    const tIdx = outline.findIndex((item) => item.id === tableId);
+    const below = tIdx >= 0 ? outline[tIdx + 1] : undefined;
+    if (!below || below.kind !== "text") return { tableId, belowId: tableId };
+    if (right) {
+      session.edit(below.id, 0, 0, right, false);
+      for (const mark of priorMarks) {
+        if (mark.end <= cut) continue;
+        const from = Math.max(mark.start, cut) - cut;
+        const to = mark.end - cut;
+        if (to <= from) continue;
+        if (mark.flags & FLAG.bold) session.apply_style(below.id, from, to, "bold", 1);
+        if (mark.flags & FLAG.italic) session.apply_style(below.id, from, to, "italic", 1);
+        if (mark.flags & FLAG.underline) session.apply_style(below.id, from, to, "underline", 1);
+        if (mark.flags & FLAG.strike) session.apply_style(below.id, from, to, "strike", 1);
+        if (mark.ink) session.apply_style(below.id, from, to, "ink", mark.ink);
+        if (mark.hl) session.apply_style(below.id, from, to, "hl", mark.hl);
+      }
+    }
+    return { tableId, belowId: below.id };
+  }
+
+  /** Inserts a table at the caret, splitting the text block (same as paste image). */
   function insertTable(rows: number, cols: number) {
     if (!session) return;
-    const after = selRef.current.blockId || session.first_text_id();
-    const id = session.insert_table(after, cols, rows);
+    const { blockId, start, end } = liveCaret();
+    const id = blockId || session.first_text_id();
+    const at = Math.min(start, end);
+    const placed = splitInsertTable(id, at, cols, rows);
     setCellTarget(null);
-    setSel({ blockId: id, start: 0, end: 0 });
+    if (!placed) return;
+    setSel({ blockId: placed.belowId, start: 0, end: 0 });
     touch(activeId);
-    bump();
+    bump({ block_id: placed.belowId, start: 0, end: 0 });
   }
 
   /** Adds or removes `• ` on the lines the selection covers. */
@@ -984,6 +1046,19 @@ export function QuireApp() {
       const start = el.selectionStart ?? 0;
       const end = el.selectionEnd ?? start;
       if (Number.isFinite(blockId) && end > start) return { blockId, start, end };
+    }
+    return selRef.current;
+  }
+
+  /** Caret (or range) from the focused text editor, including a collapsed caret. */
+  function liveCaret(): Sel {
+    const el = document.activeElement;
+    if (el instanceof HTMLTextAreaElement && el.classList.contains("editor")) {
+      const host = el.closest<HTMLElement>(".block");
+      const blockId = Number(host?.dataset.blockId ?? "");
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? start;
+      if (Number.isFinite(blockId)) return { blockId, start, end };
     }
     return selRef.current;
   }

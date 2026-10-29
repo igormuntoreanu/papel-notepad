@@ -95,6 +95,10 @@ await page.getByText(/verify bugs/i).first().click();
 await page.waitForTimeout(900);
 
 // ---- 1) Ctrl+A selects the whole sheet, with a table between text blocks.
+// Place the caret at the end so Insert table follows the text (not a mid-split at 0).
+await page.locator(".page .block textarea.editor").first().click();
+await page.keyboard.press("Control+End");
+await page.waitForTimeout(150);
 await page.getByRole("button", { name: /^Insert table$/ }).click();
 await page.getByRole("button", { name: "Insert a 2 by 2 table" }).click();
 await page.waitForTimeout(400);
@@ -428,6 +432,36 @@ const opened = await page.evaluate(() => {
   return urls;
 });
 check("ctrl-enter-opens-url", opened.includes("https://example.com/app"), JSON.stringify(opened));
+
+// ---- 12) Insert table at caret splits mid-text (not always at the end).
+await page.evaluate(() => {
+  const ta = document.querySelector(".page .block textarea.editor");
+  const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+  const body = "AAA_MID_BBB";
+  nativeSet?.call(ta, body);
+  ta.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertFromPaste", data: body }));
+  ta.focus();
+  ta.setSelectionRange(3, 3); // caret after AAA
+});
+await page.waitForTimeout(300);
+await page.getByRole("button", { name: /^Insert table$/ }).click();
+await page.getByRole("button", { name: "Insert a 2 by 2 table" }).click();
+await page.waitForTimeout(500);
+const midTable = await page.evaluate(() => {
+  const editors = [...document.querySelectorAll(".page .block textarea.editor")].map((a) => a.value);
+  const tables = document.querySelectorAll(".page .table-block").length;
+  const order = [...document.querySelectorAll(".page .block")].map((b) =>
+    b.classList.contains("table-block") ? "table" : "text",
+  );
+  return { editors, tables, order };
+});
+check(
+  "table-insert-at-caret",
+  midTable.editors.some((t) => t === "AAA") &&
+    midTable.editors.some((t) => t.includes("MID_BBB")) &&
+    midTable.order.join(",").includes("text,table,text"),
+  JSON.stringify(midTable),
+);
 
 const failed = Object.entries(results).filter(([, value]) => !value.ok).map(([name]) => name);
 console.log(failed.length ? `FAILED: ${failed.join(", ")}` : "ALL PASS");
