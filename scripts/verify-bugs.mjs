@@ -268,6 +268,110 @@ check(
   JSON.stringify({ find, header }),
 );
 
+// ---- 8) Grid paste (TSV) becomes a real table block.
+await page.locator(".page .block textarea").first().click();
+await page.evaluate(async () => {
+  const text = "name\tqty\nalpha\t1\nbeta\t2";
+  const ta = document.querySelector(".page .block textarea");
+  ta.focus();
+  const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: new DataTransfer() });
+  event.clipboardData.setData("text/plain", text);
+  ta.dispatchEvent(event);
+});
+await page.waitForTimeout(500);
+const gridPaste = await page.evaluate(() => ({
+  tables: document.querySelectorAll(".page .table-block").length,
+  cells: [...document.querySelectorAll(".page .sheet-table td textarea")].map((a) => a.value),
+}));
+check(
+  "paste-tsv-table",
+  gridPaste.tables >= 1 && gridPaste.cells.includes("alpha") && gridPaste.cells.includes("1"),
+  JSON.stringify(gridPaste),
+);
+
+// ---- 9) HTML paste keeps bold emphasis as a painted mark.
+await page.locator(".page .block textarea").first().click();
+await page.keyboard.press("Control+End");
+await page.evaluate(() => {
+  const ta = document.querySelector(".page .block textarea");
+  ta.focus();
+  const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: new DataTransfer() });
+  event.clipboardData.setData("text/html", "<p>xx <b>BoldWord</b> yy</p>");
+  event.clipboardData.setData("text/plain", "xx BoldWord yy");
+  ta.dispatchEvent(event);
+});
+await page.waitForTimeout(500);
+const htmlPaste = await page.evaluate(() => {
+  const ta = document.querySelector(".page .block textarea");
+  const bold = document.querySelector(".page .block pre span.sb")?.textContent ?? null;
+  return { value: ta?.value ?? "", bold, hasBoldWord: (ta?.value ?? "").includes("BoldWord") };
+});
+check(
+  "paste-html-bold",
+  htmlPaste.hasBoldWord && htmlPaste.bold === "BoldWord",
+  JSON.stringify(htmlPaste),
+);
+
+// ---- 10) PageDown moves the caret down a long note.
+await page.evaluate(() => {
+  const ta = document.querySelector(".page .block textarea");
+  const body = Array.from({ length: 120 }, (_, i) => `line-${i}`).join("\n");
+  ta.focus();
+  ta.select();
+  // Replace via input path: set value and dispatch input so sync runs.
+  const start = 0;
+  const end = ta.value.length;
+  document.execCommand("selectAll");
+  // Direct session sync through React is hard; type is slow — assign + input event.
+  const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+  nativeSet?.call(ta, body);
+  ta.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertFromPaste", data: body }));
+  ta.setSelectionRange(0, 0);
+});
+await page.waitForTimeout(400);
+const beforePage = await page.evaluate(() => {
+  const ta = document.querySelector(".page .block textarea");
+  return { caret: ta.selectionStart, len: ta.value.length, lines: ta.value.split("\n").length };
+});
+await page.keyboard.press("PageDown");
+await page.waitForTimeout(200);
+const afterPage = await page.evaluate(() => {
+  const ta = document.querySelector(".page .block textarea");
+  return { caret: ta.selectionStart };
+});
+check(
+  "page-down-moves",
+  beforePage.lines >= 100 && afterPage.caret > beforePage.caret,
+  JSON.stringify({ beforePage, afterPage }),
+);
+
+// ---- 11) Ctrl+Enter recognises a URL under the caret (open is stubbed).
+await page.evaluate(() => {
+  window.__papelOpened = [];
+  const real = window.open;
+  window.open = (url) => {
+    window.__papelOpened.push(String(url));
+    return null;
+  };
+  window.__papelOpenRestore = real;
+  const ta = document.querySelector(".page .block textarea");
+  const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+  const next = "open https://example.com/app now";
+  nativeSet?.call(ta, next);
+  ta.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertFromPaste", data: next }));
+  const at = next.indexOf("https");
+  ta.setSelectionRange(at + 5, at + 5);
+  ta.focus();
+});
+await page.keyboard.press("Control+Enter");
+await page.waitForTimeout(200);
+const opened = await page.evaluate(() => {
+  const urls = window.__papelOpened ?? [];
+  if (typeof window.__papelOpenRestore === "function") window.open = window.__papelOpenRestore;
+  return urls;
+});
+check("ctrl-enter-opens-url", opened.includes("https://example.com/app"), JSON.stringify(opened));
+
 const failed = Object.entries(results).filter(([, value]) => !value.ok).map(([name]) => name);
 console.log(failed.length ? `FAILED: ${failed.join(", ")}` : "ALL PASS");
 await browser.close();

@@ -4,8 +4,10 @@ import { correctionAt } from "@/lib/quire/autocorrect";
 import { continueList, indentList, renumberLists } from "@/lib/quire/lists";
 import type { BlockLook } from "@/lib/quire/typefaces";
 import { parseDelimited } from "@/lib/quire/blocks";
+import { htmlHasEmphasis, parseHtmlClipboard } from "@/lib/quire/html-paste";
 import { paint, readMarks } from "@/lib/quire/marks";
 import { diffText } from "@/lib/quire/text";
+import { openUrl, urlAt } from "@/lib/quire/urls";
 import type { Place } from "./store";
 
 /** A rectangular selection: anchor and focus as line + character column. */
@@ -299,7 +301,72 @@ export function TextBlock({
         onBlur={paintOnBlur}
         onSelect={report}
         onKeyUp={report}
-        onClick={report}
+        onClick={(e) => {
+          report();
+          if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+          const ta = e.currentTarget;
+          const url = urlAt(ta.value, ta.selectionStart ?? 0);
+          if (url) {
+            e.preventDefault();
+            openUrl(url);
+          }
+        }}
+        onPaste={(e) => {
+          if (box) setBox(null);
+          const data = e.clipboardData;
+          if (!data) return;
+
+          const image = [...data.files].find((file) => file.type.startsWith("image/"));
+          if (image) {
+            e.preventDefault();
+            plainPaste.current = false;
+            onImage(image);
+            return;
+          }
+
+          const plain = data.getData("text/plain");
+          const html = data.getData("text/html");
+          const forcePlain = plainPaste.current;
+          plainPaste.current = false;
+
+          if (!forcePlain && plain) {
+            const grid = parseDelimited(plain);
+            if (grid) {
+              e.preventDefault();
+              onPasteTable(grid);
+              return;
+            }
+          }
+
+          if (!forcePlain && html && htmlHasEmphasis(html)) {
+            const parsed = parseHtmlClipboard(html);
+            if (parsed.text.length > 0 && parsed.runs.some((r) => r.bold || r.italic)) {
+              e.preventDefault();
+              const ta = e.currentTarget;
+              const start = ta.selectionStart ?? 0;
+              const end = ta.selectionEnd ?? start;
+              session.edit(blockId, start, end, parsed.text, false);
+              for (const run of parsed.runs) {
+                const from = start + run.start;
+                const to = start + run.end;
+                if (to <= from) continue;
+                if (run.bold) session.apply_style(blockId, from, to, "bold", 1);
+                if (run.italic) session.apply_style(blockId, from, to, "italic", 1);
+              }
+              const next = session.text_of(blockId);
+              ta.value = next;
+              prev.current = next;
+              const caret = start + parsed.text.length;
+              ta.setSelectionRange(caret, caret);
+              paintNow();
+              report();
+              onEdited();
+              return;
+            }
+          }
+
+          // Native paste → onInput → sync for plain / long / PDF text.
+        }}
         onMouseDown={(e) => {
           if (!e.altKey) {
             if (box) setBox(null);
@@ -373,6 +440,16 @@ export function TextBlock({
               plainPaste.current = false;
             }, 700);
           }
+          // Ctrl+Enter opens an http(s) URL under the caret.
+          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+            const ta = e.currentTarget;
+            const url = urlAt(ta.value, ta.selectionStart ?? 0);
+            if (url) {
+              e.preventDefault();
+              openUrl(url);
+              return;
+            }
+          }
           if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
             const ta = e.currentTarget;
             const at = ta.selectionStart ?? 0;
@@ -398,7 +475,8 @@ export function TextBlock({
             ta.setSelectionRange(pos, pos);
             paintNow();
             report();
-            onEdited();            return;
+            onEdited();
+            return;
           }
           if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             const ta = e.currentTarget;
@@ -440,7 +518,32 @@ export function TextBlock({
             ta.setSelectionRange(start + 1, start + 1);
             paintNow();
             report();
-            onEdited();       }
+            onEdited();
+          }
+          // PageUp/PageDown: move by a viewport of lines and keep the sheet in view.
+          // The textarea itself has overflow:hidden; scrolling lives on `.sheet`.
+          if ((e.key === "PageDown" || e.key === "PageUp") && !e.shiftKey && !e.altKey) {
+            const ta = e.currentTarget;
+            const sheet = ta.closest(".sheet");
+            if (sheet instanceof HTMLElement) {
+              e.preventDefault();
+              const style = getComputedStyle(ta);
+              const lineHeight = Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.6;
+              const pageLines = Math.max(1, Math.floor(sheet.clientHeight / lineHeight) - 1);
+              const dir = e.key === "PageDown" ? 1 : -1;
+              const lines = ta.value.split("\n");
+              const at = ta.selectionStart ?? 0;
+              const lineIndex = (ta.value.slice(0, at).match(/\n/g) ?? []).length;
+              const col = at - (ta.value.slice(0, at).lastIndexOf("\n") + 1);
+              const nextLine = Math.max(0, Math.min(lines.length - 1, lineIndex + dir * pageLines));
+              const lineStart = lines.slice(0, nextLine).reduce((n, line) => n + line.length + 1, 0);
+              const pos = lineStart + Math.min(col, (lines[nextLine] ?? "").length);
+              ta.setSelectionRange(pos, pos);
+              sheet.scrollTop = Math.max(0, sheet.scrollTop + dir * pageLines * lineHeight);
+              report();
+              return;
+            }
+          }
         }}
       />
     </div>
