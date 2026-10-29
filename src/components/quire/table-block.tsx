@@ -39,7 +39,7 @@ export function TableBlock({
   session: Session;
   version: number;
   onEdited: () => void;
-  onSelect: (target: CellTarget) => void;
+  onSelect: (target: CellTarget | null) => void;
   /** Removes the whole table; the sheet owns the undoable step. */
   onDelete: () => void;
 }) {
@@ -124,8 +124,15 @@ export function TableBlock({
   return (
     <div
       className="block table-block"
+      data-block-id={blockId}
       ref={rootRef}
-      onBlur={flush}
+      onBlur={(event) => {
+        flush();
+        // Leaving the table clears the sticky cell target so text-block styles work again.
+        const next = event.relatedTarget;
+        if (next instanceof Node && rootRef.current?.contains(next)) return;
+        onSelect(null);
+      }}
       onContextMenu={(event) => {
         // A right-click anywhere on the table opens the menu; the cell under the
         // pointer wins, the top-left cell is the fallback.

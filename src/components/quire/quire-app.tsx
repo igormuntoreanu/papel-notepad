@@ -814,6 +814,7 @@ export function QuireApp() {
     if (!session || !activeId) return;
     const next = session.delete_table(tableId);
     if (!next) return;
+    setCellTarget((prev) => (prev?.tableId === tableId ? null : prev));
     touch(activeId);
     setSel({ blockId: next.block_id, start: next.start, end: next.start });
     bump({ block_id: next.block_id, start: next.start, end: next.end });
@@ -870,6 +871,7 @@ export function QuireApp() {
     if (!session) return;
     const after = selRef.current.blockId || session.first_text_id();
     const id = session.insert_table(after, cols, rows);
+    setCellTarget(null);
     setSel({ blockId: id, start: 0, end: 0 });
     touch(activeId);
     bump();
@@ -985,11 +987,35 @@ export function QuireApp() {
     }
     return selRef.current;
   }
+
+  /** Live cell under focus, or null when a text editor owns the caret. */
+  function liveCellTarget(): CellTarget | null {
+    const el = document.activeElement;
+    if (el instanceof HTMLTextAreaElement && el.classList.contains("editor")) return null;
+    if (el instanceof HTMLTextAreaElement && el.classList.contains("cell-input")) {
+      const host = el.closest<HTMLElement>(".table-block");
+      const tableId = Number(host?.dataset.blockId ?? "");
+      const cells = host ? [...host.querySelectorAll("textarea.cell-input")] : [];
+      const index = cells.indexOf(el);
+      const cols = Math.max(1, Number(host?.querySelector("table")?.rows[0]?.cells.length ?? 1));
+      if (!Number.isFinite(tableId) || index < 0) return cellTarget;
+      return {
+        tableId,
+        row: Math.floor(index / cols),
+        col: index % cols,
+        start: el.selectionStart ?? 0,
+        end: el.selectionEnd ?? 0,
+      };
+    }
+    return cellTarget;
+  }
+
   function applyStyle(kind: string, value: number) {
     if (!session) return;
-    // A focused table cell takes the style, not the page text behind it.
-    if (cellTarget) {
-      const { tableId, row, col, start, end } = cellTarget;
+    // Focused table cell takes the style; a focused text editor always wins over a stale cellTarget.
+    const cell = liveCellTarget();
+    if (cell) {
+      const { tableId, row, col, start, end } = cell;
       if (end <= start) {
         setMessage("Select some text first.");
         return;
@@ -1011,9 +1037,10 @@ export function QuireApp() {
 
   function toggleFlag(flag: FlagName) {
     if (!session) return;
-    if (cellTarget) {
-      const runs = readMarks(session.table_marks(cellTarget.tableId, cellTarget.row, cellTarget.col));
-      const on = rangeHas(runs, cellTarget.start, cellTarget.end, FLAG[flag]);
+    const cell = liveCellTarget();
+    if (cell) {
+      const runs = readMarks(session.table_marks(cell.tableId, cell.row, cell.col));
+      const on = rangeHas(runs, cell.start, cell.end, FLAG[flag]);
       applyStyle(flag, on ? 0 : 1);
       return;
     }
@@ -1168,11 +1195,13 @@ export function QuireApp() {
   const richNow = session ? sessionRich(session) : false;
   const saveExts = note ? saveExtensions({ rich: richNow, sourceExt: note.sourceExt }) : ["papel"];
   const saveExt = saveExts[0] ?? "papel";
-  const rest = cellTarget
-    ? { start: cellTarget.start, end: cellTarget.end }
+  // Prefer live focus so a stale cellTarget after leaving a table does not disable the toolbar.
+  const styleCell = liveCellTarget();
+  const rest = styleCell
+    ? { start: styleCell.start, end: styleCell.end }
     : { start: sel.start, end: sel.end };
-  const marksNow = cellTarget && session
-    ? readMarks(session.table_marks(cellTarget.tableId, cellTarget.row, cellTarget.col))
+  const marksNow = styleCell && session
+    ? readMarks(session.table_marks(styleCell.tableId, styleCell.row, styleCell.col))
     : session && sel.end > sel.start
       ? readMarks(session.marks(blockId))
       : [];
@@ -1398,11 +1427,12 @@ export function QuireApp() {
                 autocorrect={autocorrect}
                 selectedImage={selectedImage}
                 setSelectedImage={setSelectedImage}
-                onSelection={(b, start, end) =>
+                onSelection={(b, start, end) => {
+                  setCellTarget(null);
                   setSel((prev) =>
                     prev.blockId === b && prev.start === start && prev.end === end ? prev : { blockId: b, start, end },
-                  )
-                }
+                  );
+                }}
                 onEdited={edited}
                 onCellSelect={setCellTarget}
                 onImage={(file) => void insertImageFile(file, "paste")}

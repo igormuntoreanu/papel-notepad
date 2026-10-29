@@ -196,11 +196,24 @@ await page.waitForTimeout(350);
 const altDrag = await page.evaluate(() => ({
   rects: document.querySelectorAll(".page .block-rect").length,
   wrap: document.querySelector(".page")?.getAttribute("data-wrap"),
+  column: document.querySelectorAll(".page .block.is-column-select").length,
 }));
 check(
   "alt-drag-column",
-  wrapBefore === "true" && altDrag.rects > 0 && altDrag.wrap === "off",
+  wrapBefore === "true" && altDrag.rects > 0 && altDrag.wrap === "on" && altDrag.column > 0,
   JSON.stringify({ wrapBefore, ...altDrag }),
+);
+await page.keyboard.press("Escape");
+await page.waitForTimeout(200);
+const afterEsc = await page.evaluate(() => ({
+  rects: document.querySelectorAll(".page .block-rect").length,
+  wrap: document.querySelector(".page")?.getAttribute("data-wrap"),
+  column: document.querySelectorAll(".page .block.is-column-select").length,
+}));
+check(
+  "alt-drag-clears-without-wrap-off",
+  afterEsc.rects === 0 && afterEsc.wrap === "on" && afterEsc.column === 0,
+  JSON.stringify(afterEsc),
 );
 
 // ---- 5) Alignment available while Word Wrap is on.
@@ -227,6 +240,50 @@ check(
   JSON.stringify({ floating, menu }),
 );
 await page.keyboard.press("Escape");
+await page.waitForTimeout(200);
+
+// ---- 6b) After focusing a table cell, text selection still enables Bold.
+if (!(await page.evaluate(() => Boolean(document.querySelector(".page"))))) {
+  await page.getByText(/verify bugs/i).first().click();
+  await page.waitForTimeout(600);
+}
+if ((await page.locator(".page .sheet-table td textarea").count()) === 0) {
+  await page.getByRole("button", { name: /^Insert table$/ }).click();
+  await page.getByRole("button", { name: "Insert a 2 by 2 table" }).click();
+  await page.waitForTimeout(400);
+}
+await page.locator(".page .sheet-table td textarea").first().click();
+await page.waitForTimeout(200);
+const textArea = page.locator(".page .block textarea.editor").first();
+await textArea.click();
+await page.waitForTimeout(150);
+const textBox = await textArea.boundingBox();
+await page.mouse.move(textBox.x + 4, textBox.y + 12);
+await page.mouse.down();
+await page.mouse.move(textBox.x + 60, textBox.y + 12, { steps: 4 });
+await page.mouse.up();
+await page.waitForTimeout(250);
+const boldBtn = page.getByRole("button", { name: /^Bold/ });
+const boldEnabled = await boldBtn.isEnabled();
+if (boldEnabled) await boldBtn.click({ force: true });
+await page.waitForTimeout(250);
+const afterTableStyle = await page.evaluate(() => ({
+  bold: document.querySelector(".page .block:not(.table-block) pre span.sb")?.textContent ?? null,
+  disabled: document.querySelector('button[aria-label^="Bold"]')?.hasAttribute("disabled") ?? null,
+  sel: (() => {
+    const a = document.querySelector(".page .block textarea.editor");
+    return a ? { start: a.selectionStart, end: a.selectionEnd } : null;
+  })(),
+}));
+check(
+  "toolbar-after-table-cell",
+  boldEnabled && afterTableStyle.bold !== null,
+  JSON.stringify({ boldEnabled, ...afterTableStyle }),
+);
+if (afterTableStyle.bold) {
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(150);
+}
 
 console.log("[dbg] view has page:", await page.evaluate(() => Boolean(document.querySelector(".page"))));
 if (!(await page.evaluate(() => Boolean(document.querySelector(".page"))))) {

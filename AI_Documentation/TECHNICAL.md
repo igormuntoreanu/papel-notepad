@@ -271,8 +271,14 @@ Version 1 (no `marks`) and `.quire` files load with the same reader.
 | `npm run typecheck` | TypeScript check |
 | `npm run lint` | ESLint |
 | `npm test` | Node tests (scripts + `src/**`), incl. `src/lib/quire/quire.test.ts` |
+| `node scripts/verify-bugs.mjs` | Playwright editor regressions (needs `npm run build:desktop`) |
+| `node scripts/qa-visual.mjs` | Screenshots into `AI_Documentation/qa/<version>/` |
 | `cargo test -p quire-core` | Core tests (editing, undo, emoji offsets, images, format, encodings, detection, styles) |
 | `npx vite build` | Production build to `.vercel/output` |
+
+### Visual QA
+
+Editor fixes must leave PNG/GIF evidence under [`AI_Documentation/qa/`](qa/README.md). See the latest version folder’s `index.md` for the checklist.
 
 ### Performance check (recommended after UI changes)
 

@@ -45,7 +45,6 @@ export function TextBlock({
   selectedAll,
   onSelectAll,
   onClearSelectAll,
-  onWrapOff,
   onSelection,
   onEdited,
   onImage,
@@ -68,8 +67,6 @@ export function TextBlock({
   selectedAll?: boolean;
   onSelectAll: () => void;
   onClearSelectAll: () => void;
-  /** Turns Word Wrap off so a column selection has unwrapped lines. */
-  onWrapOff: () => void;
   onSelection: (start: number, end: number) => void;
   onEdited: () => void;
   onImage: (file: File) => void;
@@ -84,6 +81,11 @@ export function TextBlock({
   const fresh = useRef(false);
   /** Above EXACT_LIMIT the overlay has already shown its colours for a block. */
   const exactShown = useRef<{ block: number; done: boolean }>({ block: -1, done: false });
+  /** Alt+drag column selection; while set, this block temporarily lays out as unwrapped. */
+  const [box, setBox] = useState<Box | null>(null);
+  const drag = useRef<Box | null>(null);
+  /** Sheet wrap stays as the user set it; column select only unwraps this block. */
+  const layoutWrap = wrap && box === null;
 
   const paintExact = () => {
     const ta = taRef.current;
@@ -97,7 +99,7 @@ export function TextBlock({
       readMarks(session.marks(blockId)),
       selectedAll ? { start: 0, end: Number.MAX_SAFE_INTEGER } : findHit && findHit.end > findHit.start ? findHit : null,
     );
-    fit(ta, wrap);
+    fit(ta, layoutWrap);
   };
 
   const paintNowRef = useRef<() => void>(() => undefined);
@@ -116,7 +118,7 @@ export function TextBlock({
         return;
       }
       pre.textContent = ta.value;
-      fit(ta, wrap);
+      fit(ta, layoutWrap);
       return;
     }
     paintExact();
@@ -230,9 +232,12 @@ export function TextBlock({
     onEdited();
   }
 
-  /** A rectangular (column) selection, in whole lines and character columns. */
-  const [box, setBox] = useState<Box | null>(null);
-  const drag = useRef<Box | null>(null);
+  // Relayout when column select starts/ends so wrap-on width returns after Escape.
+  useLayoutEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    fit(ta, layoutWrap);
+  }, [layoutWrap]);
 
   const boxText = (rect: Box): string => {
     const ta = taRef.current;
@@ -277,7 +282,7 @@ export function TextBlock({
   };
   return (
     <div
-      className={grow ? "block grow" : "block"}
+      className={`${grow ? "block grow" : "block"}${box ? " is-column-select" : ""}`}
       data-note={noteId}
       data-block-id={blockId}
       data-font={look?.font ?? undefined}
@@ -374,9 +379,7 @@ export function TextBlock({
             return;
           }
           e.preventDefault();
-          // A column needs unwrapped lines, so Alt+drag turns Word Wrap off for this
-          // sheet instead of silently doing nothing.
-          if (wrap) onWrapOff();
+          // Column select needs logical (unwrapped) lines on this block only; sheet wrap stays.
           const point = pointAt(e.currentTarget, e.clientX, e.clientY);
           const next = { aLine: point.line, aCol: point.col, fLine: point.line, fCol: point.col };
           drag.current = next;
@@ -430,6 +433,8 @@ export function TextBlock({
             return;
           }
           if (box && e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
             setBox(null);
             return;
           }

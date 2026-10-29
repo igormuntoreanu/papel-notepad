@@ -566,9 +566,6 @@ export function Sheet({
                   selectedAll={selectAll}
                   onSelectAll={onSelectAll}
                   onClearSelectAll={onClearSelectAll}
-                  onWrapOff={() => {
-                    if (note.wrap) actions.wrap();
-                  }}
                 />
               ),
             )}

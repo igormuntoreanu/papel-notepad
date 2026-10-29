@@ -2282,6 +2282,19 @@
   overflow-y: hidden;
 }
 
+/* Alt+drag column select: temporary unwrap on this block only (sheet wrap stays). */
+.block.is-column-select {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.block.is-column-select pre,
+.block.is-column-select textarea {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 /* Paragraph-style menu: the preview size carries the meaning, the hint names it. */
 .menu-hint {
   margin-left: 8px;
