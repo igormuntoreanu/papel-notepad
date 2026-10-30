@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { htmlHasEmphasis, parseHtmlClipboard } from "./html-paste.ts";
+import { htmlHasEmphasis, parseHtmlClipboard, parseHtmlTable } from "./html-paste.ts";
+import { parseDelimited } from "./blocks.ts";
 
 describe("parseHtmlClipboard", () => {
   it("keeps bold and italic ranges from simple tags", () => {
@@ -47,5 +48,34 @@ describe("htmlHasEmphasis", () => {
     assert.equal(htmlHasEmphasis("<b>x</b>"), true);
     assert.equal(htmlHasEmphasis('<span style="font-weight:700">x</span>'), true);
     assert.equal(htmlHasEmphasis("<p>plain</p>"), false);
+  });
+});
+
+describe("parseHtmlTable", () => {
+  it("reads an Excel-style HTML table into a grid", () => {
+    const html =
+      "<!--StartFragment--><table><tr><td>A1</td><td>B1</td></tr><tr><td>A2</td><td>B2</td></tr></table><!--EndFragment-->";
+    assert.deepEqual(parseHtmlTable(html), [
+      ["A1", "B1"],
+      ["A2", "B2"],
+    ]);
+  });
+
+  it("returns null without a multi-cell table", () => {
+    assert.equal(parseHtmlTable("<p>no table</p>"), null);
+    assert.equal(parseHtmlTable("<table><tr><td>only</td></tr></table>"), null);
+  });
+});
+
+describe("parseDelimited Excel rows", () => {
+  it("accepts a single tab-separated row", () => {
+    assert.deepEqual(parseDelimited("one\ttwo\tthree"), [["one", "two", "three"]]);
+  });
+
+  it("still parses multi-line TSV", () => {
+    assert.deepEqual(parseDelimited("a\tb\nc\td"), [
+      ["a", "b"],
+      ["c", "d"],
+    ]);
   });
 });

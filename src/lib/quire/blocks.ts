@@ -129,9 +129,15 @@ export function parseDelimited(text: string): string[][] | null {
   const normalised = text.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
   if (!normalised.trim()) return null;
   const lines = normalised.split("\n");
-  if (lines.length < 2) return null;
 
   const tabs = lines.some((line) => line.includes("\t"));
+  // A single Excel/Sheets row is still tab-separated with 2+ cells.
+  if (lines.length < 2) {
+    if (!tabs) return null;
+    const row = splitLine(lines[0]!, "\t");
+    return row.length >= 2 ? [row] : null;
+  }
+
   const semicolons = !tabs && lines.filter((line) => line.includes(";")).length >= 2;
   const delimiter = tabs ? "\t" : semicolons ? ";" : ",";
   if (!tabs && !semicolons && !lines.some((line) => line.includes(delimiter))) return null;

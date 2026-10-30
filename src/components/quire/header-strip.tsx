@@ -363,6 +363,7 @@ export function HeaderStrip({
           />
           {isDesktop && bridge && (
             <div className="win-controls strip-no-drag" role="group" aria-label="Window">
+              <span className="win-sep" aria-hidden="true" />
               <button
                 type="button"
                 className="win-btn"

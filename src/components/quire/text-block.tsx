@@ -4,7 +4,7 @@ import { correctionAt } from "@/lib/quire/autocorrect";
 import { continueList, indentList, renumberLists } from "@/lib/quire/lists";
 import type { BlockLook } from "@/lib/quire/typefaces";
 import { parseDelimited } from "@/lib/quire/blocks";
-import { htmlHasEmphasis, parseHtmlClipboard } from "@/lib/quire/html-paste";
+import { htmlHasEmphasis, parseHtmlClipboard, parseHtmlTable } from "@/lib/quire/html-paste";
 import { paint, readMarks } from "@/lib/quire/marks";
 import { diffText } from "@/lib/quire/text";
 import { openUrl, urlAt } from "@/lib/quire/urls";
@@ -321,24 +321,27 @@ export function TextBlock({
           const data = e.clipboardData;
           if (!data) return;
 
-          const image = [...data.files].find((file) => file.type.startsWith("image/"));
-          if (image) {
-            e.preventDefault();
-            plainPaste.current = false;
-            onImage(image);
-            return;
-          }
-
           const plain = data.getData("text/plain");
           const html = data.getData("text/html");
           const forcePlain = plainPaste.current;
           plainPaste.current = false;
 
+          // Excel/Sheets put a bitmap *and* TSV/HTML on the clipboard. Prefer an
+          // editable table over the snapshot image whenever cell data is present.
           if (!forcePlain && plain) {
             const grid = parseDelimited(plain);
             if (grid) {
               e.preventDefault();
               onPasteTable(grid);
+              return;
+            }
+          }
+
+          if (!forcePlain && html) {
+            const fromHtml = parseHtmlTable(html);
+            if (fromHtml) {
+              e.preventDefault();
+              onPasteTable(fromHtml);
               return;
             }
           }
@@ -368,6 +371,13 @@ export function TextBlock({
               onEdited();
               return;
             }
+          }
+
+          const image = [...data.files].find((file) => file.type.startsWith("image/"));
+          if (image) {
+            e.preventDefault();
+            onImage(image);
+            return;
           }
 
           // Native paste → onInput → sync for plain / long / PDF text.

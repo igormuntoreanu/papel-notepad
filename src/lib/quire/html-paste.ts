@@ -197,3 +197,39 @@ export function htmlHasEmphasis(html: string): boolean {
     /font-style\s*:\s*italic/i.test(html)
   );
 }
+
+/**
+ * Pull a rectangular cell grid out of clipboard HTML (Excel / Sheets / LibreOffice).
+ * Returns null when there is no real `<table>` with at least two cells.
+ */
+export function parseHtmlTable(html: string): string[][] | null {
+  if (!html.trim() || !/<\s*table\b/i.test(html)) return null;
+
+  const frag = /<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i.exec(html);
+  const source = frag?.[1] ?? html;
+  const tableMatch = /<\s*table\b[^>]*>([\s\S]*?)<\s*\/\s*table\s*>/i.exec(source);
+  if (!tableMatch?.[1]) return null;
+
+  const rows: string[][] = [];
+  const rowRe = /<\s*tr\b[^>]*>([\s\S]*?)<\s*\/\s*tr\s*>/gi;
+  let rowMatch: RegExpExecArray | null;
+  while ((rowMatch = rowRe.exec(tableMatch[1])) !== null) {
+    const cells: string[] = [];
+    const cellRe = /<\s*t[dh]\b[^>]*>([\s\S]*?)<\s*\/\s*t[dh]\s*>/gi;
+    let cellMatch: RegExpExecArray | null;
+    while ((cellMatch = cellRe.exec(rowMatch[1]!)) !== null) {
+      const raw = cellMatch[1]!
+        .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+        .replace(/<[^>]+>/g, "")
+        .replace(/\u00a0/g, " ");
+      cells.push(decodeEntities(raw).replace(/\r\n?/g, "\n").trim());
+    }
+    if (cells.length > 0) rows.push(cells);
+  }
+
+  if (rows.length === 0) return null;
+  const width = Math.max(...rows.map((row) => row.length));
+  if (width < 2 && rows.length < 2) return null;
+  if (width < 1) return null;
+  return rows.map((row) => [...row, ...Array.from({ length: width - row.length }, () => "")]);
+}

@@ -1,0 +1,18 @@
+---
+description: After completing user work, always commit, push, and ship a GitHub release — do not ask first.
+alwaysApply: true
+---
+
+# Always deploy and release
+
+When a unit of work for this repo is done (bug fix, UI change, feature, or doc the user asked for):
+
+1. **Do not ask** whether to commit, push, or release.
+2. Bump the portable app version in `shells/tauri/src-tauri/tauri.conf.json`, `shells/tauri/src-tauri/Cargo.toml`, and `src/lib/version.ts` (patch unless the user specifies otherwise).
+3. Commit with a message that matches repo style (why over what).
+4. `npm run tauri:build` then `npm run package:v1`.
+5. `git push origin main` (or the current branch if that is the release branch).
+6. Create a GitHub release with `gh release create` for the new tag (e.g. `v0.3.6`) and attach `dist-portable/papel-*-portable-v1.zip`.
+7. Reply with the release URL and the local exe path.
+
+Skip only if there is nothing to ship (no code/doc changes) or the user explicitly said not to release this time.

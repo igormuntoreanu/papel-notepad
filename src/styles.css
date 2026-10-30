@@ -441,8 +441,17 @@
 .win-controls {
   display: inline-flex;
   align-items: stretch;
-  margin-left: 4px;
+  margin-left: 2px;
   margin-right: -4px;
+  flex: none;
+}
+
+.win-sep {
+  width: 1px;
+  align-self: center;
+  height: 18px;
+  margin: 0 6px 0 8px;
+  background: rgb(110 74 38 / 0.4);
   flex: none;
 }
 
@@ -1375,8 +1384,9 @@
 .focus {
   height: 100%;
   display: grid;
-  grid-template-columns: 272px minmax(0, 1fr);
-  gap: 14px;
+  /* 272px × 0.75 → narrower note list; gutter matches compact card gap (8px). */
+  grid-template-columns: 204px minmax(0, 1fr);
+  gap: 8px;
   align-items: stretch;
 }
 
