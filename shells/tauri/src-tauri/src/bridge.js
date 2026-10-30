@@ -36,7 +36,12 @@
   }
 
   window.__PAPEL_DESKTOP__ = {
-    version: 1,
+    version: 2,
+    appVersion: () => invoke("desktop_app_version"),
+    minimize: () => invoke("desktop_minimize"),
+    toggleMaximize: () => invoke("desktop_toggle_maximize"),
+    isMaximized: () => invoke("desktop_is_maximized"),
+    close: () => invoke("desktop_close"),
     pickDirectory: () => invoke("desktop_pick_directory"),
     resolveDirectory: (id) => invoke("desktop_resolve_directory", { id }),
     readFile: async (dirId, name) => {

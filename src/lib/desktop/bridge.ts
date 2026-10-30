@@ -22,6 +22,14 @@ export interface DesktopBridge {
   /** Contract revision. A shell and this file must agree, or we refuse to use it. */
   readonly version: number;
 
+  /** Semver from the shell (matches tauri/Cargo version). */
+  appVersion(): Promise<string>;
+
+  minimize(): Promise<void>;
+  toggleMaximize(): Promise<void>;
+  isMaximized(): Promise<boolean>;
+  close(): Promise<void>;
+
   /** Ask the user for a folder. `null` when they cancel. */
   pickDirectory(): Promise<DesktopDir | null>;
 
@@ -51,7 +59,7 @@ export interface DesktopBridge {
 }
 
 /** Bump when a method is added or its meaning changes. */
-export const DESKTOP_BRIDGE_VERSION = 1;
+export const DESKTOP_BRIDGE_VERSION = 2;
 
 declare global {
   interface Window {
@@ -77,6 +85,7 @@ export function desktopBridge(): DesktopBridge | null {
     return null;
   }
   if (typeof bridge.pickDirectory !== "function" || typeof bridge.writeFile !== "function") return null;
+  if (typeof bridge.appVersion !== "function" || typeof bridge.minimize !== "function") return null;
   return bridge;
 }
 

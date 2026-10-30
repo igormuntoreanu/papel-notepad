@@ -22,6 +22,11 @@ function fakeBridge() {
   const key = (dirId: string, name: string) => `${dirId}/${name}`;
   const bridge: DesktopBridge = {
     version: DESKTOP_BRIDGE_VERSION,
+    appVersion: async () => "0.0.0-test",
+    minimize: async () => {},
+    toggleMaximize: async () => {},
+    isMaximized: async () => false,
+    close: async () => {},
     pickDirectory: async () => DIR,
     resolveDirectory: async (id) => (id === DIR.id ? DIR : null),
     readFile: async (dirId, name) => files.get(key(dirId, name)) ?? null,

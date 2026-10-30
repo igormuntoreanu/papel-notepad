@@ -5,14 +5,20 @@ import {
   FolderSync,
   LayoutGrid,
   ListFilter,
+  Maximize2,
+  Minus,
   Search,
   Settings2,
+  Square,
+  X,
 } from "lucide-react";
-import { useState, type RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
+import { desktopBridge } from "@/lib/desktop/bridge";
 import type { Session } from "@/lib/quire/engine";
 import { tornClip } from "@/lib/quire/torn";
 import { SKINS, type SkinId } from "@/lib/quire/text";
 import type { SortMode } from "@/lib/quire/persist";
+import { APP_VERSION } from "@/lib/version";
 import { DropMenu } from "./drop-menu";
 
 const HEADER_CLIP = tornClip("papel-header", 5, { bottom: true }, 40);
@@ -91,7 +97,7 @@ export function HeaderStrip({
   onPickFolder: () => void;
   session: Session | null;
   metrics: ArrayLike<number>;
- zoom: number;
+  zoom: number;
   message: string;
   total: number;
   unsaved: number;
@@ -99,22 +105,48 @@ export function HeaderStrip({
   onChanged: () => void;
   onMessage: (m: string) => void;
 }) {
+  const bridge = desktopBridge();
+  const isDesktop = bridge !== null;
   const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState(APP_VERSION);
+  const [maximized, setMaximized] = useState(false);
   const filterOn = sort !== "manual";
   const filterLabel = filterOn
     ? (sort === "recent" ? "Last edited" : sort === "title" ? "Title" : null) ?? "Filters"
     : "Filters";
 
+  useEffect(() => {
+    if (!bridge) return;
+    let cancelled = false;
+    void bridge.appVersion().then((v) => {
+      if (!cancelled && v) setAppVersion(v);
+    });
+    void bridge.isMaximized().then((v) => {
+      if (!cancelled) setMaximized(v);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [bridge]);
+
   return (
-    <header className="strip" data-fields={fieldsOpen ? "open" : "closed"} data-view={view}>
-      <div className="strip-paper">
+    <header
+      className="strip"
+      data-fields={fieldsOpen ? "open" : "closed"}
+      data-view={view}
+      data-desktop={isDesktop ? "on" : "off"}
+      data-tauri-drag-region={isDesktop ? true : undefined}
+    >
+      <div className="strip-paper" data-tauri-drag-region={isDesktop ? true : undefined}>
         <div className="strip-bg" style={{ clipPath: HEADER_CLIP }} aria-hidden="true" />
-        <div className="strip-top">
-          <span className="brand-name">Papel</span>
+        <div className="strip-top" data-tauri-drag-region={isDesktop ? true : undefined}>
+          <span className="brand-name">
+            Papel <span className="brand-ver">(v{appVersion})</span>
+          </span>
           <DropMenu
-            className="variant"
+            className="variant strip-no-drag"
             ariaLabel="Switch sheet"
-            title="Switch sheet or open the board"
+            title="Switch sheet"
             label={
               <>
                 <span className="variant-label">{current}</span>
@@ -123,10 +155,6 @@ export function HeaderStrip({
             }
             items={
               <>
-                <button type="button" className={view === "board" ? "menu-item is-on" : "menu-item"} onClick={onBoard}>
-                  <LayoutGrid aria-hidden="true" /> Board
-                </button>
-                <div className="menu-sep" role="separator" />
                 {items.length === 0 && <p className="menu-note">No sheets yet.</p>}
                 {items.map((item) => (
                   <button
@@ -152,7 +180,7 @@ export function HeaderStrip({
                 {/* One language only: every sheet is plain text, so there is nothing to pick. */}
                 <span title="Every sheet is plain text">Plain text</span>
                 <DropMenu
-                  className="tool status-chip"
+                  className="tool status-chip strip-no-drag"
                   label={session.encoding_label()}
                   title="File encoding"
                   align="end"
@@ -172,7 +200,7 @@ export function HeaderStrip({
                   ))}
                 />
                 <DropMenu
-                  className="tool status-chip"
+                  className="tool status-chip strip-no-drag"
                   label={session.eol_label()}
                   title="Line endings"
                   align="end"
@@ -225,7 +253,18 @@ export function HeaderStrip({
           </div>
           <button
             type="button"
-            className="tool fields-toggle"
+            className={`tool strip-no-drag${view === "board" ? " is-on" : ""}`}
+            onClick={onBoard}
+            aria-label="Board"
+            title="Board"
+            aria-pressed={view === "board"}
+          >
+            <LayoutGrid />
+            <span className="tool-label">Board</span>
+          </button>
+          <button
+            type="button"
+            className="tool fields-toggle strip-no-drag"
             aria-label="Search and filters"
             title="Search and filters"
             aria-expanded={fieldsOpen}
@@ -236,14 +275,27 @@ export function HeaderStrip({
           >
             <Search />
           </button>
-          <button type="button" className="tool" onClick={onNew} aria-label="New sheet" title="New sheet (Ctrl+N)">
+          <button
+            type="button"
+            className="tool strip-no-drag"
+            onClick={onNew}
+            aria-label="New sheet"
+            title="New sheet (Ctrl+N)"
+          >
             <FilePlus />
             <span className="tool-label">New</span>
           </button>
-          <button type="button" className="tool" onClick={onOpen} aria-label="Open file" title="Open file (Ctrl+O)">
+          <button
+            type="button"
+            className="tool strip-no-drag"
+            onClick={onOpen}
+            aria-label="Open file"
+            title="Open file (Ctrl+O)"
+          >
             <FolderOpen />
           </button>
           <DropMenu
+            className="tool strip-no-drag"
             ariaLabel="Settings"
             title="Paper, typing, folder and backup"
             label={<Settings2 />}
@@ -309,10 +361,45 @@ export function HeaderStrip({
               </div>
             }
           />
+          {isDesktop && bridge && (
+            <div className="win-controls strip-no-drag" role="group" aria-label="Window">
+              <button
+                type="button"
+                className="win-btn"
+                aria-label="Minimize"
+                title="Minimize"
+                onClick={() => void bridge.minimize()}
+              >
+                <Minus />
+              </button>
+              <button
+                type="button"
+                className="win-btn"
+                aria-label={maximized ? "Restore" : "Maximize"}
+                title={maximized ? "Restore" : "Maximize"}
+                onClick={() => {
+                  void bridge.toggleMaximize().then(async () => {
+                    setMaximized(await bridge.isMaximized());
+                  });
+                }}
+              >
+                {maximized ? <Square /> : <Maximize2 />}
+              </button>
+              <button
+                type="button"
+                className="win-btn win-close"
+                aria-label="Close"
+                title="Close"
+                onClick={() => void bridge.close()}
+              >
+                <X />
+              </button>
+            </div>
+          )}
         </div>
 
         <form
-          className="filters"
+          className="filters strip-no-drag"
           role="search"
           onSubmit={(e) => {
             e.preventDefault();
@@ -320,13 +407,13 @@ export function HeaderStrip({
           }}
         >
           <label className="field field-search">
-            <span>Search notes</span>
             <span className="field-box">
               <input
                 ref={searchRef}
                 type="search"
                 value={query}
-                placeholder="Words, titles, typos welcome"
+                placeholder="Search notes"
+                aria-label="Search notes"
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Escape" && query) {

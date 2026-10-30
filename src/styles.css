@@ -335,7 +335,7 @@
 
 .desk[data-view="focus"] .desk-body {
   overflow: hidden;
-  padding-bottom: 8px;
+  padding: 8px 10px 8px;
 }
 
 .spacer {
@@ -399,6 +399,79 @@
   padding-right: 8px;
   margin-right: 2px;
   border-right: 1px solid rgb(110 74 38 / 0.35);
+  flex: none;
+  white-space: nowrap;
+}
+
+.brand-ver {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--kraft-dark);
+  opacity: 0.85;
+}
+
+/* Frameless desktop: drag the chrome; interactive controls opt out. */
+.strip[data-desktop="on"],
+.strip[data-desktop="on"] .strip-paper,
+.strip[data-desktop="on"] .strip-top {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.strip-no-drag,
+.strip-no-drag * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.win-controls {
+  display: inline-flex;
+  align-items: stretch;
+  margin-left: 4px;
+  margin-right: -4px;
+  flex: none;
+}
+
+.win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+.win-btn:hover {
+  background: rgb(60 36 12 / 0.12);
+}
+
+.win-btn.win-close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+.win-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
 }
 
 .variant {
@@ -437,7 +510,7 @@
 .filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: center;
   gap: 8px 10px;
   margin-top: 2px;
 }
@@ -505,6 +578,7 @@
 
 .field-box input::placeholder {
   color: #9a8a74;
+  font-style: italic;
 }
 
 .field-box input::-webkit-search-cancel-button {
@@ -699,7 +773,8 @@
 
 .btn.go {
   min-width: 52px;
-  min-height: 38px;
+  min-height: 34px;
+  height: 34px;
   padding: 0 14px;
   font-size: 14px;
 }
@@ -714,7 +789,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 42px;
+  min-height: 34px;
+  height: 34px;
   padding: 0 12px;
   border: 1px solid rgb(60 36 12 / 0.22);
   border-radius: var(--radius-sm);
@@ -987,7 +1063,7 @@
 .board {
   display: flex;
   align-items: flex-start;
-  gap: 28px;
+  gap: 14px;
   max-width: 1560px;
   margin: 0 auto;
   padding: 6px 4px 40px;
@@ -998,7 +1074,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 14px;
 }
 
 .board[data-dragging="on"] {
@@ -1241,8 +1317,8 @@
   display: flex;
   align-items: stretch;
   flex-direction: column;
-  gap: 16px;
-  padding: 4px 6px 24px 4px;
+  gap: 8px;
+  padding: 0 4px 24px 0;
 }
 
 .board[data-compact="on"] .card {
@@ -1300,13 +1376,14 @@
   height: 100%;
   display: grid;
   grid-template-columns: 272px minmax(0, 1fr);
-  gap: 28px;
+  gap: 14px;
+  align-items: stretch;
 }
 
 .side {
   min-height: 0;
   overflow: auto;
-  padding: 4px 4px 0;
+  padding: 0;
   scrollbar-width: thin;
   scrollbar-color: rgb(60 36 12 / 0.45) transparent;
   /* Isolates the cards from the editor's per-keystroke layout; typing stays at frame rate. */

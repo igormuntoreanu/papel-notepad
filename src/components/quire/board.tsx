@@ -46,7 +46,7 @@ function BoardView({ ids, notes, info, snippets, activeId, compact, edge, canReo
     const el = ref.current;
     if (!el || compact) return;
     const measure = () => {
-      const gap = 28;
+      const gap = 14;
       setCols(Math.max(1, Math.floor((el.clientWidth + gap) / (CARD_MIN + gap))));
     };
     measure();

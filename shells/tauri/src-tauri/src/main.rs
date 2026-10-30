@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod folders;
+mod window;
 
 use std::path::PathBuf;
 
@@ -45,6 +46,11 @@ fn main() {
             folders::desktop_remove_file,
             folders::desktop_list_files,
             folders::desktop_save_file,
+            window::desktop_app_version,
+            window::desktop_minimize,
+            window::desktop_toggle_maximize,
+            window::desktop_is_maximized,
+            window::desktop_close,
         ])
         .setup(move |app| {
             let mut builder = tauri::WebviewWindowBuilder::new(
@@ -56,6 +62,7 @@ fn main() {
             .inner_size(1280.0, 800.0)
             .min_inner_size(900.0, 600.0)
             .resizable(true)
+            .decorations(false)
             .visible(true)
             // Defines `window.__PAPEL_DESKTOP__` before the bundle runs.
             .initialization_script(include_str!("bridge.js"));
