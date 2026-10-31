@@ -11,6 +11,12 @@ type Scope = "cell" | "row" | "col" | "table";
 /** The caret a cell is holding, so the sheet toolbar styles the cell, not the page. */
 export type CellTarget = { tableId: number; row: number; col: number; start: number; end: number };
 
+/**
+ * A rectangle of cells from a drag that crossed a cell boundary.
+ * Cells store text, not blocks, so this is the selection a second cell can join.
+ */
+export type CellRange = { tableId: number; r0: number; c0: number; r1: number; c1: number };
+
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "cell", label: "Cell" },
   { id: "row", label: "Row" },
@@ -33,6 +39,8 @@ export function TableBlock({
   version,
   onEdited,
   onSelect,
+  range,
+  onRange,
   onDelete,
 }: {
   blockId: number;
@@ -40,6 +48,9 @@ export function TableBlock({
   version: number;
   onEdited: () => void;
   onSelect: (target: CellTarget | null) => void;
+  /** Drag that crossed into another cell. `null` clears it. */
+  range: CellRange | null;
+  onRange: (range: CellRange | null) => void;
   /** Removes the whole table; the sheet owns the undoable step. */
   onDelete: () => void;
 }) {
@@ -52,6 +63,9 @@ export function TableBlock({
   }, [blockId, session, version]);
 
   const rootRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ row: number; col: number } | null>(null);
+  const onRangeRef = useRef(onRange);
+  onRangeRef.current = onRange;
   const pending = useRef<number | null>(null);
   const latest = useRef(onEdited);
   latest.current = onEdited;
@@ -89,6 +103,31 @@ export function TableBlock({
   useEffect(() => () => {
     if (pending.current !== null) window.clearTimeout(pending.current);
   }, []);
+
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const anchor = drag.current;
+      const root = rootRef.current;
+      if (!anchor || !root) return;
+      const hit = document.elementFromPoint(event.clientX, event.clientY);
+      const td = hit instanceof Element ? hit.closest("td") : null;
+      if (!td || !root.contains(td)) return;
+      const row = Number(td.getAttribute("data-row"));
+      const col = Number(td.getAttribute("data-col"));
+      if (!Number.isFinite(row) || !Number.isFinite(col)) return;
+      if (row === anchor.row && col === anchor.col) return;
+      onRangeRef.current({ tableId: blockId, r0: anchor.row, c0: anchor.col, r1: row, c1: col });
+    };
+    const up = () => {
+      drag.current = null;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+  }, [blockId]);
 
   const nudge = () => {
     if (pending.current !== null) window.clearTimeout(pending.current);
@@ -129,8 +168,10 @@ export function TableBlock({
       onBlur={(event) => {
         flush();
         // Leaving the table clears the sticky cell target so text-block styles work again.
+        // A toolbar or menu click is not "leaving": Insert table and Bold still need this cell.
         const next = event.relatedTarget;
         if (next instanceof Node && rootRef.current?.contains(next)) return;
+        if (next instanceof Element && next.closest(".sheet-strip, .popover")) return;
         onSelect(null);
       }}
       onContextMenu={(event) => {
@@ -166,7 +207,28 @@ export function TableBlock({
                   return (
                     <td
                       key={col}
-                      className={cell.f ? `fill-${cell.f}` : undefined}
+                      data-row={row}
+                      data-col={col}
+                      className={
+                        [
+                          cell.f ? `fill-${cell.f}` : "",
+                          range &&
+                          range.tableId === blockId &&
+                          row >= Math.min(range.r0, range.r1) &&
+                          row <= Math.max(range.r0, range.r1) &&
+                          col >= Math.min(range.c0, range.c1) &&
+                          col <= Math.max(range.c0, range.c1)
+                            ? "is-range"
+                            : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ") || undefined
+                      }
+                      onPointerDown={(event) => {
+                        if (event.button !== 0) return;
+                        drag.current = { row, col };
+                        onRange(null);
+                      }}
                       onContextMenu={(event) => {
                         event.preventDefault();
                         setMenu({ row, col, x: event.clientX, y: event.clientY, sheet: false });

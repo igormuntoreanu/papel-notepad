@@ -1702,6 +1702,10 @@
   vertical-align: top;
 }
 
+.sheet-table td.is-range {
+  box-shadow: inset 0 0 0 2px #1e4f8c;
+}
+
 /* A cell is a textarea behind a styled overlay, the same trick as the page
    editor: native caret and selection, coloured text from the <pre> behind.
    Specifiers must beat `.block textarea` / `.block pre` or the caret drifts

@@ -10,8 +10,8 @@ describe("parseHtmlClipboard", () => {
     assert.deepEqual(
       runs.map((r) => ({ ...r, slice: text.slice(r.start, r.end) })),
       [
-        { start: 6, end: 10, bold: true, italic: false, slice: "bold" },
-        { start: 15, end: 21, bold: false, italic: true, slice: "italic" },
+        { start: 6, end: 10, bold: true, italic: false, underline: false, strike: false, slice: "bold" },
+        { start: 15, end: 21, bold: false, italic: true, underline: false, strike: false, slice: "italic" },
       ],
     );
   });
@@ -33,6 +33,16 @@ describe("parseHtmlClipboard", () => {
     assert.equal(text, "one\ntwo");
   });
 
+  it("keeps underline and strike from u and s tags", () => {
+    const { text, runs } = parseHtmlClipboard("<p>aa <u>under</u> bb <s>gone</s></p>");
+    assert.equal(text, "aa under bb gone");
+    const under = runs.find((r) => text.slice(r.start, r.end) === "under");
+    const gone = runs.find((r) => text.slice(r.start, r.end) === "gone");
+    assert.equal(under?.underline, true);
+    assert.equal(under?.bold, false);
+    assert.equal(gone?.strike, true);
+  });
+
   it("nested strong inside italic stacks both flags", () => {
     const { text, runs } = parseHtmlClipboard("<p><i>a <b>b</b> c</i></p>");
     assert.equal(text, "a b c");
@@ -47,6 +57,8 @@ describe("htmlHasEmphasis", () => {
   it("detects emphasis markers", () => {
     assert.equal(htmlHasEmphasis("<b>x</b>"), true);
     assert.equal(htmlHasEmphasis('<span style="font-weight:700">x</span>'), true);
+    assert.equal(htmlHasEmphasis("<u>x</u>"), true);
+    assert.equal(htmlHasEmphasis("<s>x</s>"), true);
     assert.equal(htmlHasEmphasis("<p>plain</p>"), false);
   });
 });

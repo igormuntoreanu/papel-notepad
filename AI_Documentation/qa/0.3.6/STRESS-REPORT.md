@@ -9,6 +9,17 @@ Two high-severity findings from this report are fixed. The medium and low findin
 
 `node scripts/verify-bugs.mjs` covers both: `table-survives-reload` and `ctrl-shift-v-skips-excel-bitmap`. After the fix, a reload still shows the table and the cell text: [table survives reload](../0.3.7/04-table-survives-reload.png).
 
+## Fixed in 0.3.8
+
+The remaining findings from this report are fixed. The ledger is [FIXED-BUGS.md](../../FIXED-BUGS.md).
+
+3. **Ctrl+A enables Bold**, and the mark is applied across the sheet. Escape while Find is open closes Find and leaves the selection up; a second Escape clears it. Guards: `ctrl-a-enables-bold`, `escape-closes-find-during-select-all`.
+4. **Lists → Bullet keeps the caret in the editor.** Guard: `list-menu-keeps-editor-focus`.
+5. **HTML `<u>` and `<s>` paste as underline and strike.** Guard: `paste-html-underline`, plus `src/lib/quire/html-paste.test.ts`.
+6. **A table cannot nest inside a cell.** A cell is text, marks, and a fill, not a block list (`rust/quire-core/src/document.rs` `Cell`). Insert table while a cell is focused places the new table directly under that one and says so. Guard: `table-insert-from-cell-places-below`.
+7. **A drag from one cell into the next selects both**, and Bold paints both. Guard: `cross-cell-drag-bold`.
+8. **Close always asks**, including when the sheet is clean, because Close deletes the note. Guard: `close-clean-confirms`.
+
 Testing of the original report used the static bundle in `dist-desktop/client` (built with `npm run build:desktop`), driven in Chromium via Playwright. WebView2 is not available on this Linux VM.
 
 Evidence: `AI_Documentation/qa/0.3.6/` (visual harness) and `AI_Documentation/qa/0.3.6/stress/` (this run, including `results.json`).
@@ -30,17 +41,17 @@ Evidence: `AI_Documentation/qa/0.3.6/` (visual harness) and `AI_Documentation/qa
 
 2. **High — Ctrl+Shift+V on an Excel-shaped clipboard inserts the bitmap, not the text. Fixed in 0.3.7.** A paste that carries `text/plain` TSV, `text/html` table, and a PNG becomes an editable table (20/20). Before the fix, the same paste after Ctrl+Shift+V added a picture and left the TSV out. Plain paste now inserts `text/plain` and skips the bitmap.
 
-3. **Medium — Ctrl+A looks selected but formatting stays disabled, and Escape will not close Find.** Ctrl+A paints the sheet (`find-hit` spans) and the Bold button reads `Bold (select text first)`. `onSelectAll` in `src/components/quire/text-block.tsx` (about lines 433–437) never expands a range, and `hasSelection` in `src/components/quire/quire-app.tsx` (about line 1285) only looks at `sel`. While that selection is up, the capture-phase Escape handler (about lines 266–273) swallows Escape, so Find stays open and replaces the toolbar (`src/components/quire/sheet.tsx` about lines 282–284). In the matrix, the `long-ctrl-a` column is **D** for Bold and **A** for almost every control after Find. Suggested fix: treat whole-sheet select as a selection and apply marks across text blocks; let Escape close Find before it clears the selection.
+3. **Medium — Ctrl+A looked selected but formatting stayed disabled, and Escape would not close Find. Fixed in 0.3.8.** Whole-sheet select now counts as a selection and Bold paints every text span. Escape closes Find first.
 
-4. **Medium — picking a list style drops the caret.** Lists → Bullet applies `• `, then `document.activeElement` is `body`. The next keys never reach the sheet. Typing works again after a click in the editor, and Tab / Shift+Tab then indent correctly (`• item` / `◦ child` / outdent). `applyList` in `src/components/quire/quire-app.tsx` (about line 772) calls `bump()` with no caret, and menu buttons in `src/components/quire/drop-menu.tsx` do not keep the editor focused the way toolbar `Keep` does (`sheet.tsx` about line 168). Suggested fix: `bump` with the new caret, and `preventDefault` on mousedown for those menu items.
+4. **Medium — picking a list style dropped the caret. Fixed in 0.3.8.** The list menu keeps the editor focused and puts the caret back.
 
-5. **Low — HTML underline (and strikethrough) paste as plain text.** `<b>` and `<i>` paint (`html-bold-italic-paste` pass). `<u>UnderWord</u>` is in the text and is not underlined. `StyleRun` in `src/lib/quire/html-paste.ts` (line 8) only carries bold and italic. Suggested fix: map `u`/`ins` to underline and `s`/`del`/`strike` to strikethrough.
+5. **Low — HTML underline (and strikethrough) pasted as plain text. Fixed in 0.3.8.** `<u>` / `<ins>` and `<s>` / `<del>` / `<strike>` become marks.
 
-6. **Low — no nested table, and Insert table from a cell adds a sibling.** A cell is a `<textarea>`. Insert table while that cell is focused appends another sheet-level table (`text, table, text, table, text`) and leaves `CELL` in the original cell. There is no `.sheet-table` inside a `.sheet-table`. `insertTable` uses `liveCaret()` (`quire-app.tsx` about lines 929 and 1054), which ignores a focused cell and falls back to the last text caret. Suggested fix: when a cell is focused, say so and do not insert at a stale text caret. Real nesting needs a different block model.
+6. **Low — Insert table from a cell used a stale text caret. Fixed in 0.3.8 as a deliberate limit.** A cell cannot contain a table (it stores text, marks, and a fill). The new table is placed under the current one, and the status line says so.
 
-7. **Low — a drag cannot select two table cells.** Cells are separate textareas. A drag from column 1 to column 2 leaves one cell selected. Same structural limit as (6).
+7. **Low — a drag could not select two table cells. Fixed in 0.3.8.** Dragging into a neighbouring cell selects the rectangle, and Bold paints every cell in it.
 
-8. **Low — Close on a clean sheet deletes it with no dialog.** `closeNote` (`quire-app.tsx` about lines 509–519) asks only when the sheet is dirty. Save marks the sheet clean, so the next Close removes it from the board. The first matrix pass hit this on Empty, Short, and Long and lost those notes. The second pass did not click Close, so the rest of the grid could run. Suggested fix: always confirm a close that deletes the note.
+8. **Low — Close on a clean sheet deleted it with no dialog. Fixed in 0.3.8.** Close always asks, because it removes the sheet.
 
 **Toolbar Delete table stays hidden while a cell is focused.** The button is gated on `activeKind === "table"` (`sheet.tsx` about lines 451–458), and `activeKind` follows `sel.blockId`, which stays a text block. Delete is on the right-click menu (that menu passed in `verify-bugs.mjs`). Suggested fix: treat a focused cell as the active table.
 
@@ -54,21 +65,21 @@ Evidence: `AI_Documentation/qa/0.3.6/` (visual harness) and `AI_Documentation/qa
 | Ctrl+Shift+V on that same clipboard | **Fixed in 0.3.7** | Was a fail: the bitmap was inserted. Plain paste now inserts the TSV and leaves the picture off the sheet. |
 | Alt-drag column select with wrap on, then Escape, ×10 | PASS | Wrap stays on, the rect clears. |
 | Toolbar Bold after leaving a table cell, ×10 | PASS | |
-| Ctrl+A then Bold | **FAIL** | Bug 3. |
-| List menu restores focus | **FAIL** | Bug 4. |
+| Ctrl+A then Bold | **Fixed in 0.3.8** | Bold enables and paints. Escape closes Find without dropping the selection. |
+| List menu restores focus | **Fixed in 0.3.8** | The caret stays in the editor. |
 | Lists, Tab indent, Shift+Tab outdent (after clicking the editor) | PASS | |
 | PageDown then PageUp on an 80-line note | PASS | |
 | Ctrl+click a URL | PASS with a caveat | A coordinate Ctrl+click did not open. A click event with `ctrlKey` while the caret sat on `https://example.com/app` did. Ctrl+Enter is covered by `verify-bugs` and passes. |
 | HTML bold + italic paste | PASS | |
-| HTML underline paste | **FAIL** | Bug 5. |
+| HTML underline paste | **Fixed in 0.3.8** | `<u>` paints an underline. |
 | Rapid undo/redo (burst and 8 slow steps) | PASS | Text round-trips. |
 | 12 images, Delete, Undo | PASS | `stress/04-many-images.png`. |
-| Nested table from a cell | **FAIL** | Bug 6. `stress/05-nested-table.png`. |
+| Nested table from a cell | **Fixed in 0.3.8** | Not nested: a cell cannot hold a table. The new table is placed under the current one. `stress/05-nested-table.png` is the old failure. |
 | 10,000-line note | PASS | Paste ~1s, PageUp moved the caret, a typed `Z` landed in 173ms, scroll stayed at the bottom (~270k px). `stress/06-ten-k-lines.png`. |
 | Table and image survive reload | **Fixed in 0.3.7** | Was a fail: the image survived and the table did not. Autosave now keeps both. |
 | Bold, switch sheet, switch back | PASS | Bold range `he qui` was still there. |
 | Bold in a cell, then bold outside | PASS on review | Recorded fail. The drag did not cover the whole word; the painted spans were `INSI` and `UTSI`, so both marks applied. |
-| Drag across two cells | **FAIL** | Bug 7. |
+| Drag across two cells | **Fixed in 0.3.8** | The rectangle is selected and Bold paints both cells. |
 | Bold+italic+underline+strike in one burst | PASS | One span with classes `sb si su ss`. |
 | Escape closes the Lists menu and stays in the sheet | PASS | |
 | Go to line 40 | PASS | Caret landed on line 40. |

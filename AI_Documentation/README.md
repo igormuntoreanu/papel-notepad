@@ -6,6 +6,7 @@ Handover pack for people and AI agents picking up Papel.
 | --- | --- |
 | [BUSINESS.md](./BUSINESS.md) | What Papel is, who it is for, scope, features, requirements, open questions. |
 | [TECHNICAL.md](./TECHNICAL.md) | Architecture, stack, data flow, file formats, setup, design decisions, known issues. |
+| [FIXED-BUGS.md](./FIXED-BUGS.md) | Bugs already fixed, and the test that must still pass for each one. |
 
 ## Quick facts
 
@@ -23,3 +24,4 @@ Handover pack for people and AI agents picking up Papel.
 4. Keep typing fast. Measure per-keystroke frame time in a production build after any change to the sheet, cards, or textures (see TECHNICAL.md §8).
 5. Do not reintroduce night mode unless asked; it was removed on purpose.
 6. Items in the "Gaps" sections are not decisions. Ask the owner.
+7. Before shipping, re-run every guard in [FIXED-BUGS.md](./FIXED-BUGS.md). Add an entry when a bug is fixed.

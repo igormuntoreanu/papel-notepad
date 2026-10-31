@@ -36,7 +36,7 @@ import { buildZip } from "@/lib/quire/zip";
 import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
-import type { CellTarget } from "./table-block";
+import type { CellRange, CellTarget } from "./table-block";
 import type { BlockLook } from "@/lib/quire/typefaces";
 import { applyListStyle } from "@/lib/quire/lists";
 import type { ListKind } from "@/lib/quire/lists";
@@ -107,6 +107,7 @@ export function QuireApp() {
   const [ask, setAsk] = useState<Ask | null>(null);
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
   const [cellTarget, setCellTarget] = useState<CellTarget | null>(null);
+  const [cellRange, setCellRange] = useState<CellRange | null>(null);
   const [query, setQuery] = useState("");
   const [committed, setCommitted] = useState("");
   /** Ctrl+A selects every text block in the sheet, not just the focused one. */
@@ -267,6 +268,10 @@ export function QuireApp() {
     if (!selectAll) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        // Find is open on top of the sheet selection. Closing it comes first;
+        // a second Escape drops the selection. Swallowing Escape here used to
+        // leave the find bar up forever.
+        if (findOpen) return;
         event.preventDefault();
         event.stopPropagation();
         setSelectAll(false);
@@ -486,7 +491,6 @@ export function QuireApp() {
   }
 
   function closeNote(id: string) {
-    const s = sessions.get(id);
     const meta = notesRef.current.find((n) => n.id === id);
     const run = () => {
       const disk = meta?.diskName;
@@ -506,17 +510,15 @@ export function QuireApp() {
       }
       setTick((n) => n + 1);
     };
-    if (s?.is_dirty()) {
-      setAsk({
-        title: "Close this sheet?",
-        body: `${meta?.title ?? "This sheet"} will be removed from the board${meta?.diskName ? ` and ${meta.diskName} will be deleted from your folder` : ""}.`,
-        confirm: "Close",
-        tone: "danger",
-        run,
-      });
-      return;
-    }
-    run();
+    // Close removes the sheet from the board. A clean sheet used to vanish
+    // with no question, because only a dirty one asked.
+    setAsk({
+      title: "Close this sheet?",
+      body: `${meta?.title ?? "This sheet"} will be removed from the board${meta?.diskName ? ` and ${meta.diskName} will be deleted from your folder` : ""}.`,
+      confirm: "Close",
+      tone: "danger",
+      run,
+    });
   }
 
   function rename(id: string, title: string) {
@@ -766,10 +768,11 @@ export function QuireApp() {
     const text = session.text_of(id);
     const change = applyListStyle(text, sel.start, sel.end, kind);
     session.edit(id, change.start, change.end, change.insert, false);
-    setSel({ blockId: id, start: change.insert.length, end: change.insert.length });
+    const pos = change.insert.length;
+    setSel({ blockId: id, start: pos, end: pos });
     setMessage(change.removed ? "List removed" : "List applied");
     touch(activeId);
-    bump();
+    bump({ block_id: id, start: pos, end: pos });
   }
   function pasteTable(blockId: number, rows: string[][]) {
     if (!session || !activeId) return;
@@ -928,6 +931,24 @@ export function QuireApp() {
   /** Inserts a table at the caret, splitting the text block (same as paste image). */
   function insertTable(rows: number, cols: number) {
     if (!session) return;
+    // A cell is text, marks, and a fill — not a list of blocks — so a table
+    // cannot sit inside it. Place the new table directly under this one
+    // instead of using a stale text caret.
+    const cell = liveCellTarget();
+    if (cell) {
+      const tableId = session.insert_table(cell.tableId, cols, rows);
+      const outline = outlineOf(session);
+      const tIdx = outline.findIndex((item) => item.id === tableId);
+      const below = tIdx >= 0 ? outline[tIdx + 1] : undefined;
+      const belowId = below?.kind === "text" ? below.id : tableId;
+      setCellTarget(null);
+      setCellRange(null);
+      setSel({ blockId: belowId, start: 0, end: 0 });
+      setMessage("A cell holds text, so the new table was placed under this one.");
+      touch(activeId);
+      bump({ block_id: belowId, start: 0, end: 0 });
+      return;
+    }
     const { blockId, start, end } = liveCaret();
     const id = blockId || session.first_text_id();
     const at = Math.min(start, end);
@@ -1085,8 +1106,69 @@ export function QuireApp() {
     return cellTarget;
   }
 
+  /** Every non-empty text span on the sheet: text blocks and table cells. */
+  function eachSheetSpan(fn: (kind: "text" | "cell", id: number, row: number, col: number, len: number) => void) {
+    if (!session) return;
+    for (const item of outlineOf(session)) {
+      if (item.kind === "text") {
+        const len = session.text_of(item.id).length;
+        if (len) fn("text", item.id, 0, 0, len);
+      } else if (item.kind === "table") {
+        let table: { cols: number; cells: { t?: string }[] };
+        try {
+          table = JSON.parse(session.table_json(item.id)) as { cols: number; cells: { t?: string }[] };
+        } catch {
+          continue;
+        }
+        const cols = Math.max(1, table.cols || 1);
+        table.cells.forEach((cell, index) => {
+          const len = cell.t?.length ?? 0;
+          if (!len) return;
+          fn("cell", item.id, Math.floor(index / cols), index % cols, len);
+        });
+      }
+    }
+  }
+
+  function eachRangeCell(range: CellRange, fn: (row: number, col: number, len: number) => void) {
+    if (!session) return;
+    let table: { cols: number; cells: { t?: string }[] };
+    try {
+      table = JSON.parse(session.table_json(range.tableId)) as { cols: number; cells: { t?: string }[] };
+    } catch {
+      return;
+    }
+    const cols = Math.max(1, table.cols || 1);
+    const r0 = Math.min(range.r0, range.r1);
+    const r1 = Math.max(range.r0, range.r1);
+    const c0 = Math.min(range.c0, range.c1);
+    const c1 = Math.max(range.c0, range.c1);
+    for (let row = r0; row <= r1; row += 1) {
+      for (let col = c0; col <= c1; col += 1) {
+        fn(row, col, table.cells[row * cols + col]?.t?.length ?? 0);
+      }
+    }
+  }
+
   function applyStyle(kind: string, value: number) {
     if (!session) return;
+    if (selectAll) {
+      eachSheetSpan((where, id, row, col, len) => {
+        if (where === "text") session.apply_style(id, 0, len, kind, value);
+        else session.table_style(id, row, col, 0, len, kind, value);
+      });
+      touch(activeId);
+      bump();
+      return;
+    }
+    if (cellRange) {
+      eachRangeCell(cellRange, (row, col, len) => {
+        if (len) session.table_style(cellRange.tableId, row, col, 0, len, kind, value);
+      });
+      touch(activeId);
+      bump();
+      return;
+    }
     // Focused table cell takes the style; a focused text editor always wins over a stale cellTarget.
     const cell = liveCellTarget();
     if (cell) {
@@ -1112,6 +1194,28 @@ export function QuireApp() {
 
   function toggleFlag(flag: FlagName) {
     if (!session) return;
+    if (selectAll) {
+      let any = false;
+      let all = true;
+      eachSheetSpan((where, id, row, col, len) => {
+        any = true;
+        const marks = where === "text" ? readMarks(session.marks(id)) : readMarks(session.table_marks(id, row, col));
+        if (!rangeHas(marks, 0, len, FLAG[flag])) all = false;
+      });
+      applyStyle(flag, any && all ? 0 : 1);
+      return;
+    }
+    if (cellRange) {
+      let any = false;
+      let all = true;
+      eachRangeCell(cellRange, (row, col, len) => {
+        if (!len) return;
+        any = true;
+        if (!rangeHas(readMarks(session.table_marks(cellRange.tableId, row, col)), 0, len, FLAG[flag])) all = false;
+      });
+      applyStyle(flag, any && all ? 0 : 1);
+      return;
+    }
     const cell = liveCellTarget();
     if (cell) {
       const runs = readMarks(session.table_marks(cell.tableId, cell.row, cell.col));
@@ -1282,7 +1386,7 @@ export function QuireApp() {
       : [];
   const at = marksNow.find((m) => m.start <= rest.start && m.end > rest.start);
   const styles: StyleState = {
-    hasSelection: rest.end > rest.start,
+    hasSelection: selectAll || cellRange !== null || rest.end > rest.start,
     active: {
       bold: rangeHas(marksNow, rest.start, rest.end, FLAG.bold),
       italic: rangeHas(marksNow, rest.start, rest.end, FLAG.italic),
@@ -1504,12 +1608,15 @@ export function QuireApp() {
                 setSelectedImage={setSelectedImage}
                 onSelection={(b, start, end) => {
                   setCellTarget(null);
+                  setCellRange(null);
                   setSel((prev) =>
                     prev.blockId === b && prev.start === start && prev.end === end ? prev : { blockId: b, start, end },
                   );
                 }}
                 onEdited={edited}
                 onCellSelect={setCellTarget}
+                cellRange={cellRange}
+                onCellRange={setCellRange}
                 onImage={(file) => void insertImageFile(file, "paste")}
                 styles={styles}
                 find={find}

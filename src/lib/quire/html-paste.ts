@@ -1,11 +1,18 @@
 /**
- * Turns clipboard `text/html` into plain text plus bold/italic ranges.
+ * Turns clipboard `text/html` into plain text plus bold, italic, underline, and strike ranges.
  * Fonts, sizes, and colours from Word/PDF are discarded; Papel stays monospace.
  *
  * Pure string walk so unit tests run under `node --test` without a DOM.
  */
 
-export type StyleRun = { start: number; end: number; bold: boolean; italic: boolean };
+export type StyleRun = {
+  start: number;
+  end: number;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+};
 
 export type HtmlPaste = { text: string; runs: StyleRun[] };
 
@@ -31,7 +38,7 @@ const BLOCK = new Set([
 
 const SKIP = new Set(["script", "style", "noscript", "meta", "link", "title", "head"]);
 
-type Frame = { bold: boolean; italic: boolean; tag: string };
+type Frame = { bold: boolean; italic: boolean; underline: boolean; strike: boolean; tag: string };
 
 function decodeEntities(raw: string): string {
   return raw
@@ -59,6 +66,20 @@ function tagItalic(tag: string, attrs: string, inherited: boolean): boolean {
   return inherited;
 }
 
+function tagUnderline(tag: string, attrs: string, inherited: boolean): boolean {
+  if (tag === "u" || tag === "ins") return true;
+  if (/text-decoration(?:-line)?\s*:\s*[^;]*underline/i.test(attrs)) return true;
+  if (/text-decoration(?:-line)?\s*:\s*none/i.test(attrs)) return false;
+  return inherited;
+}
+
+function tagStrike(tag: string, attrs: string, inherited: boolean): boolean {
+  if (tag === "s" || tag === "del" || tag === "strike") return true;
+  if (/text-decoration(?:-line)?\s*:\s*[^;]*line-through/i.test(attrs)) return true;
+  if (/text-decoration(?:-line)?\s*:\s*none/i.test(attrs)) return false;
+  return inherited;
+}
+
 /**
  * Parse HTML clipboard markup into text and style runs.
  * Adjacent runs with the same flags are merged.
@@ -74,7 +95,7 @@ export function parseHtmlClipboard(html: string): HtmlPaste {
   const raw: StyleRun[] = [];
   let offset = 0;
   let pendingBreak = false;
-  const stack: Frame[] = [{ bold: false, italic: false, tag: "" }];
+  const stack: Frame[] = [{ bold: false, italic: false, underline: false, strike: false, tag: "" }];
   let i = 0;
   let skipping: string | null = null;
 
@@ -98,7 +119,16 @@ export function parseHtmlClipboard(html: string): HtmlPaste {
     const start = offset;
     parts.push(text);
     offset += text.length;
-    if (top.bold || top.italic) raw.push({ start, end: offset, bold: top.bold, italic: top.italic });
+    if (top.bold || top.italic || top.underline || top.strike) {
+      raw.push({
+        start,
+        end: offset,
+        bold: top.bold,
+        italic: top.italic,
+        underline: top.underline,
+        strike: top.strike,
+      });
+    }
   };
 
   while (i < source.length) {
@@ -156,6 +186,8 @@ export function parseHtmlClipboard(html: string): HtmlPaste {
         tag: bare,
         bold: tagBold(bare, attrs, parent.bold),
         italic: tagItalic(bare, attrs, parent.italic),
+        underline: tagUnderline(bare, attrs, parent.underline),
+        strike: tagStrike(bare, attrs, parent.strike),
       });
       if (selfClosing) stack.pop();
       continue;
@@ -179,7 +211,14 @@ function mergeRuns(runs: StyleRun[]): StyleRun[] {
   const out: StyleRun[] = [];
   for (const run of sorted) {
     const last = out[out.length - 1];
-    if (last && last.end >= run.start && last.bold === run.bold && last.italic === run.italic) {
+    if (
+      last &&
+      last.end >= run.start &&
+      last.bold === run.bold &&
+      last.italic === run.italic &&
+      last.underline === run.underline &&
+      last.strike === run.strike
+    ) {
       last.end = Math.max(last.end, run.end);
     } else {
       out.push({ ...run });
@@ -192,9 +231,10 @@ function mergeRuns(runs: StyleRun[]): StyleRun[] {
 export function htmlHasEmphasis(html: string): boolean {
   if (!html) return false;
   return (
-    /<\s*(b|strong|i|em)\b/i.test(html) ||
+    /<\s*(b|strong|i|em|u|ins|s|del|strike)\b/i.test(html) ||
     /font-weight\s*:\s*(bold|[7-9]00)/i.test(html) ||
-    /font-style\s*:\s*italic/i.test(html)
+    /font-style\s*:\s*italic/i.test(html) ||
+    /text-decoration(?:-line)?\s*:\s*[^;"]*(?:underline|line-through)/i.test(html)
   );
 }
 

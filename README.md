@@ -14,6 +14,8 @@ A light notepad on paper. Notes are torn-paper cards on a kraft desk; open one a
 
 Plain text saves as `.txt`. A sheet with pasted images, tables, styles or a block look saves as `.papel` (JSON; version 1 and `.quire` files still open). Pasting grid-shaped text from Excel, Sheets or a CSV creates a table.
 
+Fixed editor bugs and the checks that guard them: [AI_Documentation/FIXED-BUGS.md](AI_Documentation/FIXED-BUGS.md).
+
 ## Desktop (Windows)
 
 The Desktop build is **v1**: a Tauri 2 shell that wraps the web app in WebView2 and owns the

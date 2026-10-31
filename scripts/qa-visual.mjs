@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 
 const ROOT = join(process.cwd(), "dist-desktop", "client");
-const VERSION = "0.3.7";
+const VERSION = "0.3.8";
 const OUT = join(process.cwd(), "AI_Documentation", "qa", VERSION);
 const PORT = 8093;
 const MIME = {
