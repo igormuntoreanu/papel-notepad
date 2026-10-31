@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 
 const ROOT = join(process.cwd(), "dist-desktop", "client");
-const VERSION = "0.3.3";
+const VERSION = "0.3.6";
 const OUT = join(process.cwd(), "AI_Documentation", "qa", VERSION);
 const PORT = 8093;
 const MIME = {
@@ -49,26 +49,37 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1180, height: 840 } });
 
 await page.addInitScript(() => {
+  // Must be bridge v2 or desktopBridge() rejects it and the folder gate blocks the sheet.
   const dir = { id: "d", name: "d" };
+  const files = new Map();
   window.__PAPEL_DESKTOP__ = {
-    version: 1,
+    version: 2,
+    async appVersion() {
+      return "0.3.6";
+    },
+    async minimize() {},
+    async toggleMaximize() {},
+    async isMaximized() {
+      return false;
+    },
+    async close() {},
     async pickDirectory() {
       return dir;
     },
     async resolveDirectory() {
       return dir;
     },
-    async readFile() {
-      return null;
+    async readFile(_id, name) {
+      return files.get(name) ?? null;
     },
-    async writeFile() {
-      return true;
+    async writeFile(_id, name, bytes) {
+      files.set(name, bytes);
     },
-    async removeFile() {
-      return true;
+    async removeFile(_id, name) {
+      files.delete(name);
     },
     async listFiles() {
-      return [];
+      return [...files.keys()];
     },
     async saveFile() {
       return true;

@@ -43,16 +43,52 @@ const check = (name, ok, detail) => {
 };
 
 await page.addInitScript(() => {
+  // Bridge contract is v2 (src/lib/desktop/bridge.ts). v1 is rejected, Chromium
+  // still exposes showDirectoryPicker, and the folder gate then covers the board.
   const dir = { id: "d", name: "d" };
+  const files = new Map();
+  let maximized = false;
+  window.__papelWin = [];
   window.__PAPEL_DESKTOP__ = {
-    version: 1,
-    async pickDirectory() { return dir; },
-    async resolveDirectory() { return dir; },
-    async readFile() { return null; },
-    async writeFile() { return true; },
-    async removeFile() { return true; },
-    async listFiles() { return []; },
-    async saveFile() { return true; },
+    version: 2,
+    async appVersion() {
+      return "0.3.6";
+    },
+    async minimize() {
+      window.__papelWin.push("minimize");
+    },
+    async toggleMaximize() {
+      maximized = !maximized;
+      window.__papelWin.push(maximized ? "maximize" : "restore");
+    },
+    async isMaximized() {
+      return maximized;
+    },
+    async close() {
+      window.__papelWin.push("close");
+    },
+    async pickDirectory() {
+      return dir;
+    },
+    async resolveDirectory() {
+      return dir;
+    },
+    async readFile(_id, name) {
+      return files.get(name) ?? null;
+    },
+    async writeFile(_id, name, bytes) {
+      files.set(name, bytes);
+    },
+    async removeFile(_id, name) {
+      files.delete(name);
+    },
+    async listFiles() {
+      return [...files.keys()];
+    },
+    async saveFile() {
+      window.__papelWin.push("save");
+      return true;
+    },
   };
 });
 await page.goto(`http://127.0.0.1:${PORT}/favicon.svg`);
