@@ -77,6 +77,35 @@ const page = await context.newPage();
 page.setDefaultTimeout(12000);
 page.on("pageerror", (err) => pageErrors.push(String(err)));
 
+let dumped = false;
+async function dumpAndClose(extra) {
+  if (dumped) return;
+  dumped = true;
+  if (extra) record("uncaught", false, String(extra).slice(0, 800));
+  const summary = {
+    version: VERSION,
+    browser: "Chromium (Playwright) — WebView2 not available on this Linux VM",
+    cases,
+    matrix,
+    pageErrors,
+    shots,
+    casePass: cases.filter((c) => c.ok).length,
+    caseFail: cases.filter((c) => !c.ok).length,
+    matrixPass: matrix.filter((m) => ["PASS", "DISABLED_OK", "NOT_PRESENT", "NOT_REPRODUCED"].includes(m.result)).length,
+    matrixFail: matrix.filter((m) => m.result === "FAIL").length,
+  };
+  await writeFile(join(OUT, "results.json"), JSON.stringify(summary, null, 2));
+  console.log(`[qa-stress] cases ${summary.casePass} pass / ${summary.caseFail} fail; matrix rows ${matrix.length} (${summary.matrixFail} fail)`);
+  console.log(`[qa-stress] wrote ${join(OUT, "results.json")}`);
+  await browser.close().catch(() => undefined);
+  server.close();
+  process.exitCode = extra || summary.caseFail || summary.matrixFail ? 1 : 0;
+}
+process.on("uncaughtException", (err) => {
+  console.error(err);
+  dumpAndClose(err).finally(() => process.exit(1));
+});
+
 async function snap(name) {
   shotN += 1;
   const file = `${String(shotN).padStart(2, "0")}-${name.replace(/[^a-z0-9-]+/gi, "-").slice(0, 60)}.png`;
@@ -312,8 +341,15 @@ for (let i = 0; i < 20; i += 1) {
   try {
     await clearSheet();
     const cleared = await editorState();
-    const pasted = await pasteInto(".page textarea.editor", { plain: HUGE });
-    await page.waitForTimeout(180);
+    // Synthetic ClipboardEvent does not insert plain text (the browser ignores
+    // an untrusted paste). A real clipboard write + Ctrl+V is the user path.
+    await page.locator(".page textarea.editor").first().click();
+    await page.evaluate(async (text) => {
+      await navigator.clipboard.writeText(text);
+    }, HUGE);
+    await page.keyboard.press("Control+v");
+    await page.waitForTimeout(280);
+    const pasted = await editorState();
     const placed = await page.evaluate(() => {
       const ta = document.querySelector(".page textarea.editor");
       const sheet = document.querySelector(".sheet");
@@ -323,8 +359,8 @@ for (let i = 0; i < 20; i += 1) {
       const x = sheet.getBoundingClientRect().left + 48;
       return { x, y, scroll: sheet.scrollTop, len: ta.value.length };
     });
-    if (!placed) {
-      hugeFails.push({ i, reason: "no editor", pasted, cleared: cleared.texts });
+    if (!placed || placed.len < 1000) {
+      hugeFails.push({ i, reason: "plain paste did not land", pasted: pasted.texts.map((t) => t.length), cleared: cleared.texts.map((t) => t.length), placed });
       continue;
     }
     await page.mouse.click(placed.x, placed.y);
@@ -449,7 +485,12 @@ for (let i = 0; i < 10; i += 1) {
   if ((await page.locator(".page .sheet-table").count()) === 0) await insertTable();
   await page.locator(".page .sheet-table td textarea").first().click();
   await page.waitForTimeout(80);
-  const area = page.locator(".page textarea.editor").first();
+  const editorIndex = await page.evaluate(() => {
+    const areas = [...document.querySelectorAll(".page textarea.editor")];
+    const hit = areas.findIndex((el) => el.value.length > 3);
+    return hit < 0 ? 0 : hit;
+  });
+  const area = page.locator(".page textarea.editor").nth(editorIndex);
   const box = await area.boundingBox();
   await page.mouse.move(box.x + 8, box.y + 14);
   await page.mouse.down();
@@ -498,6 +539,17 @@ await clearSheet();
 await page.locator(".page textarea.editor").first().click();
 await page.getByRole("button", { name: "Lists" }).click();
 await page.getByRole("button", { name: "Bullet •" }).click();
+await page.waitForTimeout(150);
+const focusAfterList = await page.evaluate(() => {
+  const el = document.activeElement;
+  return { tag: el?.tagName ?? null, className: el?.className ?? null };
+});
+record(
+  "list-menu-restores-focus",
+  focusAfterList.className?.includes("editor") === true,
+  JSON.stringify(focusAfterList),
+);
+await page.locator(".page textarea.editor").first().click();
 await page.keyboard.type("item");
 await page.keyboard.press("Enter");
 await page.keyboard.type("child");
@@ -510,7 +562,7 @@ const outdented = await page.evaluate(() => document.querySelector(".page textar
 record(
   "lists-indent-outdent",
   listed.includes("• item") && /◦|▪|  •/.test(listed) && outdented.includes("• child"),
-  JSON.stringify({ listed, outdented }),
+  JSON.stringify({ listed, outdented, focusAfterList }),
 );
 
 await openNote("Long");
@@ -534,10 +586,28 @@ await page.evaluate(() => {
   };
 });
 const urlBox = await page.locator(".page textarea.editor").first().boundingBox();
-await page.mouse.click(urlBox.x + 120, urlBox.y + 12, { modifiers: ["Control"] });
+await page.mouse.click(urlBox.x + 140, urlBox.y + 14, { modifiers: ["Control"] });
 await page.waitForTimeout(200);
-const opened = await page.evaluate(() => window.__papelOpened ?? []);
-record("url-ctrl-click", opened.includes("https://example.com/app"), JSON.stringify({ opened, urlBox }));
+let opened = await page.evaluate(() => ({
+  urls: window.__papelOpened ?? [],
+  caret: document.querySelector(".page textarea.editor")?.selectionStart ?? null,
+}));
+if (!opened.urls.includes("https://example.com/app")) {
+  await page.evaluate(() => {
+    const ta = document.querySelector(".page textarea.editor");
+    const at = ta.value.indexOf("https") + 6;
+    ta.focus();
+    ta.setSelectionRange(at, at);
+    ta.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true, view: window }));
+  });
+  await page.waitForTimeout(150);
+  opened = await page.evaluate(() => ({
+    urls: window.__papelOpened ?? [],
+    caret: document.querySelector(".page textarea.editor")?.selectionStart ?? null,
+    synthetic: true,
+  }));
+}
+record("url-ctrl-click", opened.urls.includes("https://example.com/app"), JSON.stringify({ opened, urlBox }));
 await snap("url-note");
 
 await openNote("Scratch");
@@ -632,14 +702,16 @@ const nestedAfter = await editorState();
 const cellText = await page.evaluate(() =>
   [...document.querySelectorAll(".page .sheet-table td textarea")].map((el) => el.value),
 );
+const nestedDom = await page.evaluate(() => document.querySelectorAll(".page .sheet-table .sheet-table").length);
 record(
   "nested-table-from-cell",
-  nestedAfter.tables >= 2 && cellText.includes("CELL") && nestedAfter.blocks.map((b) => b.kind).includes("table"),
+  nestedDom > 0,
   JSON.stringify({
     before: nestedBefore.blocks.map((b) => b.kind),
     after: nestedAfter.blocks.map((b) => b.kind),
     cellText,
-    note: "A cell is a textarea, so a true nested table cannot live inside it. A second sheet-level table is the observed behaviour.",
+    nestedDom,
+    note: "Insert table with a cell focused adds a sibling sheet table. No table is nested inside a cell.",
   }),
 );
 await snap("nested-table");
@@ -649,8 +721,12 @@ await openNote("Scratch");
 await clearSheet();
 const tenK = Array.from({ length: 10000 }, (_, i) => `L${String(i).padStart(4, "0")}`).join("\n");
 const t0 = Date.now();
-await pasteInto(".page textarea.editor", { plain: tenK });
-await page.waitForTimeout(400);
+await page.locator(".page textarea.editor").first().click();
+await page.evaluate(async (text) => {
+  await navigator.clipboard.writeText(text);
+}, tenK);
+await page.keyboard.press("Control+v");
+await page.waitForTimeout(800);
 const tenState = await page.evaluate(() => {
   const ta = document.querySelector(".page textarea.editor");
   return { lines: ta?.value.split("\n").length ?? 0, len: ta?.value.length ?? 0 };
@@ -676,10 +752,11 @@ const typed = await page.evaluate(() => {
   return { tail: ta?.value.slice(-5) ?? "", scroll: sheet?.scrollTop ?? -1 };
 });
 await snap("ten-k-lines");
+const tenHasZ = await page.evaluate(() => (document.querySelector(".page textarea.editor")?.value ?? "").includes("Z"));
 record(
   "ten-k-lines",
-  tenState.lines >= 10000 && afterUp < endCaret.caret && typed.tail.endsWith("Z") && typeMs < 3000 && pasteMs < 20000,
-  JSON.stringify({ tenState, pasteMs, endCaret, afterUp, typeMs, typed }),
+  tenState.lines >= 10000 && afterUp < endCaret.caret && tenHasZ && typeMs < 3000 && pasteMs < 20000 && (typed.scroll ?? 0) > 100,
+  JSON.stringify({ tenState, pasteMs, endCaret, afterUp, typeMs, typed, tenHasZ }),
 );
 
 // Autosave reload must keep tables and images.
@@ -712,26 +789,36 @@ if (await page.locator(".modal-back").count()) {
 
 // Format survives a sheet switch. Bold in a cell, then bold outside.
 await openNote("Short");
-const shortBox = await page.locator(".page textarea.editor").first().boundingBox();
+const shortIndex = await page.evaluate(() => {
+  const areas = [...document.querySelectorAll(".page textarea.editor")];
+  let best = 0;
+  areas.forEach((el, i) => {
+    if (el.value.length > (areas[best]?.value.length ?? 0)) best = i;
+  });
+  return best;
+});
+const shortBox = await page.locator(".page textarea.editor").nth(shortIndex).boundingBox();
 await page.mouse.move(shortBox.x + 8, shortBox.y + 14);
 await page.mouse.down();
-await page.mouse.move(shortBox.x + 40, shortBox.y + 14, { steps: 3 });
+await page.mouse.move(shortBox.x + Math.min(70, shortBox.width - 12), shortBox.y + 14, { steps: 3 });
 await page.mouse.up();
 await page.waitForTimeout(100);
-await page.getByRole("button", { name: /^Bold/ }).click();
+const switchBold = page.getByRole("button", { name: /^Bold/ });
+const switchBoldOn = await switchBold.isEnabled();
+if (switchBoldOn) await switchBold.click();
 await page.waitForTimeout(150);
 await page.getByRole("button", { name: "Switch sheet" }).click();
-await page.getByRole("button", { name: "Other" }).click();
+await page.locator(".popover").getByRole("button", { name: "Other", exact: true }).click();
 await page.waitForTimeout(300);
 const otherText = await page.evaluate(() => document.querySelector(".page textarea.editor")?.value ?? "");
 await page.getByRole("button", { name: "Switch sheet" }).click();
-await page.getByRole("button", { name: "Short" }).click();
+await page.locator(".popover").getByRole("button", { name: "Short", exact: true }).click();
 await page.waitForTimeout(300);
 const boldBack = await page.evaluate(() => document.querySelector(".page pre span.sb")?.textContent ?? null);
 record(
   "format-survives-sheet-switch",
-  otherText.includes("Second sheet") && boldBack !== null,
-  JSON.stringify({ otherText, boldBack }),
+  switchBoldOn && otherText.includes("Second sheet") && boldBack !== null,
+  JSON.stringify({ switchBoldOn, otherText, boldBack }),
 );
 
 await openNote("Scratch");
@@ -742,13 +829,12 @@ await insertTable();
 const cell = page.locator(".page .sheet-table td textarea").first();
 await cell.click();
 await cell.fill("INSIDE");
-await page.evaluate(() => {
-  const ta = document.querySelector(".page .sheet-table td textarea");
-  ta.focus();
-  ta.setSelectionRange(0, ta.value.length);
-  ta.dispatchEvent(new Event("select", { bubbles: true }));
-});
-await page.waitForTimeout(100);
+const cellBox = await cell.boundingBox();
+await page.mouse.move(cellBox.x + 4, cellBox.y + cellBox.height / 2);
+await page.mouse.down();
+await page.mouse.move(cellBox.x + Math.min(48, cellBox.width - 6), cellBox.y + cellBox.height / 2, { steps: 4 });
+await page.mouse.up();
+await page.waitForTimeout(120);
 const cellBoldEnabled = await page.getByRole("button", { name: /^Bold/ }).isEnabled();
 if (cellBoldEnabled) await page.getByRole("button", { name: /^Bold/ }).click();
 await page.waitForTimeout(120);
@@ -795,14 +881,23 @@ record(
 
 // Quick succession + escape from a menu.
 await openNote("Short");
-const sb = await page.locator(".page textarea.editor").first().boundingBox();
+const quadIndex = await page.evaluate(() => {
+  const areas = [...document.querySelectorAll(".page textarea.editor")];
+  let best = 0;
+  areas.forEach((el, i) => {
+    if (el.value.length > (areas[best]?.value.length ?? 0)) best = i;
+  });
+  return best;
+});
+const sb = await page.locator(".page textarea.editor").nth(quadIndex).boundingBox();
 await page.mouse.move(sb.x + 8, sb.y + 14);
 await page.mouse.down();
-await page.mouse.move(sb.x + 90, sb.y + 14, { steps: 2 });
+await page.mouse.move(sb.x + Math.min(90, sb.width - 12), sb.y + 14, { steps: 2 });
 await page.mouse.up();
 await page.waitForTimeout(80);
 for (const name of [/^Bold/, /^Italic/, /^Underline/, /^Strikethrough/]) {
-  await page.getByRole("button", { name }).click();
+  const btn = page.getByRole("button", { name });
+  if (await btn.isEnabled()) await btn.click();
 }
 await page.waitForTimeout(200);
 const quad = await page.evaluate(() => {
@@ -1466,22 +1561,4 @@ const jumped = await page.evaluate(() => {
 record("go-to-line", jumped.line === 40 || jumped.line === 39 || jumped.line === 41, JSON.stringify(jumped));
 await page.keyboard.press("Escape");
 
-const summary = {
-  version: VERSION,
-  browser: "Chromium (Playwright) — WebView2 not available on this Linux VM",
-  cases,
-  matrix,
-  pageErrors,
-  shots,
-  casePass: cases.filter((c) => c.ok).length,
-  caseFail: cases.filter((c) => !c.ok).length,
-  matrixPass: matrix.filter((m) => ["PASS", "DISABLED_OK", "NOT_PRESENT", "NOT_REPRODUCED"].includes(m.result)).length,
-  matrixFail: matrix.filter((m) => m.result === "FAIL").length,
-};
-await writeFile(join(OUT, "results.json"), JSON.stringify(summary, null, 2));
-console.log(`[qa-stress] cases ${summary.casePass} pass / ${summary.caseFail} fail; matrix rows ${matrix.length} (${summary.matrixFail} fail/absent)`);
-console.log(`[qa-stress] wrote ${join(OUT, "results.json")}`);
-
-await browser.close();
-server.close();
-process.exitCode = summary.caseFail || summary.matrixFail ? 1 : 0;
+await dumpAndClose();

@@ -499,6 +499,105 @@ check(
   JSON.stringify(midTable),
 );
 
+// ---- 13) Ctrl+Shift+V must keep Excel's bitmap from becoming the paste.
+// Excel puts TSV, HTML, and a picture on the clipboard together. Plain paste
+// should insert the tab-separated text and neither a table nor an image.
+const imagesBeforePlain = await page.evaluate(() => document.querySelectorAll(".page .picture").length);
+const tablesBeforePlain = await page.evaluate(() => document.querySelectorAll(".page .table-block").length);
+await page.locator(".page .block textarea.editor").first().click();
+await page.evaluate(() => {
+  const ta = document.querySelector(".page .block textarea.editor");
+  ta.focus();
+  ta.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "v", code: "KeyV", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }),
+  );
+  const dt = new DataTransfer();
+  dt.setData("text/plain", "Name\tQty\nalpha\t1");
+  dt.setData("text/html", "<table><tr><td>Name</td><td>Qty</td></tr><tr><td>alpha</td><td>1</td></tr></table>");
+  const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
+  dt.items.add(new File([png], "excel.png", { type: "image/png" }));
+  ta.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
+});
+await page.waitForTimeout(400);
+const plainPaste = await page.evaluate(() => ({
+  images: document.querySelectorAll(".page .picture").length,
+  tables: document.querySelectorAll(".page .table-block").length,
+  text: [...document.querySelectorAll(".page .block textarea.editor")].map((el) => el.value).join("\n"),
+}));
+check(
+  "ctrl-shift-v-skips-excel-bitmap",
+  plainPaste.images === imagesBeforePlain &&
+    plainPaste.tables === tablesBeforePlain &&
+    plainPaste.text.includes("Name\tQty"),
+  JSON.stringify({ imagesBeforePlain, tablesBeforePlain, ...plainPaste, text: plainPaste.text.slice(0, 180) }),
+);
+
+// ---- 14) Ctrl+A is a real selection: Bold must apply, not stay disabled.
+await page.locator(".page .block textarea.editor").first().click();
+await page.keyboard.press("Control+a");
+await page.waitForTimeout(200);
+const whole = await page.evaluate(() => ({
+  hits: document.querySelectorAll(".page .find-hit").length,
+  disabled: document.querySelector('button[aria-label^="Bold"]')?.hasAttribute("disabled") ?? null,
+  label: document.querySelector('button[aria-label^="Bold"]')?.getAttribute("aria-label"),
+}));
+check(
+  "ctrl-a-enables-bold",
+  whole.hits > 0 && whole.disabled === false,
+  JSON.stringify(whole),
+);
+await page.keyboard.press("Escape");
+
+// ---- 15) Choosing a list style must leave the caret in the editor.
+await page.locator(".page .block textarea.editor").first().click();
+await page.getByRole("button", { name: "Lists" }).click();
+await page.getByRole("button", { name: "Bullet •" }).click();
+await page.waitForTimeout(200);
+const listFocus = await page.evaluate(() => ({
+  tag: document.activeElement?.tagName ?? null,
+  className: document.activeElement?.className ?? "",
+}));
+check(
+  "list-menu-keeps-editor-focus",
+  listFocus.className.includes("editor"),
+  JSON.stringify(listFocus),
+);
+
+// ---- 16) An inserted table must still be there after autosave and reload.
+await page.locator(".page .block textarea.editor").first().click();
+await page.keyboard.press("Control+End");
+await page.evaluate(() => {
+  const ta = document.querySelector(".page .block textarea.editor");
+  const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+  nativeSet?.call(ta, "RELOAD_ANCHOR");
+  ta.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertFromPaste", data: "RELOAD_ANCHOR" }));
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+});
+await page.waitForTimeout(200);
+await page.getByRole("button", { name: /^Insert table$/ }).click();
+await page.getByRole("button", { name: "Insert a 2 by 2 table" }).click();
+await page.waitForTimeout(300);
+await page.locator(".page .sheet-table td textarea").first().fill("persist-cell");
+await page.waitForTimeout(1000);
+await page.reload();
+await page.waitForTimeout(900);
+if (await page.locator(".modal-back").count()) {
+  check("table-survives-reload", false, "folder gate after reload");
+} else {
+  await page.getByText(/verify bugs/i).first().click();
+  await page.waitForTimeout(700);
+  const survived = await page.evaluate(() => ({
+    tables: document.querySelectorAll(".page .table-block").length,
+    cells: [...document.querySelectorAll(".page .sheet-table td textarea")].map((el) => el.value),
+  }));
+  check(
+    "table-survives-reload",
+    survived.tables >= 1 && survived.cells.includes("persist-cell"),
+    JSON.stringify(survived),
+  );
+}
+
 const failed = Object.entries(results).filter(([, value]) => !value.ok).map(([name]) => name);
 console.log(failed.length ? `FAILED: ${failed.join(", ")}` : "ALL PASS");
 await browser.close();
