@@ -1,6 +1,6 @@
 [package]
 name = "papel-shell-tauri"
-version = "0.3.6"
+version = "0.3.7"
 description = "Papel portable shell: the static web bundle in WebView2"
 edition = "2021"
 rust-version = "1.77"

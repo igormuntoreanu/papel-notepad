@@ -13,7 +13,13 @@ export type StoredBlock =
       /** Paragraph alignment; absent means left. */
       align?: AlignId;
     }
-  | { kind: "image"; mime: string; bytes: ArrayBuffer };
+  | { kind: "image"; mime: string; bytes: ArrayBuffer }
+  | {
+      kind: "table";
+      cols: number;
+      /** Cell objects from `table_json`: `{ t, f, m? }`. */
+      cells: unknown[];
+    };
 
 export type StoredNote = {
   id: string;

@@ -1,6 +1,15 @@
 # Papel editor stress test — v0.3.6
 
-Testing only. No editor fixes and no release. The desktop UI was the static bundle in `dist-desktop/client` (built with `npm run build:desktop`), driven in Chromium via Playwright. WebView2 is not available on this Linux VM.
+## Fixed in 0.3.7
+
+Two high-severity findings from this report are fixed. The medium and low findings are unchanged.
+
+1. **Tables survive autosave and reload.** `snapshot()` now stores a `kind: "table"` block (columns and cells) the same way a `.papel` file does, and load restores it with `restore_table`. Images were already stored.
+2. **Ctrl+Shift+V pastes the words.** A plain-paste request inserts `text/plain` and does not take the bitmap Excel puts on the same clipboard. A normal paste of that clipboard is still an editable table.
+
+`node scripts/verify-bugs.mjs` covers both: `table-survives-reload` and `ctrl-shift-v-skips-excel-bitmap`. After the fix, a reload still shows the table and the cell text: [table survives reload](../0.3.7/04-table-survives-reload.png).
+
+Testing of the original report used the static bundle in `dist-desktop/client` (built with `npm run build:desktop`), driven in Chromium via Playwright. WebView2 is not available on this Linux VM.
 
 Evidence: `AI_Documentation/qa/0.3.6/` (visual harness) and `AI_Documentation/qa/0.3.6/stress/` (this run, including `results.json`).
 
@@ -17,9 +26,9 @@ Evidence: `AI_Documentation/qa/0.3.6/` (visual harness) and `AI_Documentation/qa
 
 ## Top bugs
 
-1. **High — tables disappear on reload.** Insert a table, type in a cell, wait for autosave, reload. The words and images come back; the table does not. `stress/07-after-reload.png` shows Short after that reload: the sentence is there, the table is gone (the speck above the sentence is the 1×1 image, which did survive). `snapshot()` in `src/components/quire/store.ts` (about lines 167–180) stores every non-image block as text, and `ensureLoaded` (about lines 111–120) only restores text and images. `toPapel` in the same file (about line 206) already knows how to write a table. Suggested fix: persist and restore table blocks the same way `.papel` save does.
+1. **High — tables disappear on reload. Fixed in 0.3.7.** Insert a table, type in a cell, wait for autosave, reload. Before the fix the words and images came back and the table did not. `stress/07-after-reload.png` is that failure: the sentence is there, the table is gone (the speck above the sentence is the 1×1 image, which did survive). `snapshot()` stored every non-image block as text. It now writes `kind: "table"` and load calls `restore_table`.
 
-2. **High — Ctrl+Shift+V on an Excel-shaped clipboard inserts the bitmap, not the text.** A paste that carries `text/plain` TSV, `text/html` table, and a PNG becomes an editable table (20/20). The same paste after Ctrl+Shift+V adds a picture and leaves the TSV out. `forcePlain` in `src/components/quire/text-block.tsx` (about lines 326–347) skips the table parsers, then the image branch (about lines 376–380) still runs and `preventDefault`s. Suggested fix: when plain paste is requested, ignore the image and insert `text/plain`.
+2. **High — Ctrl+Shift+V on an Excel-shaped clipboard inserts the bitmap, not the text. Fixed in 0.3.7.** A paste that carries `text/plain` TSV, `text/html` table, and a PNG becomes an editable table (20/20). Before the fix, the same paste after Ctrl+Shift+V added a picture and left the TSV out. Plain paste now inserts `text/plain` and skips the bitmap.
 
 3. **Medium — Ctrl+A looks selected but formatting stays disabled, and Escape will not close Find.** Ctrl+A paints the sheet (`find-hit` spans) and the Bold button reads `Bold (select text first)`. `onSelectAll` in `src/components/quire/text-block.tsx` (about lines 433–437) never expands a range, and `hasSelection` in `src/components/quire/quire-app.tsx` (about line 1285) only looks at `sel`. While that selection is up, the capture-phase Escape handler (about lines 266–273) swallows Escape, so Find stays open and replaces the toolbar (`src/components/quire/sheet.tsx` about lines 282–284). In the matrix, the `long-ctrl-a` column is **D** for Bold and **A** for almost every control after Find. Suggested fix: treat whole-sheet select as a selection and apply marks across text blocks; let Escape close Find before it clears the selection.
 
@@ -42,7 +51,7 @@ Evidence: `AI_Documentation/qa/0.3.6/` (visual harness) and `AI_Documentation/qa
 | Boot with desktop bridge v2 | PASS | Bridge v1 is rejected and the folder gate covers the board. The harness now injects v2. |
 | Huge plain paste, then Insert table at mid-caret, ×20 | PASS | 220 wrapped lines, real clipboard + Ctrl+V, caret in the middle. Split is `text, table, text` and the prefix+suffix is the original text. Scroll did not jump to 0. `stress/01-huge-paste-table-ok.png`. |
 | Excel TSV + HTML table + PNG, ×20 | PASS | Editable cells `alpha` / `beta`. Image count stayed 0. `stress/02-excel-table.png`. |
-| Ctrl+Shift+V on that same clipboard | **FAIL** | Bug 2. |
+| Ctrl+Shift+V on that same clipboard | **Fixed in 0.3.7** | Was a fail: the bitmap was inserted. Plain paste now inserts the TSV and leaves the picture off the sheet. |
 | Alt-drag column select with wrap on, then Escape, ×10 | PASS | Wrap stays on, the rect clears. |
 | Toolbar Bold after leaving a table cell, ×10 | PASS | |
 | Ctrl+A then Bold | **FAIL** | Bug 3. |
@@ -56,7 +65,7 @@ Evidence: `AI_Documentation/qa/0.3.6/` (visual harness) and `AI_Documentation/qa
 | 12 images, Delete, Undo | PASS | `stress/04-many-images.png`. |
 | Nested table from a cell | **FAIL** | Bug 6. `stress/05-nested-table.png`. |
 | 10,000-line note | PASS | Paste ~1s, PageUp moved the caret, a typed `Z` landed in 173ms, scroll stayed at the bottom (~270k px). `stress/06-ten-k-lines.png`. |
-| Table and image survive reload | **FAIL** | Bug 1. Image survived, table did not. |
+| Table and image survive reload | **Fixed in 0.3.7** | Was a fail: the image survived and the table did not. Autosave now keeps both. |
 | Bold, switch sheet, switch back | PASS | Bold range `he qui` was still there. |
 | Bold in a cell, then bold outside | PASS on review | Recorded fail. The drag did not cover the whole word; the painted spans were `INSI` and `UTSI`, so both marks applied. |
 | Drag across two cells | **FAIL** | Bug 7. |

@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 
 const ROOT = join(process.cwd(), "dist-desktop", "client");
-const VERSION = "0.3.6";
+const VERSION = "0.3.7";
 const OUT = join(process.cwd(), "AI_Documentation", "qa", VERSION);
 const PORT = 8093;
 const MIME = {
@@ -232,6 +232,28 @@ shots.push({
   file: "03-table-at-caret.png",
   title: "Table at caret",
   note: "After a long paste, Insert table splits at the caret — text above and below the table; viewport stays near the insert.",
+});
+
+// 04 — a table cell survives autosave and a reload (images already did).
+await page.locator(".page .sheet-table td textarea").first().fill("kept-cell");
+await page.waitForTimeout(1200);
+await page.reload();
+await page.waitForTimeout(900);
+if (!(await page.evaluate(() => Boolean(document.querySelector(".page"))))) {
+  await page.getByText(/qa visual/i).first().click();
+  await page.waitForTimeout(600);
+}
+await page.evaluate(() => {
+  const cell = [...document.querySelectorAll(".page .sheet-table td textarea")].find((el) =>
+    el.value.includes("kept-cell"),
+  );
+  cell?.scrollIntoView({ block: "center" });
+});
+await page.screenshot({ path: join(OUT, "04-table-survives-reload.png"), fullPage: false });
+shots.push({
+  file: "04-table-survives-reload.png",
+  title: "Table survives reload",
+  note: "After autosave and a reload, the table and the cell text are still on the sheet.",
 });
 
 const index = `# Visual QA ${VERSION}

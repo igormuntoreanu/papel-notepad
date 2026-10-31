@@ -326,9 +326,29 @@ export function TextBlock({
           const forcePlain = plainPaste.current;
           plainPaste.current = false;
 
+          // Ctrl+Shift+V asked for the words only. Excel also puts a bitmap on
+          // the clipboard; taking that file would replace the text with a picture.
+          if (forcePlain) {
+            e.preventDefault();
+            if (!plain) return;
+            const ta = e.currentTarget;
+            const start = ta.selectionStart ?? 0;
+            const end = ta.selectionEnd ?? start;
+            session.edit(blockId, start, end, plain, false);
+            const next = session.text_of(blockId);
+            ta.value = next;
+            prev.current = next;
+            const caret = start + plain.length;
+            ta.setSelectionRange(caret, caret);
+            paintNow();
+            report();
+            onEdited();
+            return;
+          }
+
           // Excel/Sheets put a bitmap *and* TSV/HTML on the clipboard. Prefer an
           // editable table over the snapshot image whenever cell data is present.
-          if (!forcePlain && plain) {
+          if (plain) {
             const grid = parseDelimited(plain);
             if (grid) {
               e.preventDefault();
@@ -337,7 +357,7 @@ export function TextBlock({
             }
           }
 
-          if (!forcePlain && html) {
+          if (html) {
             const fromHtml = parseHtmlTable(html);
             if (fromHtml) {
               e.preventDefault();
@@ -346,7 +366,7 @@ export function TextBlock({
             }
           }
 
-          if (!forcePlain && html && htmlHasEmphasis(html)) {
+          if (html && htmlHasEmphasis(html)) {
             const parsed = parseHtmlClipboard(html);
             if (parsed.text.length > 0 && parsed.runs.some((r) => r.bold || r.italic)) {
               e.preventDefault();
