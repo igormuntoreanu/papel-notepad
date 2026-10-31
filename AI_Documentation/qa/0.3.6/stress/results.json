@@ -1,0 +1,3239 @@
+{
+  "version": "0.3.6",
+  "browser": "Chromium (Playwright) — WebView2 not available on this Linux VM",
+  "cases": [
+    {
+      "name": "boot",
+      "ok": true,
+      "detail": "board visible, bridge v2 accepted"
+    },
+    {
+      "name": "huge-paste-table-at-caret-x20",
+      "ok": true,
+      "detail": "20/20 split at caret, scroll stayed off the top"
+    },
+    {
+      "name": "excel-tsv-html-not-bitmap-x20",
+      "ok": true,
+      "detail": "20/20 editable tables, images stayed 0, clipboard files attached=yes"
+    },
+    {
+      "name": "excel-ctrl-shift-v-plain",
+      "ok": false,
+      "detail": "{\"shiftMeta\":{\"ok\":true,\"files\":1,\"cancelled\":true,\"len\":0},\"tables\":20,\"images\":1,\"sample\":[\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"]}"
+    },
+    {
+      "name": "alt-drag-escape-wrap-x10",
+      "ok": true,
+      "detail": "10/10"
+    },
+    {
+      "name": "toolbar-after-table-blur-x10",
+      "ok": true,
+      "detail": "10/10"
+    },
+    {
+      "name": "ctrl-a-then-bold",
+      "ok": false,
+      "detail": "{\"ctrlA\":{\"hits\":1,\"boldDisabled\":true,\"label\":\"Bold (select text first)\"},\"ctrlABold\":null}"
+    },
+    {
+      "name": "list-menu-restores-focus",
+      "ok": false,
+      "detail": "{\"tag\":\"BODY\",\"className\":\"\"}"
+    },
+    {
+      "name": "lists-indent-outdent",
+      "ok": true,
+      "detail": "{\"listed\":\"• item\\n  ◦ child\",\"outdented\":\"• item\\n• child\",\"focusAfterList\":{\"tag\":\"BODY\",\"className\":\"\"}}"
+    },
+    {
+      "name": "page-up-down",
+      "ok": true,
+      "detail": "{\"pageStart\":0,\"pageMid\":1608,\"pageBack\":0}"
+    },
+    {
+      "name": "url-ctrl-click",
+      "ok": true,
+      "detail": "{\"opened\":{\"urls\":[\"https://example.com/app\"],\"caret\":11,\"synthetic\":true},\"urlBox\":{\"x\":253,\"y\":205,\"width\":988,\"height\":450}}"
+    },
+    {
+      "name": "html-bold-italic-paste",
+      "ok": true,
+      "detail": "{\"value\":\"xx BoldWord yy ItalicWord zz UnderWord\",\"bold\":\"BoldWord\",\"italic\":\"ItalicWord\",\"underline\":null}"
+    },
+    {
+      "name": "html-underline-preserved",
+      "ok": false,
+      "detail": "{\"value\":\"xx BoldWord yy ItalicWord zz UnderWord\",\"bold\":\"BoldWord\",\"italic\":\"ItalicWord\",\"underline\":null}"
+    },
+    {
+      "name": "rapid-undo-redo",
+      "ok": true,
+      "detail": "{\"afterUndoBurst\":\"\",\"afterRedoBurst\":\"burst-undo-text\",\"afterUndoSlow\":\"\",\"afterRedoSlow\":\"ABCDEFGH\"}"
+    },
+    {
+      "name": "many-images-undo",
+      "ok": true,
+      "detail": "{\"imageFails\":[],\"imgBeforeDelete\":12,\"imgAfterDelete\":11,\"imgAfterUndo\":12}"
+    },
+    {
+      "name": "nested-table-from-cell",
+      "ok": false,
+      "detail": "{\"before\":[\"text\",\"table\",\"text\"],\"after\":[\"text\",\"table\",\"text\",\"table\",\"text\"],\"cellText\":[\"CELL\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"],\"nestedDom\":0,\"note\":\"Insert table with a cell focused adds a sibling sheet table. No table is nested inside a cell.\"}"
+    },
+    {
+      "name": "ten-k-lines",
+      "ok": true,
+      "detail": "{\"tenState\":{\"lines\":10000,\"len\":59999},\"pasteMs\":989,\"endCaret\":{\"caret\":59999,\"scroll\":271185,\"len\":59999},\"afterUp\":59855,\"typeMs\":179,\"typed\":{\"tail\":\"L9999\",\"scroll\":270533},\"tenHasZ\":true}"
+    },
+    {
+      "name": "reload-keeps-table-and-image",
+      "ok": false,
+      "detail": "{\"beforeReload\":{\"tables\":2,\"images\":1},\"afterReload\":{\"tables\":0,\"images\":1},\"cells\":[]}"
+    },
+    {
+      "name": "format-survives-sheet-switch",
+      "ok": true,
+      "detail": "{\"switchBoldOn\":true,\"otherText\":\"Second sheet keeps its own words.\",\"boldBack\":\"he qui\",\"switchErr\":null}"
+    },
+    {
+      "name": "format-in-cell-then-outside",
+      "ok": false,
+      "detail": "{\"cellBoldEnabled\":true,\"outEnabled\":true,\"both\":{\"cell\":\"INSI\",\"outside\":[\"UTSI\"]}}"
+    },
+    {
+      "name": "cross-cell-selection",
+      "ok": false,
+      "detail": "{\"selected\":1,\"active\":\"Row 1, column 1\",\"note\":\"Cells are separate textareas; a drag cannot select two cells at once.\"}"
+    },
+    {
+      "name": "rapid-four-marks",
+      "ok": true,
+      "detail": "{\"cls\":[\"sb si su ss\"]}"
+    },
+    {
+      "name": "escape-closes-menu-stays-in-sheet",
+      "ok": true,
+      "detail": "{\"menuOpen\":1,\"menuClosed\":0,\"stillEditing\":true}"
+    },
+    {
+      "name": "go-to-line",
+      "ok": true,
+      "detail": "{\"line\":40,\"at\":2586}"
+    }
+  ],
+  "matrix": [
+    {
+      "context": "board",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "board",
+      "control": "Search and filters",
+      "result": "PASS",
+      "detail": "6 sheets\n0 shown\nNo unsaved changes\nFolder: d"
+    },
+    {
+      "context": "board",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "board",
+      "control": "Encoding chip",
+      "result": "NOT_PRESENT",
+      "detail": "status chips show only while a sheet is open"
+    },
+    {
+      "context": "board",
+      "control": "EOL chip",
+      "result": "NOT_PRESENT",
+      "detail": "status chips show only while a sheet is open"
+    },
+    {
+      "context": "board",
+      "control": "Zoom %",
+      "result": "NOT_PRESENT",
+      "detail": "board status shows sheet counts, not zoom"
+    },
+    {
+      "context": "board",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "board",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "board",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded maximize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "board",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "board",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "empty-note",
+      "control": "Bold",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Bold (select text first)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Italic",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Italic (select text first)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Underline",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Underline (select text first)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Strikethrough",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Strikethrough (select text first)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Black ink",
+      "result": "DISABLED_OK",
+      "detail": "Black ink (select text first)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Wax red ink",
+      "result": "DISABLED_OK",
+      "detail": "Wax red ink (select text first)"
+    },
+    {
+      "context": "empty-note",
+      "control": "No highlight",
+      "result": "DISABLED_OK",
+      "detail": "No highlight (select text first)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Yellow highlighter",
+      "result": "DISABLED_OK",
+      "detail": "Yellow highlighter (select text first)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Clear styles",
+      "result": "DISABLED_OK",
+      "detail": "Clear styles (select text first)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":false,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "empty-note",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":false,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "empty-note",
+      "control": "Undo-click",
+      "result": "DISABLED_OK",
+      "detail": "nothing to undo, or button disabled"
+    },
+    {
+      "context": "empty-note",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "empty-note",
+      "control": "Find-replace-fields",
+      "result": "PASS",
+      "detail": "status 0/0"
+    },
+    {
+      "context": "empty-note",
+      "control": "Insert date",
+      "result": "PASS",
+      "detail": "ISO stamp inserted"
+    },
+    {
+      "context": "empty-note",
+      "control": "Lists",
+      "result": "PASS",
+      "detail": "numbered marker applied"
+    },
+    {
+      "context": "empty-note",
+      "control": "Insert table",
+      "result": "PASS",
+      "detail": "{\"before\":\"text\",\"order\":\"text,table,text\",\"caret\":{\"start\":19,\"len\":19,\"text\":\"1. 2026-10-31 08:00\"}}"
+    },
+    {
+      "context": "empty-note",
+      "control": "Insert image",
+      "result": "PASS",
+      "detail": "images=1"
+    },
+    {
+      "context": "empty-note",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "empty-note",
+      "control": "Word wrap",
+      "result": "PASS",
+      "detail": "pressed true -> false, data-wrap=off"
+    },
+    {
+      "context": "empty-note",
+      "control": "Align left",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "empty-note",
+      "control": "Align centre",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "empty-note",
+      "control": "Align right",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "empty-note",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Zoom in",
+      "result": "PASS",
+      "detail": "100% -> 106%"
+    },
+    {
+      "context": "empty-note",
+      "control": "Zoom out",
+      "result": "PASS",
+      "detail": "clicked back"
+    },
+    {
+      "context": "empty-note",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Paragraph style",
+      "result": "PASS",
+      "detail": "data-style=[\"title\"]"
+    },
+    {
+      "context": "empty-note",
+      "control": "Font",
+      "result": "PASS",
+      "detail": "data-font=[\"roboto\"]"
+    },
+    {
+      "context": "empty-note",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "empty-note",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "empty-note",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"maximize\",\"close\",\"save:Empty.papel\"]"
+    },
+    {
+      "context": "empty-note",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "empty-note",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "empty-note",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Empty"
+    },
+    {
+      "context": "empty-note",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "empty-note",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "empty-note",
+      "control": "Search and filters",
+      "result": "FAIL",
+      "detail": "search input not visible"
+    },
+    {
+      "context": "empty-note",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "empty-note",
+      "control": "Encoding chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "empty-note",
+      "control": "EOL chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "empty-note",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "empty-note",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded restore; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "empty-note",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "empty-note",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "short-caret",
+      "control": "Bold",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Bold (select text first)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Italic",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Italic (select text first)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Underline",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Underline (select text first)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Strikethrough",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Strikethrough (select text first)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Black ink",
+      "result": "DISABLED_OK",
+      "detail": "Black ink (select text first)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Wax red ink",
+      "result": "DISABLED_OK",
+      "detail": "Wax red ink (select text first)"
+    },
+    {
+      "context": "short-caret",
+      "control": "No highlight",
+      "result": "DISABLED_OK",
+      "detail": "No highlight (select text first)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Yellow highlighter",
+      "result": "DISABLED_OK",
+      "detail": "Yellow highlighter (select text first)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Clear styles",
+      "result": "DISABLED_OK",
+      "detail": "Clear styles (select text first)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "short-caret",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":false,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "short-caret",
+      "control": "Undo-click",
+      "result": "PASS",
+      "detail": "undo clicked"
+    },
+    {
+      "context": "short-caret",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "short-caret",
+      "control": "Insert date",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-caret",
+      "control": "Lists",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-caret",
+      "control": "Insert table",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-caret",
+      "control": "Insert image",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-caret",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "short-caret",
+      "control": "Word wrap",
+      "result": "PASS",
+      "detail": "pressed true -> false, data-wrap=off"
+    },
+    {
+      "context": "short-caret",
+      "control": "Align left",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "short-caret",
+      "control": "Align centre",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "short-caret",
+      "control": "Align right",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "short-caret",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Zoom in",
+      "result": "PASS",
+      "detail": "100% -> 106%"
+    },
+    {
+      "context": "short-caret",
+      "control": "Zoom out",
+      "result": "PASS",
+      "detail": "clicked back"
+    },
+    {
+      "context": "short-caret",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Paragraph style",
+      "result": "PASS",
+      "detail": "Paragraph style: Body"
+    },
+    {
+      "context": "short-caret",
+      "control": "Font",
+      "result": "PASS",
+      "detail": "Font: IBM Plex Sans"
+    },
+    {
+      "context": "short-caret",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "short-caret",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "short-caret",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"restore\",\"close\",\"save:Short.papel\"]"
+    },
+    {
+      "context": "short-caret",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "short-caret",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-caret",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Short"
+    },
+    {
+      "context": "short-caret",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "short-caret",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "short-caret",
+      "control": "Search and filters",
+      "result": "PASS",
+      "detail": "Ln 1, Col 1\n44 chars\nPlain text\nUTF-8\nLF\n100%"
+    },
+    {
+      "context": "short-caret",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "short-caret",
+      "control": "Encoding chip",
+      "result": "PASS",
+      "detail": "UTF-8 -> Windows-1252; text \"\""
+    },
+    {
+      "context": "short-caret",
+      "control": "EOL chip",
+      "result": "PASS",
+      "detail": "LF -> CRLF"
+    },
+    {
+      "context": "short-caret",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "short-caret",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded maximize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "short-caret",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "short-caret",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "short-midword",
+      "control": "Bold",
+      "result": "FAIL",
+      "detail": "disabled despite a selection (Bold (select text first))"
+    },
+    {
+      "context": "short-midword",
+      "control": "Italic",
+      "result": "FAIL",
+      "detail": "disabled despite a selection (Italic (select text first))"
+    },
+    {
+      "context": "short-midword",
+      "control": "Underline",
+      "result": "FAIL",
+      "detail": "disabled despite a selection (Underline (select text first))"
+    },
+    {
+      "context": "short-midword",
+      "control": "Strikethrough",
+      "result": "FAIL",
+      "detail": "disabled despite a selection (Strikethrough (select text first))"
+    },
+    {
+      "context": "short-midword",
+      "control": "Black ink",
+      "result": "FAIL",
+      "detail": "disabled with selection"
+    },
+    {
+      "context": "short-midword",
+      "control": "Wax red ink",
+      "result": "FAIL",
+      "detail": "disabled with selection"
+    },
+    {
+      "context": "short-midword",
+      "control": "No highlight",
+      "result": "FAIL",
+      "detail": "disabled with selection"
+    },
+    {
+      "context": "short-midword",
+      "control": "Yellow highlighter",
+      "result": "FAIL",
+      "detail": "disabled with selection"
+    },
+    {
+      "context": "short-midword",
+      "control": "Clear styles",
+      "result": "FAIL",
+      "detail": "disabled with selection"
+    },
+    {
+      "context": "short-midword",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "short-midword",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":false,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "short-midword",
+      "control": "Undo-click",
+      "result": "PASS",
+      "detail": "undo clicked"
+    },
+    {
+      "context": "short-midword",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "short-midword",
+      "control": "Find-replace-fields",
+      "result": "PASS",
+      "detail": "status 0/0"
+    },
+    {
+      "context": "short-midword",
+      "control": "Insert date",
+      "result": "PASS",
+      "detail": "ISO stamp inserted"
+    },
+    {
+      "context": "short-midword",
+      "control": "Lists",
+      "result": "PASS",
+      "detail": "numbered marker applied"
+    },
+    {
+      "context": "short-midword",
+      "control": "Insert table",
+      "result": "PASS",
+      "detail": "{\"before\":\"text,text,text,text,text,text\",\"order\":\"text,table,text,text,text,text,text,text\",\"caret\":{\"start\":19,\"len\":19,\"text\":\"1. 2026-10-31 08:00\"}}"
+    },
+    {
+      "context": "short-midword",
+      "control": "Insert image",
+      "result": "PASS",
+      "detail": "images=2"
+    },
+    {
+      "context": "short-midword",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "short-midword",
+      "control": "Word wrap",
+      "result": "PASS",
+      "detail": "pressed true -> false, data-wrap=off"
+    },
+    {
+      "context": "short-midword",
+      "control": "Align left",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "short-midword",
+      "control": "Align centre",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "short-midword",
+      "control": "Align right",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "short-midword",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "short-midword",
+      "control": "Zoom in",
+      "result": "PASS",
+      "detail": "100% -> 106%"
+    },
+    {
+      "context": "short-midword",
+      "control": "Zoom out",
+      "result": "PASS",
+      "detail": "clicked back"
+    },
+    {
+      "context": "short-midword",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "short-midword",
+      "control": "Paragraph style",
+      "result": "PASS",
+      "detail": "data-style=[\"title\"]"
+    },
+    {
+      "context": "short-midword",
+      "control": "Font",
+      "result": "PASS",
+      "detail": "data-font=[\"roboto\"]"
+    },
+    {
+      "context": "short-midword",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "short-midword",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "short-midword",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"maximize\",\"close\",\"save:Short.papel\"]"
+    },
+    {
+      "context": "short-midword",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "short-midword",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-midword",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Short"
+    },
+    {
+      "context": "short-midword",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "short-midword",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "short-midword",
+      "control": "Search and filters",
+      "result": "FAIL",
+      "detail": "search input not visible"
+    },
+    {
+      "context": "short-midword",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "short-midword",
+      "control": "Encoding chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "short-midword",
+      "control": "EOL chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "short-midword",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "short-midword",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "short-midword",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded restore; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "short-midword",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "short-midword",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Bold",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Italic",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Underline",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Strikethrough",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Black ink",
+      "result": "PASS",
+      "detail": "enabled for selection"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Wax red ink",
+      "result": "PASS",
+      "detail": "enabled for selection"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "No highlight",
+      "result": "PASS",
+      "detail": "enabled for selection"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Yellow highlighter",
+      "result": "PASS",
+      "detail": "enabled for selection"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Clear styles",
+      "result": "PASS",
+      "detail": "enabled for selection"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Undo-click",
+      "result": "PASS",
+      "detail": "undo clicked"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Insert date",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Lists",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Insert table",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Insert image",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Word wrap",
+      "result": "PASS",
+      "detail": "pressed true -> false, data-wrap=off"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Align left",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Align centre",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Align right",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Zoom in",
+      "result": "PASS",
+      "detail": "100% -> 106%"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Zoom out",
+      "result": "PASS",
+      "detail": "clicked back"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Paragraph style",
+      "result": "PASS",
+      "detail": "Paragraph style: Body"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Font",
+      "result": "PASS",
+      "detail": "Font: IBM Plex Sans"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"restore\",\"close\",\"save:Short.papel\"]"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Short"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Search and filters",
+      "result": "PASS",
+      "detail": "Ln 1, Col 1\n63 chars\nPlain text\nUTF-8\nCRLF\n100%"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Encoding chip",
+      "result": "PASS",
+      "detail": "UTF-8 -> Windows-1252; text \"1. 2026-10-31 08:00\""
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "EOL chip",
+      "result": "FAIL",
+      "detail": "CRLF -> CRLF"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded maximize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "short-mid-paragraph",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Bold",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Italic",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Underline",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Strikethrough",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Black ink",
+      "result": "PASS",
+      "detail": "clicked"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Wax red ink",
+      "result": "PASS",
+      "detail": "clicked"
+    },
+    {
+      "context": "long-multiline",
+      "control": "No highlight",
+      "result": "PASS",
+      "detail": "clicked"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Yellow highlighter",
+      "result": "PASS",
+      "detail": "clicked"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Clear styles",
+      "result": "PASS",
+      "detail": "clicked"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":false,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Undo-click",
+      "result": "PASS",
+      "detail": "undo clicked"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Find-replace-fields",
+      "result": "PASS",
+      "detail": "status 0/0"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Insert date",
+      "result": "PASS",
+      "detail": "ISO stamp inserted"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Lists",
+      "result": "PASS",
+      "detail": "numbered marker applied"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Insert table",
+      "result": "PASS",
+      "detail": "{\"before\":\"text\",\"order\":\"text,table,text\",\"caret\":{\"start\":5198,\"len\":5198,\"text\":\"1. 2026-10-31 08:01xxxxxxxxxxxxxxxxxxxx\\nL0003 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0004 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0005 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0006 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0007 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0008 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0009 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0010 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0011 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0012 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0013 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0014 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0015 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0016 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0017 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0018 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0019 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0020 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0021 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0022 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0023 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0024 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0025 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0026 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0027 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0028 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0029 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0030 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0031 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0032 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0033 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0034 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0035 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0036 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0037 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0038 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0039 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0040 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0041 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0042 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0043 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0044 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0045 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0046 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0047 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0048 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0049 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0050 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0051 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0052 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0053 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0054 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0055 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0056 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0057 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0058 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0059 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0060 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0061 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0062 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0063 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0064 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0065 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0066 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0067 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0068 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0069 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0070 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0071 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0072 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0073 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0074 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0075 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0076 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0077 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0078 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\nL0079 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Insert image",
+      "result": "PASS",
+      "detail": "images=1"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Word wrap",
+      "result": "PASS",
+      "detail": "pressed true -> false, data-wrap=off"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Align left",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Align centre",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Align right",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Zoom in",
+      "result": "PASS",
+      "detail": "100% -> 106%"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Zoom out",
+      "result": "PASS",
+      "detail": "clicked back"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Paragraph style",
+      "result": "PASS",
+      "detail": "data-style=[\"title\"]"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Font",
+      "result": "PASS",
+      "detail": "data-font=[\"roboto\"]"
+    },
+    {
+      "context": "long-multiline",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"maximize\",\"close\",\"save:Long.papel\"]"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "long-multiline",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Long"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Search and filters",
+      "result": "FAIL",
+      "detail": "search input not visible"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Encoding chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "long-multiline",
+      "control": "EOL chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "long-multiline",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded restore; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "long-multiline",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "long-multiline",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Bold",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Bold (select text first)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Italic",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Italic (select text first)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Underline",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Underline (select text first)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Strikethrough",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Strikethrough (select text first)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Black ink",
+      "result": "DISABLED_OK",
+      "detail": "Black ink (select text first)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Wax red ink",
+      "result": "DISABLED_OK",
+      "detail": "Wax red ink (select text first)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "No highlight",
+      "result": "DISABLED_OK",
+      "detail": "No highlight (select text first)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Yellow highlighter",
+      "result": "DISABLED_OK",
+      "detail": "Yellow highlighter (select text first)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Clear styles",
+      "result": "DISABLED_OK",
+      "detail": "Clear styles (select text first)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":false,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Undo-click",
+      "result": "PASS",
+      "detail": "undo clicked"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Insert date",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Lists",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Insert table",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Insert image",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Word wrap",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Align left",
+      "result": "ABSENT",
+      "detail": "hidden (no active text block, or not in this view)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Align centre",
+      "result": "ABSENT",
+      "detail": "hidden (no active text block, or not in this view)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Align right",
+      "result": "ABSENT",
+      "detail": "hidden (no active text block, or not in this view)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Zoom in",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Paragraph style",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Font",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"restore\",\"close\",\"save:Long.papel\"]"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Long"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Search and filters",
+      "result": "PASS",
+      "detail": "Ln 1, Col 1\n5198 chars\nPlain text\nUTF-8\nLF\n100%"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Encoding chip",
+      "result": "PASS",
+      "detail": "UTF-8 -> Windows-1252; text \"1. 2026-10-31 08:01xxxxxxxxxxxxxxxxxxxx\n\""
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "EOL chip",
+      "result": "PASS",
+      "detail": "LF -> CRLF"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded maximize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "long-ctrl-a",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Bold",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Bold (select text first)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Italic",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Italic (select text first)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Underline",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Underline (select text first)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Strikethrough",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Strikethrough (select text first)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Black ink",
+      "result": "DISABLED_OK",
+      "detail": "Black ink (select text first)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Wax red ink",
+      "result": "DISABLED_OK",
+      "detail": "Wax red ink (select text first)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "No highlight",
+      "result": "DISABLED_OK",
+      "detail": "No highlight (select text first)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Yellow highlighter",
+      "result": "DISABLED_OK",
+      "detail": "Yellow highlighter (select text first)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Clear styles",
+      "result": "DISABLED_OK",
+      "detail": "Clear styles (select text first)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":false,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Undo-click",
+      "result": "PASS",
+      "detail": "undo clicked"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Find-replace-fields",
+      "result": "PASS",
+      "detail": "status 0/0"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Insert date",
+      "result": "PASS",
+      "detail": "ISO stamp inserted"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Lists",
+      "result": "PASS",
+      "detail": "numbered marker applied"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Insert table",
+      "result": "PASS",
+      "detail": "{\"before\":\"text\",\"order\":\"text,table,text\",\"caret\":{\"start\":25,\"len\":25,\"text\":\"1. 2026-10-31 08:01around\"}}"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Insert image",
+      "result": "PASS",
+      "detail": "images=1"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Word wrap",
+      "result": "PASS",
+      "detail": "pressed true -> false, data-wrap=off"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Align left",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Align centre",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Align right",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Zoom in",
+      "result": "PASS",
+      "detail": "100% -> 106%"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Zoom out",
+      "result": "PASS",
+      "detail": "clicked back"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Paragraph style",
+      "result": "PASS",
+      "detail": "data-style=[\"title\"]"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Font",
+      "result": "PASS",
+      "detail": "data-font=[\"roboto\"]"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"maximize\",\"close\",\"save:Scratch.papel\"]"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Scratch"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Search and filters",
+      "result": "FAIL",
+      "detail": "search input not visible"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Encoding chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "EOL chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded restore; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "table-cell-caret",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Bold",
+      "result": "FAIL",
+      "detail": "disabled despite a selection (Bold (select text first))"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Italic",
+      "result": "FAIL",
+      "detail": "disabled despite a selection (Italic (select text first))"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Underline",
+      "result": "FAIL",
+      "detail": "disabled despite a selection (Underline (select text first))"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Strikethrough",
+      "result": "FAIL",
+      "detail": "disabled despite a selection (Strikethrough (select text first))"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Black ink",
+      "result": "FAIL",
+      "detail": "disabled with selection"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Wax red ink",
+      "result": "FAIL",
+      "detail": "disabled with selection"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "No highlight",
+      "result": "FAIL",
+      "detail": "disabled with selection"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Yellow highlighter",
+      "result": "FAIL",
+      "detail": "disabled with selection"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Clear styles",
+      "result": "FAIL",
+      "detail": "disabled with selection"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":false,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Undo-click",
+      "result": "PASS",
+      "detail": "undo clicked"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Find-replace-fields",
+      "result": "PASS",
+      "detail": "status 0/0"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Insert date",
+      "result": "PASS",
+      "detail": "ISO stamp inserted"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Lists",
+      "result": "PASS",
+      "detail": "numbered marker applied"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Insert table",
+      "result": "PASS",
+      "detail": "{\"before\":\"text,table,text,text\",\"order\":\"text,table,table,text,text\",\"caret\":{\"start\":0,\"len\":25,\"text\":\"1. 2026-10-31 08:01around\"}}"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Insert image",
+      "result": "PASS",
+      "detail": "images=2"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Word wrap",
+      "result": "PASS",
+      "detail": "pressed true -> false, data-wrap=off"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Align left",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Align centre",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Align right",
+      "result": "PASS",
+      "detail": "data-align=null"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Zoom in",
+      "result": "PASS",
+      "detail": "100% -> 106%"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Zoom out",
+      "result": "PASS",
+      "detail": "clicked back"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Paragraph style",
+      "result": "PASS",
+      "detail": "data-style=[\"title\",\"body\"]"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Font",
+      "result": "PASS",
+      "detail": "data-font=[\"roboto\",\"roboto\"]"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"restore\",\"close\",\"save:Scratch.papel\"]"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Scratch"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Search and filters",
+      "result": "PASS",
+      "detail": "Ln 1, Col 1\n25 chars\nPlain text\nUTF-8\nLF\n100%"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Encoding chip",
+      "result": "PASS",
+      "detail": "UTF-8 -> Windows-1252; text \"1. 2026-10-31 08:01around\""
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "EOL chip",
+      "result": "PASS",
+      "detail": "LF -> CRLF"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded maximize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "table-cell-selection",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "image-before",
+      "control": "Bold",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Bold (select text first)"
+    },
+    {
+      "context": "image-before",
+      "control": "Italic",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Italic (select text first)"
+    },
+    {
+      "context": "image-before",
+      "control": "Underline",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Underline (select text first)"
+    },
+    {
+      "context": "image-before",
+      "control": "Strikethrough",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Strikethrough (select text first)"
+    },
+    {
+      "context": "image-before",
+      "control": "Black ink",
+      "result": "DISABLED_OK",
+      "detail": "Black ink (select text first)"
+    },
+    {
+      "context": "image-before",
+      "control": "Wax red ink",
+      "result": "DISABLED_OK",
+      "detail": "Wax red ink (select text first)"
+    },
+    {
+      "context": "image-before",
+      "control": "No highlight",
+      "result": "DISABLED_OK",
+      "detail": "No highlight (select text first)"
+    },
+    {
+      "context": "image-before",
+      "control": "Yellow highlighter",
+      "result": "DISABLED_OK",
+      "detail": "Yellow highlighter (select text first)"
+    },
+    {
+      "context": "image-before",
+      "control": "Clear styles",
+      "result": "DISABLED_OK",
+      "detail": "Clear styles (select text first)"
+    },
+    {
+      "context": "image-before",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "image-before",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":false,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "image-before",
+      "control": "Undo-click",
+      "result": "PASS",
+      "detail": "undo clicked"
+    },
+    {
+      "context": "image-before",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "image-before",
+      "control": "Insert date",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "image-before",
+      "control": "Lists",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "image-before",
+      "control": "Insert table",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "image-before",
+      "control": "Insert image",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "image-before",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "image-before",
+      "control": "Word wrap",
+      "result": "PASS",
+      "detail": "pressed true -> false, data-wrap=off"
+    },
+    {
+      "context": "image-before",
+      "control": "Align left",
+      "result": "PASS",
+      "detail": "data-align=left"
+    },
+    {
+      "context": "image-before",
+      "control": "Align centre",
+      "result": "PASS",
+      "detail": "data-align=center"
+    },
+    {
+      "context": "image-before",
+      "control": "Align right",
+      "result": "PASS",
+      "detail": "data-align=right"
+    },
+    {
+      "context": "image-before",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "image-before",
+      "control": "Zoom in",
+      "result": "PASS",
+      "detail": "100% -> 106%"
+    },
+    {
+      "context": "image-before",
+      "control": "Zoom out",
+      "result": "PASS",
+      "detail": "clicked back"
+    },
+    {
+      "context": "image-before",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "image-before",
+      "control": "Paragraph style",
+      "result": "PASS",
+      "detail": "Paragraph style: Body"
+    },
+    {
+      "context": "image-before",
+      "control": "Font",
+      "result": "PASS",
+      "detail": "Font: IBM Plex Sans"
+    },
+    {
+      "context": "image-before",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "image-before",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "image-before",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"maximize\",\"close\",\"save:Scratch.papel\"]"
+    },
+    {
+      "context": "image-before",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "image-before",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "image-before",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Scratch"
+    },
+    {
+      "context": "image-before",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "image-before",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "image-before",
+      "control": "Search and filters",
+      "result": "FAIL",
+      "detail": "search input not visible"
+    },
+    {
+      "context": "image-before",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "image-before",
+      "control": "Encoding chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "image-before",
+      "control": "EOL chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "image-before",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "image-before",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "image-before",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded restore; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "image-before",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "image-before",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "image-after",
+      "control": "(setup)",
+      "result": "FAIL",
+      "detail": "TimeoutError: locator.click: Timeout 12000ms exceeded.\nCall log:\n  - waiting for locator('.page textarea.editor').last()\n"
+    },
+    {
+      "context": "image-on",
+      "control": "Bold",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Bold (select text first)"
+    },
+    {
+      "context": "image-on",
+      "control": "Italic",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Italic (select text first)"
+    },
+    {
+      "context": "image-on",
+      "control": "Underline",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Underline (select text first)"
+    },
+    {
+      "context": "image-on",
+      "control": "Strikethrough",
+      "result": "DISABLED_OK",
+      "detail": "disabled: Strikethrough (select text first)"
+    },
+    {
+      "context": "image-on",
+      "control": "Black ink",
+      "result": "DISABLED_OK",
+      "detail": "Black ink (select text first)"
+    },
+    {
+      "context": "image-on",
+      "control": "Wax red ink",
+      "result": "DISABLED_OK",
+      "detail": "Wax red ink (select text first)"
+    },
+    {
+      "context": "image-on",
+      "control": "No highlight",
+      "result": "DISABLED_OK",
+      "detail": "No highlight (select text first)"
+    },
+    {
+      "context": "image-on",
+      "control": "Yellow highlighter",
+      "result": "DISABLED_OK",
+      "detail": "Yellow highlighter (select text first)"
+    },
+    {
+      "context": "image-on",
+      "control": "Clear styles",
+      "result": "DISABLED_OK",
+      "detail": "Clear styles (select text first)"
+    },
+    {
+      "context": "image-on",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "image-on",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "image-on",
+      "control": "Undo-click",
+      "result": "PASS",
+      "detail": "undo clicked"
+    },
+    {
+      "context": "image-on",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "image-on",
+      "control": "Insert date",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "image-on",
+      "control": "Lists",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "image-on",
+      "control": "Insert table",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "image-on",
+      "control": "Insert image",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "image-on",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "image-on",
+      "control": "Word wrap",
+      "result": "PASS",
+      "detail": "pressed true -> false, data-wrap=off"
+    },
+    {
+      "context": "image-on",
+      "control": "Align left",
+      "result": "PASS",
+      "detail": "data-align=left"
+    },
+    {
+      "context": "image-on",
+      "control": "Align centre",
+      "result": "PASS",
+      "detail": "data-align=center"
+    },
+    {
+      "context": "image-on",
+      "control": "Align right",
+      "result": "PASS",
+      "detail": "data-align=right"
+    },
+    {
+      "context": "image-on",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "image-on",
+      "control": "Zoom in",
+      "result": "PASS",
+      "detail": "100% -> 106%"
+    },
+    {
+      "context": "image-on",
+      "control": "Zoom out",
+      "result": "PASS",
+      "detail": "clicked back"
+    },
+    {
+      "context": "image-on",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "image-on",
+      "control": "Paragraph style",
+      "result": "PASS",
+      "detail": "Paragraph style: Body"
+    },
+    {
+      "context": "image-on",
+      "control": "Font",
+      "result": "PASS",
+      "detail": "Font: IBM Plex Sans"
+    },
+    {
+      "context": "image-on",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "image-on",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "image-on",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"restore\",\"close\",\"save:Scratch.papel\"]"
+    },
+    {
+      "context": "image-on",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "image-on",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "image-on",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Scratch"
+    },
+    {
+      "context": "image-on",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "image-on",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "image-on",
+      "control": "Search and filters",
+      "result": "PASS",
+      "detail": "Ln 1, Col 1\n25 chars\nPlain text\nUTF-8\nLF\n100%"
+    },
+    {
+      "context": "image-on",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "image-on",
+      "control": "Encoding chip",
+      "result": "PASS",
+      "detail": "UTF-8 -> Windows-1252; text \"1. 2026-10-31 08:01around\""
+    },
+    {
+      "context": "image-on",
+      "control": "EOL chip",
+      "result": "PASS",
+      "detail": "LF -> CRLF"
+    },
+    {
+      "context": "image-on",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "image-on",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "image-on",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded maximize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "image-on",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "image-on",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Bold",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Italic",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Underline",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Strikethrough",
+      "result": "PASS",
+      "detail": "mark painted"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Black ink",
+      "result": "PASS",
+      "detail": "enabled for selection"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Wax red ink",
+      "result": "PASS",
+      "detail": "enabled for selection"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "No highlight",
+      "result": "PASS",
+      "detail": "enabled for selection"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Yellow highlighter",
+      "result": "PASS",
+      "detail": "enabled for selection"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Clear styles",
+      "result": "PASS",
+      "detail": "enabled for selection"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Undo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Undo\"}"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Redo",
+      "result": "PASS",
+      "detail": "{\"present\":true,\"visible\":true,\"enabled\":true,\"pressed\":null,\"label\":\"Redo\"}"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Undo-click",
+      "result": "PASS",
+      "detail": "undo clicked"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Find",
+      "result": "PASS",
+      "detail": "find bar open"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Insert date",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Lists",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Insert table",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Insert image",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Delete table",
+      "result": "DISABLED_OK",
+      "detail": "hidden unless a table cell is the active block"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Word wrap",
+      "result": "PASS",
+      "detail": "pressed true -> false, data-wrap=off"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Align left",
+      "result": "PASS",
+      "detail": "data-align=left"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Align centre",
+      "result": "PASS",
+      "detail": "data-align=center"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Align right",
+      "result": "PASS",
+      "detail": "data-align=right"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Align justify",
+      "result": "NOT_PRESENT",
+      "detail": "ALIGNMENTS has left/centre/right only (src/lib/quire/typefaces.ts)"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Zoom in",
+      "result": "PASS",
+      "detail": "100% -> 106%"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Zoom out",
+      "result": "PASS",
+      "detail": "clicked back"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Zoom %",
+      "result": "PASS",
+      "detail": "display 100% (not a button)"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Paragraph style",
+      "result": "PASS",
+      "detail": "Paragraph style: Body"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Font",
+      "result": "PASS",
+      "detail": "Font: IBM Plex Sans"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "Undo and Redo are the history controls; there is no separate History button"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Indent toolbar",
+      "result": "NOT_PRESENT",
+      "detail": "Indent is Tab / Shift+Tab on list lines, not a toolbar button"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Save",
+      "result": "PASS",
+      "detail": "[\"maximize\",\"close\",\"save:Scratch.papel\"]"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Save as",
+      "result": "FAIL",
+      "detail": "menu=\"Save as .papel\""
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Back to board",
+      "result": "PASS",
+      "detail": "present"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Rename sheet",
+      "result": "PASS",
+      "detail": "Scratch"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Close sheet",
+      "result": "PASS",
+      "detail": "enabled; a clean sheet is removed with no confirm, so it was not clicked"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Board",
+      "result": "PASS",
+      "detail": "board shown"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Search and filters",
+      "result": "FAIL",
+      "detail": "search input not visible"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Switch sheet",
+      "result": "PASS",
+      "detail": "menu lists Other"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Encoding chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "EOL chip",
+      "result": "ABSENT",
+      "detail": ""
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Settings/skins",
+      "result": "PASS",
+      "detail": "data-skin=paper"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Window Minimize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded minimize; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Window Maximize",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded restore; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "Window Close",
+      "result": "NOT_REPRODUCED",
+      "detail": "stub recorded close; OS window was not resized (Linux/Chromium)"
+    },
+    {
+      "context": "mixed-after-excel-html",
+      "control": "History panel",
+      "result": "NOT_PRESENT",
+      "detail": "no separate History control"
+    },
+    {
+      "context": "board",
+      "control": "New",
+      "result": "PASS",
+      "detail": "Untitled"
+    },
+    {
+      "context": "board",
+      "control": "Open",
+      "result": "PASS",
+      "detail": "opened from disk\nline two\n"
+    },
+    {
+      "context": "board",
+      "control": "New-count",
+      "result": "PASS",
+      "detail": "6 -> 8"
+    }
+  ],
+  "pageErrors": [],
+  "shots": [
+    "01-huge-paste-table-ok.png",
+    "02-excel-table.png",
+    "03-url-note.png",
+    "04-many-images.png",
+    "05-nested-table.png",
+    "06-ten-k-lines.png",
+    "07-after-reload.png",
+    "08-ctx-board.png",
+    "09-ctx-empty-note.png",
+    "10-ctx-short-caret.png",
+    "11-ctx-short-midword.png",
+    "12-ctx-short-mid-paragraph.png",
+    "13-ctx-long-multiline.png",
+    "14-ctx-long-ctrl-a.png",
+    "15-ctx-table-cell-caret.png",
+    "16-ctx-table-cell-selection.png",
+    "17-ctx-image-before.png",
+    "18-ctx-image-after-fail.png",
+    "19-ctx-image-on.png",
+    "20-ctx-mixed-after-excel-html.png"
+  ],
+  "casePass": 16,
+  "caseFail": 8,
+  "matrixPass": 454,
+  "matrixFail": 37
+}

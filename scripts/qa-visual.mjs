@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 
 const ROOT = join(process.cwd(), "dist-desktop", "client");
-const VERSION = "0.3.3";
+const VERSION = "0.3.7";
 const OUT = join(process.cwd(), "AI_Documentation", "qa", VERSION);
 const PORT = 8093;
 const MIME = {
@@ -49,26 +49,37 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1180, height: 840 } });
 
 await page.addInitScript(() => {
+  // Must be bridge v2 or desktopBridge() rejects it and the folder gate blocks the sheet.
   const dir = { id: "d", name: "d" };
+  const files = new Map();
   window.__PAPEL_DESKTOP__ = {
-    version: 1,
+    version: 2,
+    async appVersion() {
+      return "0.3.6";
+    },
+    async minimize() {},
+    async toggleMaximize() {},
+    async isMaximized() {
+      return false;
+    },
+    async close() {},
     async pickDirectory() {
       return dir;
     },
     async resolveDirectory() {
       return dir;
     },
-    async readFile() {
-      return null;
+    async readFile(_id, name) {
+      return files.get(name) ?? null;
     },
-    async writeFile() {
-      return true;
+    async writeFile(_id, name, bytes) {
+      files.set(name, bytes);
     },
-    async removeFile() {
-      return true;
+    async removeFile(_id, name) {
+      files.delete(name);
     },
     async listFiles() {
-      return [];
+      return [...files.keys()];
     },
     async saveFile() {
       return true;
@@ -221,6 +232,28 @@ shots.push({
   file: "03-table-at-caret.png",
   title: "Table at caret",
   note: "After a long paste, Insert table splits at the caret — text above and below the table; viewport stays near the insert.",
+});
+
+// 04 — a table cell survives autosave and a reload (images already did).
+await page.locator(".page .sheet-table td textarea").first().fill("kept-cell");
+await page.waitForTimeout(1200);
+await page.reload();
+await page.waitForTimeout(900);
+if (!(await page.evaluate(() => Boolean(document.querySelector(".page"))))) {
+  await page.getByText(/qa visual/i).first().click();
+  await page.waitForTimeout(600);
+}
+await page.evaluate(() => {
+  const cell = [...document.querySelectorAll(".page .sheet-table td textarea")].find((el) =>
+    el.value.includes("kept-cell"),
+  );
+  cell?.scrollIntoView({ block: "center" });
+});
+await page.screenshot({ path: join(OUT, "04-table-survives-reload.png"), fullPage: false });
+shots.push({
+  file: "04-table-survives-reload.png",
+  title: "Table survives reload",
+  note: "After autosave and a reload, the table and the cell text are still on the sheet.",
 });
 
 const index = `# Visual QA ${VERSION}

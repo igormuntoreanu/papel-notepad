@@ -116,6 +116,8 @@ export async function ensureLoaded(): Promise<Loaded> {
               // out is the right key even when block ids were renumbered.
               const look = readLook(block);
               if (look.font || look.style || look.align) looks[String(blockId)] = look;
+            } else if (block.kind === "table") {
+              session.restore_table(JSON.stringify({ cols: block.cols, cells: block.cells }));
             } else session.restore_image(block.mime, new Uint8Array(block.bytes));
           }
           session.restore_end(stored.language, stored.eol, stored.encoding);
@@ -167,6 +169,10 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
         const blocks: StoredBlock[] = outlineOf(session).map((item) => {
           if (item.kind === "image") {
             return { kind: "image", mime: item.mime || "image/png", bytes: copyBytes(session.image_of(item.id)) };
+          }
+          if (item.kind === "table") {
+            const table = JSON.parse(session.table_json(item.id)) as { cols: number; cells: unknown[] };
+            return { kind: "table", cols: table.cols, cells: table.cells };
           }
           const marks = session.marks(item.id);
           const look = meta.looks?.[String(item.id)] ?? {};
