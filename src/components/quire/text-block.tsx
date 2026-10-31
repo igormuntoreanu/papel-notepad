@@ -368,7 +368,7 @@ export function TextBlock({
 
           if (html && htmlHasEmphasis(html)) {
             const parsed = parseHtmlClipboard(html);
-            if (parsed.text.length > 0 && parsed.runs.some((r) => r.bold || r.italic)) {
+            if (parsed.text.length > 0 && parsed.runs.some((r) => r.bold || r.italic || r.underline || r.strike)) {
               e.preventDefault();
               const ta = e.currentTarget;
               const start = ta.selectionStart ?? 0;
@@ -380,6 +380,8 @@ export function TextBlock({
                 if (to <= from) continue;
                 if (run.bold) session.apply_style(blockId, from, to, "bold", 1);
                 if (run.italic) session.apply_style(blockId, from, to, "italic", 1);
+                if (run.underline) session.apply_style(blockId, from, to, "underline", 1);
+                if (run.strike) session.apply_style(blockId, from, to, "strike", 1);
               }
               const next = session.text_of(blockId);
               ta.value = next;

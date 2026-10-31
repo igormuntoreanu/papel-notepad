@@ -41,7 +41,7 @@ import {
 import type { DateStampStyle } from "@/lib/quire/text";
 import { tornClip } from "@/lib/quire/torn";
 import { TextBlock } from "./text-block";
-import { TableBlock, type CellTarget } from "./table-block";
+import { TableBlock, type CellRange, type CellTarget } from "./table-block";
 import { DropMenu } from "./drop-menu";
 import { imageUrl, outlineOf, type NoteMeta, type Place } from "./store";
 
@@ -186,6 +186,8 @@ export function Sheet({
   onSelection,
   onEdited,
   onCellSelect,
+  cellRange,
+  onCellRange,
   onImage,
   styles,
   find,
@@ -212,6 +214,8 @@ export function Sheet({
   onSelection: (blockId: number, start: number, end: number) => void;
   onEdited: () => void;
   onCellSelect: (target: CellTarget | null) => void;
+  cellRange: CellRange | null;
+  onCellRange: (range: CellRange | null) => void;
   onImage: (file: File) => void;
   styles: StyleState;
   find: FindState;
@@ -432,7 +436,13 @@ export function Sheet({
                         ["letter", "Lettered a."],
                       ] as [ListKind, string][]
                     ).map(([kind, label]) => (
-                      <button key={kind} type="button" className="menu-item" onClick={() => actions.list(kind)}>
+                      <button
+                        key={kind}
+                        type="button"
+                        className="menu-item"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => actions.list(kind)}
+                      >
                         {label}
                       </button>
                     ))}
@@ -537,6 +547,8 @@ export function Sheet({
                   version={tick}
                   onEdited={onEdited}
                   onSelect={onCellSelect}
+                  range={cellRange}
+                  onRange={onCellRange}
                   onDelete={() => actions.deleteTable(item.id)}
                 />
               ) : (

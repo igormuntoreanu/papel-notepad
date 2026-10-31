@@ -16,3 +16,5 @@ When a unit of work for this repo is done (bug fix, UI change, feature, or doc t
 7. Reply with the release URL and the local exe path.
 
 Skip only if there is nothing to ship (no code/doc changes) or the user explicitly said not to release this time.
+
+Before shipping, re-run every guard in `AI_Documentation/FIXED-BUGS.md` and add an entry when a bug is fixed.

@@ -541,10 +541,30 @@ const whole = await page.evaluate(() => ({
   disabled: document.querySelector('button[aria-label^="Bold"]')?.hasAttribute("disabled") ?? null,
   label: document.querySelector('button[aria-label^="Bold"]')?.getAttribute("aria-label"),
 }));
+let painted = null;
+if (!whole.disabled) {
+  await page.getByRole("button", { name: /^Bold/ }).click();
+  await page.waitForTimeout(200);
+  painted = await page.evaluate(() => document.querySelector(".page pre span.sb")?.textContent ?? null);
+}
 check(
   "ctrl-a-enables-bold",
-  whole.hits > 0 && whole.disabled === false,
-  JSON.stringify(whole),
+  whole.hits > 0 && whole.disabled === false && painted !== null,
+  JSON.stringify({ whole, painted }),
+);
+await page.getByRole("button", { name: /Find, replace, go to line/ }).click();
+await page.waitForTimeout(150);
+await page.keyboard.press("Escape");
+await page.waitForTimeout(200);
+const findAfterEsc = await page.evaluate(() => ({
+  findbar: document.querySelectorAll(".findbar").length,
+  hits: document.querySelectorAll(".page .find-hit").length,
+  boldDisabled: document.querySelector('button[aria-label^="Bold"]')?.hasAttribute("disabled") ?? null,
+}));
+check(
+  "escape-closes-find-during-select-all",
+  findAfterEsc.findbar === 0 && findAfterEsc.hits > 0 && findAfterEsc.boldDisabled === false,
+  JSON.stringify(findAfterEsc),
 );
 await page.keyboard.press("Escape");
 
@@ -597,6 +617,89 @@ if (await page.locator(".modal-back").count()) {
     JSON.stringify(survived),
   );
 }
+
+// ---- 17) HTML underline survives a paste.
+await page.locator(".page .block textarea.editor").first().click();
+await page.keyboard.press("Control+End");
+await page.evaluate(() => {
+  const ta = document.querySelector(".page .block textarea.editor");
+  ta.focus();
+  const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: new DataTransfer() });
+  event.clipboardData.setData("text/html", "<p>zz <u>UnderWord</u> qq</p>");
+  event.clipboardData.setData("text/plain", "zz UnderWord qq");
+  ta.dispatchEvent(event);
+});
+await page.waitForTimeout(400);
+const underPaste = await page.evaluate(() => ({
+  under: document.querySelector(".page pre span.su")?.textContent ?? null,
+  value: document.querySelector(".page .block textarea.editor")?.value ?? "",
+}));
+check(
+  "paste-html-underline",
+  underPaste.under === "UnderWord" && underPaste.value.includes("UnderWord"),
+  JSON.stringify(underPaste),
+);
+
+// ---- 18) Insert table from a cell cannot nest, so it sits under that table.
+const cell = page.locator(".page .sheet-table td textarea").first();
+await cell.click();
+await cell.fill("NESTCELL");
+await page.waitForTimeout(100);
+const beforeNest = await page.evaluate(() =>
+  [...document.querySelectorAll(".page .block")].map((block) => (block.classList.contains("table-block") ? "table" : "text")).join(","),
+);
+await page.getByRole("button", { name: /^Insert table$/ }).click();
+await page.getByRole("button", { name: "Insert a 2 by 2 table" }).click();
+await page.waitForTimeout(400);
+const nest = await page.evaluate(() => ({
+  order: [...document.querySelectorAll(".page .block")].map((block) => (block.classList.contains("table-block") ? "table" : "text")).join(","),
+  nested: document.querySelectorAll(".page .sheet-table .sheet-table").length,
+  cells: [...document.querySelectorAll(".page .sheet-table td textarea")].map((el) => el.value),
+  message: document.querySelector(".status-msg")?.textContent ?? "",
+}));
+check(
+  "table-insert-from-cell-places-below",
+  nest.nested === 0 && nest.order.includes("table,table") && nest.cells.includes("NESTCELL") && /placed under/i.test(nest.message),
+  JSON.stringify({ beforeNest, ...nest }),
+);
+
+// ---- 19) A drag from one cell into the next selects both, and Bold paints both.
+const left = page.locator(".page .sheet-table td textarea").nth(0);
+const right = page.locator(".page .sheet-table td textarea").nth(1);
+await left.fill("LeftCell");
+await right.fill("RightCell");
+await page.waitForTimeout(80);
+const boxL = await left.boundingBox();
+const boxR = await right.boundingBox();
+await page.mouse.move(boxL.x + 12, boxL.y + 8);
+await page.mouse.down();
+await page.mouse.move(boxR.x + 16, boxR.y + 8, { steps: 8 });
+await page.mouse.up();
+await page.waitForTimeout(200);
+const ranged = await page.locator(".page .sheet-table td.is-range").count();
+const bold = page.getByRole("button", { name: /^Bold/ });
+const boldOn = await bold.isEnabled();
+if (boldOn) await bold.click();
+await page.waitForTimeout(250);
+const both = await page.evaluate(() =>
+  [...document.querySelectorAll(".page .sheet-table pre span.sb")].map((el) => el.textContent),
+);
+check(
+  "cross-cell-drag-bold",
+  ranged >= 2 && boldOn && both.some((text) => text?.includes("Left")) && both.some((text) => text?.includes("Right")),
+  JSON.stringify({ ranged, boldOn, both }),
+);
+
+// ---- 20) Closing a clean sheet asks before deleting it.
+await page.getByRole("button", { name: /^Save \(/ }).click();
+await page.waitForTimeout(250);
+await page.getByRole("button", { name: "Close sheet" }).click();
+await page.waitForTimeout(200);
+const keep = await page.getByRole("button", { name: "Keep editing" }).count();
+if (keep) await page.getByRole("button", { name: "Keep editing" }).click();
+await page.waitForTimeout(200);
+const still = await page.locator(".page").count();
+check("close-clean-confirms", keep > 0 && still > 0, JSON.stringify({ keep, still }));
 
 const failed = Object.entries(results).filter(([, value]) => !value.ok).map(([name]) => name);
 console.log(failed.length ? `FAILED: ${failed.join(", ")}` : "ALL PASS");
