@@ -336,7 +336,7 @@ export function Sheet({
                           className="menu-item"
                           role="menuitemradio"
                           aria-checked={on}
-                          disabled={activeBlockId === null}
+                          disabled={activeBlockId === null || activeKind === "table"}
                           onClick={() => activeBlockId !== null && actions.look(activeBlockId, { font: font.id })}
                         >
                           <span style={{ fontFamily: font.css }}>{font.name}</span>
@@ -476,12 +476,16 @@ export function Sheet({
                         const Icon =
                           align.id === "left" ? AlignLeft : align.id === "center" ? AlignCenter : AlignRight;
                         const on = (currentLook.align ?? "left") === align.id;
+                        // Alignment needs Word Wrap on: with wrap off the textarea scrolls
+                        // sideways, so centring/right-aligning has no stable meaning.
+                        const wrapOff = !note.wrap;
                         return (
                           <Keep
                             key={align.id}
                             label={align.name}
-                            title={align.name}
+                            title={wrapOff ? `${align.name} (turn Word Wrap on first)` : align.name}
                             pressed={on}
+                            disabled={activeBlockId === null || activeKind === "table" || wrapOff}
                             onPress={() => actions.look(activeBlockId, { align: align.id })}
                           >
                             <Icon />

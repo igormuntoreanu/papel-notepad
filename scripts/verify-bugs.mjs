@@ -690,6 +690,42 @@ check(
   JSON.stringify({ ranged, boldOn, both }),
 );
 
+// ---- 21) Undo after styling a table cell reverts the style and never eats the text.
+// BUG-1: a cell's textarea is not `.editor`, so Ctrl+Z used to fall through to the
+// browser's native textarea undo — reverting one character and stranding the app's
+// marks. The cell now routes Ctrl+Z to the document undo (a marks-only CellStyle step).
+{
+  const cell = page.locator(".page .sheet-table td textarea").first();
+  await cell.click();
+  await page.waitForTimeout(80);
+  const before = await cell.inputValue();
+  await cell.evaluate((ta) => {
+    ta.focus();
+    ta.setSelectionRange(0, ta.value.length);
+    ta.dispatchEvent(new Event("select", { bubbles: true }));
+  });
+  await page.waitForTimeout(100);
+  await page.getByRole("button", { name: /^Wax red ink/ }).click();
+  await page.waitForTimeout(180);
+  const inked = await page.evaluate(() =>
+    [...document.querySelectorAll(".page .sheet-table pre span")].some((s) => s.classList.contains("ink1")),
+  );
+  // Re-focus the cell so Ctrl+Z is delivered to it (the BUG-1 path), then undo.
+  await cell.click();
+  await page.waitForTimeout(60);
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(220);
+  const after = await cell.inputValue();
+  const stillInked = await page.evaluate(() =>
+    [...document.querySelectorAll(".page .sheet-table pre span")].some((s) => s.classList.contains("ink1")),
+  );
+  check(
+    "cell-style-undo-keeps-text",
+    before.length > 0 && inked && after === before && !stillInked,
+    JSON.stringify({ before, after, textIntact: after === before, inked, inkRemoved: !stillInked }),
+  );
+}
+
 // ---- 20) Closing a clean sheet asks before deleting it.
 await page.getByRole("button", { name: /^Save \(/ }).click();
 await page.waitForTimeout(250);

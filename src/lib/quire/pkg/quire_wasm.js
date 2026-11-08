@@ -356,6 +356,19 @@ export class Session {
         return ret >>> 0;
     }
     /**
+     * Splits text block `id` at UTF-16 offset `at` and inserts a table there.
+     * Returns the caret for the text below the table.
+     * @param {number} id
+     * @param {number} at
+     * @param {number} cols
+     * @param {number} rows
+     * @returns {Caret | undefined}
+     */
+    insert_table_at(id, at, cols, rows) {
+        const ret = wasm.session_insert_table_at(this.__wbg_ptr, id, at, cols, rows);
+        return ret === 0 ? undefined : Caret.__wrap(ret);
+    }
+    /**
      * @returns {boolean}
      */
     is_dirty() {

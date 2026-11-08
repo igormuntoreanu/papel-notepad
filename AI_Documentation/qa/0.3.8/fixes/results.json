@@ -1,0 +1,154 @@
+{
+  "version": "0.3.8",
+  "suite": "qa-fixes",
+  "results": [
+    {
+      "name": "FIX2-wrap-default-pressed",
+      "ok": true,
+      "detail": {
+        "wrapPressed": "true",
+        "dataWrap": "on"
+      }
+    },
+    {
+      "name": "FIX2-align-works-when-wrap-on",
+      "ok": true,
+      "detail": {
+        "alignEnabledWrapOn": true,
+        "alignApplied": "center"
+      }
+    },
+    {
+      "name": "FIX2-align-disabled-when-wrap-off",
+      "ok": true,
+      "detail": {
+        "wrapPressed": "false",
+        "dataWrap": "off",
+        "alignDisabledWrapOff": true,
+        "left": {
+          "present": true,
+          "disabled": true,
+          "pressed": "false"
+        }
+      }
+    },
+    {
+      "name": "FIX2-align-reenabled-when-wrap-back-on",
+      "ok": true,
+      "detail": {
+        "left": {
+          "present": true,
+          "disabled": false,
+          "pressed": "false"
+        }
+      }
+    },
+    {
+      "name": "FIX3-bullet-caret-empty-middle-line",
+      "ok": true,
+      "detail": {
+        "before": {
+          "caretLine": 1,
+          "value": "alpha\n\ngamma",
+          "lineCount": 3
+        },
+        "after": {
+          "caretLine": 1,
+          "col": 2,
+          "lineLen": 2,
+          "lineText": "• ",
+          "value": "alpha\n• \ngamma",
+          "selStart": 8
+        },
+        "typed": {
+          "caretLine": 1,
+          "lineText": "• X"
+        },
+        "stayedOnLine": true,
+        "atEndOfLine": true,
+        "typedOnSameLine": true
+      }
+    },
+    {
+      "name": "FIX3-bullet-caret-text-middle-line",
+      "ok": true,
+      "detail": {
+        "before": {
+          "caretLine": 1,
+          "value": "alpha\nbeta\ngamma",
+          "lineCount": 3
+        },
+        "after": {
+          "caretLine": 1,
+          "col": 6,
+          "lineLen": 6,
+          "lineText": "• beta",
+          "value": "alpha\n• beta\ngamma",
+          "selStart": 12
+        },
+        "typed": {
+          "caretLine": 1,
+          "lineText": "• betaX"
+        },
+        "stayedOnLine": true,
+        "atEndOfLine": true,
+        "typedOnSameLine": true
+      }
+    },
+    {
+      "name": "FIX3-bullet-caret-first-line",
+      "ok": true,
+      "detail": {
+        "before": {
+          "caretLine": 0,
+          "value": "first\nsecond",
+          "lineCount": 2
+        },
+        "after": {
+          "caretLine": 0,
+          "col": 7,
+          "lineLen": 7,
+          "lineText": "• first",
+          "value": "• first\nsecond",
+          "selStart": 7
+        },
+        "typed": {
+          "caretLine": 0,
+          "lineText": "• firstX"
+        },
+        "stayedOnLine": true,
+        "atEndOfLine": true,
+        "typedOnSameLine": true
+      }
+    },
+    {
+      "name": "FIX3-bullet-caret-last-line",
+      "ok": true,
+      "detail": {
+        "before": {
+          "caretLine": 3,
+          "value": "l1\nl2\nl3\nl4",
+          "lineCount": 4
+        },
+        "after": {
+          "caretLine": 3,
+          "col": 4,
+          "lineLen": 4,
+          "lineText": "• l4",
+          "value": "l1\nl2\nl3\n• l4",
+          "selStart": 13
+        },
+        "typed": {
+          "caretLine": 3,
+          "lineText": "• l4X"
+        },
+        "stayedOnLine": true,
+        "atEndOfLine": true,
+        "typedOnSameLine": true
+      }
+    }
+  ],
+  "pageErrors": [],
+  "pass": 8,
+  "fail": 0
+}

@@ -1,0 +1,448 @@
+{
+  "version": "0.3.8",
+  "suite": "qa-creative",
+  "browser": "Chromium (Playwright), real keyboard/mouse selections",
+  "cases": [
+    {
+      "name": "boot",
+      "ok": true,
+      "detail": "board visible, bridge v2 accepted"
+    },
+    {
+      "name": "A1-real-midword-selection-enables-marks",
+      "ok": true,
+      "detail": {
+        "bold": {
+          "present": true,
+          "disabled": false,
+          "label": "Bold"
+        },
+        "italic": {
+          "present": true,
+          "disabled": false,
+          "label": "Italic"
+        },
+        "waxRed": {
+          "present": true,
+          "disabled": false,
+          "label": "Wax red ink"
+        },
+        "yellowHl": {
+          "present": true,
+          "disabled": false,
+          "label": "Yellow highlighter"
+        },
+        "clear": {
+          "present": true,
+          "disabled": false,
+          "label": "Clear styles"
+        }
+      }
+    },
+    {
+      "name": "A2-real-midword-bold-paints",
+      "ok": true,
+      "detail": {
+        "classes": [
+          "sb"
+        ],
+        "spanCount": 1
+      }
+    },
+    {
+      "name": "A3-synthetic-midword-vs-real",
+      "ok": false,
+      "detail": {
+        "syntheticBoldDisabled": false,
+        "syntheticLabel": "Bold",
+        "realBoldDisabled": false,
+        "verdict": "synthetic worked too — baseline fail was transient"
+      }
+    },
+    {
+      "name": "A4-mouse-drag-selection-enables-marks",
+      "ok": true,
+      "detail": {
+        "bold": {
+          "present": true,
+          "disabled": false,
+          "label": "Bold"
+        },
+        "waxRed": {
+          "present": true,
+          "disabled": false,
+          "label": "Wax red ink"
+        }
+      }
+    },
+    {
+      "name": "B1-enter-inside-cell",
+      "ok": true,
+      "detail": {
+        "tablesBefore": 1,
+        "tablesAfter": 1,
+        "cellVal": "Hello\nWorld",
+        "blockKinds": [
+          "text",
+          "table",
+          "text"
+        ],
+        "note": "Enter stays inside the cell (newline), table intact"
+      }
+    },
+    {
+      "name": "B2-bullets-inside-cell-then-remove",
+      "ok": true,
+      "detail": {
+        "hadBulletMenu": false,
+        "afterBullet": {
+          "cellVal": "item one",
+          "cellStillInTable": true,
+          "sheetListBlocks": 0,
+          "tables": 1
+        },
+        "afterRemove": {
+          "cellVal": "item one",
+          "tables": 1
+        },
+        "tableIntact": true,
+        "textKept": true
+      }
+    },
+    {
+      "name": "B3-cell-colors-and-highlight",
+      "ok": true,
+      "detail": {
+        "inkOn": true,
+        "hlOn": true,
+        "paint": {
+          "classes": [
+            "ink1",
+            "hl1"
+          ],
+          "spanCount": 1
+        },
+        "boldState": {
+          "present": true,
+          "disabled": false,
+          "label": "Bold"
+        }
+      }
+    },
+    {
+      "name": "B4-cell-alignment",
+      "ok": false,
+      "detail": {
+        "center": {
+          "cellAlign": "start",
+          "blockAlign": null
+        },
+        "right": {
+          "cellAlign": "start"
+        }
+      }
+    },
+    {
+      "name": "B5-cell-font-change",
+      "ok": false,
+      "detail": {
+        "hasFont": false,
+        "applied": null
+      }
+    },
+    {
+      "name": "B6-cross-cell-drag-bold",
+      "ok": true,
+      "detail": {
+        "dragSelectedCells": true,
+        "paint": {
+          "classes": [
+            "sb"
+          ],
+          "spanCount": 2
+        }
+      }
+    },
+    {
+      "name": "B7-enter-in-last-cell",
+      "ok": true,
+      "detail": {
+        "rowsBefore": 2,
+        "rowsAfter": 2,
+        "tables": 1,
+        "note": "Enter in last cell should not destroy the table"
+      }
+    },
+    {
+      "name": "B8-delete-table-button-cell-focused",
+      "ok": false,
+      "detail": {
+        "visible": false,
+        "enabled": false,
+        "note": "Delete table hidden/disabled while a cell is focused (baseline flagged this)"
+      }
+    },
+    {
+      "name": "C1-add-delete-undo-image",
+      "ok": true,
+      "detail": {
+        "added": 1,
+        "deleted": 0,
+        "undone": 1
+      }
+    },
+    {
+      "name": "C2-selectall-bold-with-image",
+      "ok": true,
+      "detail": {
+        "boldOn": true,
+        "imgsAfterBold": 1,
+        "paint": {
+          "classes": [
+            "sb"
+          ],
+          "spanCount": 1
+        }
+      }
+    },
+    {
+      "name": "D1-all-inks-paint",
+      "ok": true,
+      "detail": {
+        "ink1": "PAINTED",
+        "ink2": "PAINTED",
+        "ink3": "PAINTED",
+        "ink4": "PAINTED"
+      }
+    },
+    {
+      "name": "D2-all-highlights-paint",
+      "ok": true,
+      "detail": {
+        "hl1": "PAINTED",
+        "hl2": "PAINTED",
+        "hl3": "PAINTED",
+        "hl4": "PAINTED"
+      }
+    },
+    {
+      "name": "D3-clear-styles-removes-all",
+      "ok": true,
+      "detail": {
+        "before": [
+          "sb",
+          "ink1",
+          "hl1"
+        ],
+        "after": []
+      }
+    },
+    {
+      "name": "D4-paint-undo-redo",
+      "ok": true,
+      "detail": {
+        "painted": [
+          "ink1"
+        ],
+        "undone": [],
+        "redone": [
+          "ink1"
+        ]
+      }
+    },
+    {
+      "name": "D5-bold-plus-color-combo",
+      "ok": true,
+      "detail": {
+        "classes": [
+          "sb",
+          "ink2"
+        ],
+        "spanCount": 1
+      }
+    },
+    {
+      "name": "E1-align-left-center-right",
+      "ok": true,
+      "detail": {
+        "left": "left",
+        "centre": "center",
+        "right": "right"
+      }
+    },
+    {
+      "name": "E2-wrap-off-long-line",
+      "ok": false,
+      "detail": {
+        "wrapOff": "off",
+        "scrollable": false,
+        "alignRight": "right"
+      }
+    },
+    {
+      "name": "E3-wrap-toggle-big-text",
+      "ok": true,
+      "detail": {
+        "lenBefore": 14739,
+        "lenAfter": 14739,
+        "toggles": 6,
+        "textIntact": true
+      }
+    },
+    {
+      "name": "E4-align-cell-vs-outside-independent",
+      "ok": false,
+      "detail": {
+        "cellAlignAfterCellOp": null,
+        "cellAlign": null,
+        "blockAlign": "right"
+      }
+    },
+    {
+      "name": "F1-cycle-all-typefaces",
+      "ok": false,
+      "detail": {
+        "applied": [
+          "IBM Plex Sans:NO_BUTTON",
+          "IBM Plex Mono:NO_BUTTON",
+          "Inter:NO_BUTTON",
+          "Roboto:NO_BUTTON",
+          "Open Sans:NO_BUTTON",
+          "Lato:NO_BUTTON",
+          "Montserrat:NO_BUTTON",
+          "Poppins:NO_BUTTON",
+          "JetBrains Mono:NO_BUTTON"
+        ],
+        "failures": [
+          "IBM Plex Sans:NO_BUTTON",
+          "IBM Plex Mono:NO_BUTTON",
+          "Inter:NO_BUTTON",
+          "Roboto:NO_BUTTON",
+          "Open Sans:NO_BUTTON",
+          "Lato:NO_BUTTON",
+          "Montserrat:NO_BUTTON",
+          "Poppins:NO_BUTTON",
+          "JetBrains Mono:NO_BUTTON"
+        ]
+      }
+    },
+    {
+      "name": "G1-10k-line-format-undo",
+      "ok": true,
+      "detail": {
+        "pasteMs": 2596,
+        "len": 669999,
+        "boldOn": true,
+        "lenAfterBold": 669999,
+        "lenAfterUndo": 669999,
+        "textStable": true
+      }
+    },
+    {
+      "name": "G2-mixed-ops-rollback-chain",
+      "ok": true,
+      "detail": {
+        "ops": [
+          "bold",
+          "ink",
+          "hl",
+          "table",
+          "image"
+        ],
+        "stateFull": {
+          "tables": 1,
+          "images": 1,
+          "text": ""
+        },
+        "stateUndone": {
+          "tables": 0,
+          "images": 0,
+          "text": "rollback chain"
+        },
+        "stateRedone": {
+          "tables": 1,
+          "images": 1,
+          "text": ""
+        },
+        "undoCount": 5
+      }
+    },
+    {
+      "name": "G3-single-char-and-empty-selection",
+      "ok": true,
+      "detail": {
+        "singleCharBoldEnabled": true,
+        "painted": [
+          "ink2",
+          "sb"
+        ],
+        "emptySelectionBoldDisabled": true,
+        "emptyLabel": "Bold (select text first)"
+      }
+    },
+    {
+      "name": "H1-cell-full-stack-then-undo",
+      "ok": false,
+      "detail": {
+        "paintedWhileStyled": [
+          "sb",
+          "ink1",
+          "hl1"
+        ],
+        "afterUndo": {
+          "cellVal": "st",
+          "tables": 1
+        },
+        "paintAfterUndo": [
+          "sb",
+          "ink1",
+          "hl1"
+        ]
+      }
+    },
+    {
+      "name": "H2-insert-table-from-cell-is-sibling",
+      "ok": true,
+      "detail": {
+        "before": [
+          "text",
+          "table",
+          "text"
+        ],
+        "after": {
+          "blocks": [
+            "text",
+            "table",
+            "table",
+            "text"
+          ],
+          "nested": 0,
+          "tables": 2
+        }
+      }
+    },
+    {
+      "name": "H3-copy-styled-cell-paste-outside",
+      "ok": true,
+      "detail": {
+        "pastedText": "copied",
+        "boldCarriedOver": false
+      }
+    },
+    {
+      "name": "H4-excel-table-edit-reload-persists",
+      "ok": true,
+      "detail": {
+        "tablesAfterPaste": 1,
+        "gated": 0,
+        "after": {
+          "tables": 1,
+          "cellText": "EDITED"
+        }
+      }
+    }
+  ],
+  "pageErrors": [],
+  "pass": 24,
+  "fail": 8
+}

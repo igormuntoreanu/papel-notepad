@@ -767,8 +767,17 @@ export function QuireApp() {
     const id = sel.blockId || session.first_text_id();
     const text = session.text_of(id);
     const change = applyListStyle(text, sel.start, sel.end, kind);
+    // applyListStyle rewrites the whole block but preserves the line count, so the
+    // caret's line index is stable across the edit. Keep the caret at the END of that
+    // same line (right after a freshly added marker) so the user can type immediately,
+    // instead of throwing it to the end of the block.
+    const anchor = Math.min(sel.start, sel.end);
+    const lineIndex = text.slice(0, anchor).split("\n").length - 1;
     session.edit(id, change.start, change.end, change.insert, false);
-    const pos = change.insert.length;
+    const newLines = change.insert.split("\n");
+    let pos = 0;
+    for (let i = 0; i < lineIndex && i < newLines.length; i += 1) pos += newLines[i].length + 1;
+    pos = Math.min(pos + (newLines[lineIndex]?.length ?? 0), change.insert.length);
     setSel({ blockId: id, start: pos, end: pos });
     setMessage(change.removed ? "List removed" : "List applied");
     touch(activeId);
@@ -1232,6 +1241,12 @@ export function QuireApp() {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       const inEditor = el?.tagName === "TEXTAREA" && el.classList.contains("editor");
+      // A table cell's textarea holds document content (its edits live in the document
+      // undo stack) but is not `.editor`, so it falls into `field` below. Keep it a
+      // `field` for Escape/menu purposes, yet still route Ctrl+Z / Ctrl+Y to the
+      // document undo and preventDefault — otherwise the browser's native textarea undo
+      // reverts only the cell's text and strands the app's marks (BUG-1).
+      const inCell = el?.tagName === "TEXTAREA" && el.classList.contains("cell-input");
       const field = el?.tagName === "INPUT" || el?.tagName === "SELECT" || (el?.tagName === "TEXTAREA" && !inEditor);
       const meta = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
@@ -1268,7 +1283,18 @@ export function QuireApp() {
         openFind();
         return;
       }
-      if (field) return;
+      if (field) {
+        // A focused table cell is document content: give it the document undo/redo and
+        // suppress the native textarea undo (see `inCell` above).
+        if (inCell && meta && key === "z" && !e.shiftKey) {
+          e.preventDefault();
+          doUndo(false);
+        } else if (inCell && meta && (key === "y" || (key === "z" && e.shiftKey))) {
+          e.preventDefault();
+          doUndo(true);
+        }
+        return;
+      }
       if (inEditor && meta && !e.altKey) {
         const flag: FlagName | null =
           key === "b" && !e.shiftKey

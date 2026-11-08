@@ -1,0 +1,90 @@
+{
+  "version": "0.3.8",
+  "suite": "qa-verify",
+  "findings": [
+    {
+      "id": "V1-cross-cell-drag",
+      "verdict": "CROSS_CELL_WORKS",
+      "detail": {
+        "rangeInfo": {
+          "isRangeCount": 2,
+          "isRangeClasses": [
+            "is-range",
+            "is-range"
+          ],
+          "totalTds": 4,
+          "tdClasses": [
+            "is-range",
+            "is-range",
+            "",
+            ""
+          ]
+        },
+        "boldEnabled": true,
+        "bolded": {
+          "cellsWithBoldSpan": 2,
+          "cellTexts": [
+            "AA",
+            "BB",
+            "",
+            ""
+          ],
+          "cellBoldSpans": [
+            "AA",
+            "BB",
+            null,
+            null
+          ]
+        },
+        "interpretation": "A drag across two cells sets .is-range on 2 cells and Bold paints 2 cells. The baseline's selected>=2 check counts native textarea selections, which cannot span two textareas — it measures the wrong thing. Cross-cell selection DOES work in 0.3.8 (matches the release notes)."
+      }
+    },
+    {
+      "id": "V2-partial-bold-text-intact",
+      "verdict": "TEXT_INTACT",
+      "detail": {
+        "cellBefore": "INSIDE",
+        "cellAfter": {
+          "cellValue": "INSIDE",
+          "boldSpan": "IN",
+          "outsideValue": "OUTSIDE"
+        },
+        "interpretation": "Full cell text \"INSIDE\" survives a partial-drag bold (bold span = \"IN\"). The baseline's format-in-cell-then-outside FAIL was a too-strict assertion (it expected the bold span to equal the whole word, but a short drag only bolds a substring). No text corruption."
+      }
+    },
+    {
+      "id": "V3-undo-block-vs-cell",
+      "verdict": "BOTH_OK",
+      "detail": {
+        "normalBlock": {
+          "before": {
+            "val": "normal block",
+            "marks": [
+              "ink1"
+            ]
+          },
+          "afterUndo": {
+            "val": "normal block",
+            "marks": []
+          },
+          "undoRemovedMark": true
+        },
+        "tableCell": {
+          "before": {
+            "val": "cell text",
+            "marks": [
+              "ink1"
+            ]
+          },
+          "afterUndo": {
+            "val": "cell text",
+            "marks": []
+          },
+          "textPreserved": true
+        },
+        "interpretation": "Normal block: mark applied=ink1, after undo marks=, text \"normal block\"->\"normal block\". Cell: mark applied=ink1, after undo marks=, text \"cell text\"->\"cell text\". "
+      }
+    }
+  ],
+  "pageErrors": []
+}

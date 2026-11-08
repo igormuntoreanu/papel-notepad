@@ -60,6 +60,8 @@ enum StepKind {
     Marks { id: u32, before: Vec<Run>, after: Vec<Run> },
     /// One cell's text, as a step small enough to run per keystroke.
     Cell { id: u32, row: u32, col: u32, deleted: String, inserted: String, marks_before: Vec<Run>, marks_after: Vec<Run> },
+    /// One cell's style change: undo reverts the marks and never touches the text.
+    CellStyle { id: u32, row: u32, col: u32, marks_before: Vec<Run>, marks_after: Vec<Run> },
     Structure { before: Vec<Block>, after: Vec<Block> },
     Meta { before: Meta, after: Meta },
 }
@@ -528,6 +530,9 @@ impl Document {
             StepKind::Cell { id, row, col, deleted, marks_before, .. } => {
                 self.apply_cell(*id, *row, *col, deleted, marks_before)
             }
+            StepKind::CellStyle { id, row, col, marks_before, .. } => {
+                self.set_cell_marks(*id, *row, *col, marks_before)
+            }
             StepKind::Structure { before, .. } => self.blocks = before.clone(),
             StepKind::Meta { before, .. } => self.apply_meta(before),
         }
@@ -542,6 +547,9 @@ impl Document {
             StepKind::Marks { id, after, .. } => self.set_marks(*id, after),
             StepKind::Cell { id, row, col, inserted, marks_after, .. } => {
                 self.apply_cell(*id, *row, *col, inserted, marks_after)
+            }
+            StepKind::CellStyle { id, row, col, marks_after, .. } => {
+                self.set_cell_marks(*id, *row, *col, marks_after)
             }
             StepKind::Structure { after, .. } => self.blocks = after.clone(),
             StepKind::Meta { after, .. } => self.apply_meta(after),
@@ -986,7 +994,8 @@ impl Document {
             return false;
         }
         let index = r * cols + c;
-        let before = self.blocks.clone();
+        let mut marks_before = Vec::new();
+        let mut marks_after = Vec::new();
         let changed = match self.blocks.iter_mut().find(|b| b.id() == id) {
             Some(Block::Table { cells, .. }) => {
                 let cell = &mut cells[index];
@@ -994,14 +1003,16 @@ impl Document {
                 if next == cell.marks {
                     false
                 } else {
+                    marks_before = cell.marks.clone();
                     cell.marks = next;
+                    marks_after = cell.marks.clone();
                     true
                 }
             }
             _ => false,
         };
         if changed {
-            self.finish_structure(before);
+            self.push_cell_style(id, row, col, marks_before, marks_after);
         }
         changed
     }
@@ -1140,7 +1151,8 @@ impl Document {
             return false;
         }
         let index = r * cols + c;
-        let before = self.blocks.clone();
+        let mut marks_before = Vec::new();
+        let mut marks_after = Vec::new();
         let changed = match self.blocks.iter_mut().find(|block| block.id() == id) {
             Some(Block::Table { cells, .. }) => {
                 let cell = &mut cells[index];
@@ -1153,7 +1165,9 @@ impl Document {
                     if next == cell.marks {
                         false
                     } else {
+                        marks_before = cell.marks.clone();
                         cell.marks = next;
+                        marks_after = cell.marks.clone();
                         true
                     }
                 }
@@ -1161,7 +1175,10 @@ impl Document {
             _ => false,
         };
         if changed {
-            self.finish_structure(before);
+            // A marks-only step: undo restores exactly these runs and never touches the
+            // cell text. A whole-blocks Structure snapshot could revert a keystroke that
+            // had not reached the model yet, eating characters (BUG-1).
+            self.push_cell_style(id, row, col, marks_before, marks_after);
         }
         changed
     }
@@ -1190,6 +1207,23 @@ impl Document {
         if let Some(Block::Table { cells, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
             if let Some(cell) = cells.get_mut(index) {
                 cell.text = text.to_string();
+                cell.marks = marks.to_vec();
+            }
+        }
+    }
+
+    /// Restores one cell's style runs without touching its text. The undo/redo of a
+    /// `CellStyle` step: a style change is marks-only, so reverting it must never be
+    /// able to alter the words in the cell.
+    fn set_cell_marks(&mut self, id: u32, row: u32, col: u32, marks: &[Run]) {
+        let Some((rows, cols)) = self.table_shape(id) else { return };
+        let (r, c) = (row as usize, col as usize);
+        if r >= rows || c >= cols {
+            return;
+        }
+        let index = r * cols + c;
+        if let Some(Block::Table { cells, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
+            if let Some(cell) = cells.get_mut(index) {
                 cell.marks = marks.to_vec();
             }
         }
@@ -1296,6 +1330,22 @@ impl Document {
             kind: StepKind::Structure { before, after },
             caret_before,
             caret_after,
+            rev_before,
+            rev_after: self.revision,
+        });
+    }
+
+    /// Records a cell style change as one marks-only undo step. The caret stays on the
+    /// table block (cells are addressed by row/col, which the frontend tracks), matching
+    /// how `table_set_text` reports its caret.
+    fn push_cell_style(&mut self, id: u32, row: u32, col: u32, marks_before: Vec<Run>, marks_after: Vec<Run>) {
+        let rev_before = self.revision;
+        self.revision += 1;
+        let caret = Caret { block_id: id, start: 0, end: 0 };
+        self.push(Step {
+            kind: StepKind::CellStyle { id, row, col, marks_before, marks_after },
+            caret_before: caret,
+            caret_after: caret,
             rev_before,
             rev_after: self.revision,
         });

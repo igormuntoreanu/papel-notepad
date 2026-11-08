@@ -1,0 +1,200 @@
+{
+  "version": "0.3.8",
+  "suite": "qa-retest",
+  "findings": [
+    {
+      "id": "R1-cell-alignment",
+      "verdict": "CELL_ALIGN_BROKEN",
+      "detail": {
+        "alignButtonEnabledWithCellFocused": {
+          "present": true,
+          "disabled": false,
+          "label": "Align centre"
+        },
+        "afterAlignCentreOnCell": {
+          "td_data_align": null,
+          "td_computed_textAlign": "start",
+          "cellTa_computed_textAlign": "start",
+          "tableBlock_data_align": null,
+          "firstBlock_data_align": null,
+          "firstBlock_isTable": false
+        },
+        "afterAlignCentreOnOutsideBlock": {
+          "td_data_align": null,
+          "textBlock_data_align": "center",
+          "allBlockAligns": [
+            "center",
+            null,
+            "center"
+          ]
+        },
+        "interpretation": "Align centre with a cell focused changes NOTHING on the cell, the table block, or computed style. Alignment is a no-op inside table cells."
+      }
+    },
+    {
+      "id": "R2-fonts",
+      "verdict": "FONTS_ISSUE",
+      "detail": {
+        "fontButtonState": {
+          "present": true,
+          "disabled": false,
+          "label": "Font: IBM Plex Sans"
+        },
+        "outsideCycle": [
+          "IBM Plex Sans:NO_ITEM",
+          "IBM Plex Mono->data-font=plex-mono",
+          "Inter->data-font=inter",
+          "Roboto->data-font=roboto",
+          "Open Sans->data-font=open-sans",
+          "Lato->data-font=lato",
+          "Montserrat->data-font=montserrat",
+          "Poppins->data-font=poppins",
+          "JetBrains Mono->data-font=jetbrains-mono"
+        ],
+        "fontButtonInCell": {
+          "present": true,
+          "disabled": false,
+          "label": "Font: IBM Plex Sans"
+        },
+        "cellFontResult": {
+          "td_data_font": null,
+          "tableBlock_data_font": null,
+          "firstBlock_data_font": null
+        },
+        "interpretation": "Outside: 1/9 problematic. Cell font control present=true."
+      }
+    },
+    {
+      "id": "R3-undo-in-cell",
+      "verdict": "UNDO_PARTIAL",
+      "detail": {
+        "plainTypingUndo": {
+          "typed": "abcdefgh",
+          "steps": [
+            "abcdefgh",
+            "abcdefgh",
+            "abcdefgh",
+            "abcdefgh",
+            "abcdefgh",
+            "abcdefgh",
+            "abcdefgh",
+            "abcdefgh",
+            null,
+            "cell font"
+          ],
+          "plainUndoOk": false
+        },
+        "styledTrace": [
+          {
+            "step": "typed",
+            "val": "stack me",
+            "marks": []
+          },
+          {
+            "step": "bold(0,5)",
+            "val": "stack me",
+            "marks": [
+              "sb"
+            ]
+          },
+          {
+            "step": "ink(0,5)",
+            "val": "stack me",
+            "marks": [
+              "sb",
+              "ink1"
+            ]
+          },
+          {
+            "step": "hl(0,5)",
+            "val": "stack me",
+            "marks": [
+              "sb",
+              "ink1",
+              "hl1"
+            ]
+          },
+          {
+            "step": "undo#1",
+            "val": "stack me",
+            "marks": [
+              "sb",
+              "ink1"
+            ]
+          },
+          {
+            "step": "undo#2",
+            "val": "stack me",
+            "marks": [
+              "sb"
+            ]
+          },
+          {
+            "step": "undo#3",
+            "val": "stack me",
+            "marks": []
+          },
+          {
+            "step": "undo#4",
+            "val": "stack me",
+            "marks": []
+          },
+          {
+            "step": "undo#5",
+            "val": "stack me",
+            "marks": []
+          },
+          {
+            "step": "undo#6",
+            "val": "stack me",
+            "marks": []
+          }
+        ],
+        "corruptingStep": null,
+        "interpretation": "Undo round-trips the cell text cleanly; H1 corruption was a harness artifact of repeated realSelect."
+      }
+    },
+    {
+      "id": "R4-wrap-off-scroll",
+      "verdict": "H_SCROLL_PRESENT",
+      "detail": {
+        "wrapBefore": "on",
+        "wrapAfter": "off",
+        "probe": {
+          ".sheet": {
+            "scrollWidth": 1046,
+            "clientWidth": 1046,
+            "overflowX": "auto",
+            "scrolls": false
+          },
+          ".page": {
+            "scrollWidth": 988,
+            "clientWidth": 988,
+            "overflowX": "visible",
+            "scrolls": false
+          },
+          ".page .block": {
+            "scrollWidth": 3840,
+            "clientWidth": 988,
+            "overflowX": "auto",
+            "scrolls": true
+          },
+          ".page .block pre": {
+            "scrollWidth": 3840,
+            "clientWidth": 3840,
+            "overflowX": "hidden",
+            "scrolls": false
+          },
+          ".page .block .editor": {
+            "scrollWidth": 3840,
+            "clientWidth": 3840,
+            "overflowX": "hidden",
+            "scrolls": false
+          }
+        },
+        "interpretation": "Some container scrolls horizontally with wrap off — E2 measured the wrong element."
+      }
+    }
+  ],
+  "pageErrors": []
+}

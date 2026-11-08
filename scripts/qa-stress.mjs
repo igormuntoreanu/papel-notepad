@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 
 const ROOT = join(process.cwd(), "dist-desktop", "client");
-const VERSION = "0.3.6";
+const VERSION = "0.3.8";
 const OUT = join(process.cwd(), "AI_Documentation", "qa", VERSION, "stress");
 const PORT = 8094;
 const MIME = {
@@ -68,7 +68,17 @@ function matrixRow(context, control, result, detail) {
   return row;
 }
 
-const browser = await chromium.launch();
+// Windows headless Chromium crashes the render target on page.screenshot with
+// the default GPU/sandbox settings. These args keep the target alive; snap()
+// below is also fault-tolerant so one bad shot cannot abort the whole matrix.
+const browser = await chromium.launch({
+  args: [
+    "--disable-gpu",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-software-rasterizer",
+  ],
+});
 const context = await browser.newContext({
   viewport: { width: 1280, height: 900 },
   permissions: ["clipboard-read", "clipboard-write"],
@@ -109,9 +119,16 @@ process.on("uncaughtException", (err) => {
 async function snap(name) {
   shotN += 1;
   const file = `${String(shotN).padStart(2, "0")}-${name.replace(/[^a-z0-9-]+/gi, "-").slice(0, 60)}.png`;
-  await page.screenshot({ path: join(OUT, file), fullPage: false });
-  shots.push(file);
-  return file;
+  try {
+    await page.screenshot({ path: join(OUT, file), fullPage: false, timeout: 8000 });
+    shots.push(file);
+    return file;
+  } catch (err) {
+    // A crashed render target must not abort the whole matrix. Record and move on.
+    shots.push(`FAILED:${file}`);
+    console.log(`  [snap] screenshot failed for ${name}: ${String(err).slice(0, 120)}`);
+    return null;
+  }
 }
 
 await page.addInitScript(() => {

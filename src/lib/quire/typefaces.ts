@@ -45,7 +45,7 @@ export const STYLE_SIZES: Record<StyleId, number> = {
   body: 16,
 };
 
-/** Paragraph alignment, offered while Word Wrap is off. */
+/** Paragraph alignment, offered while Word Wrap is on. */
 export const ALIGNMENTS = [
   { id: "left", name: "Align left" },
   { id: "center", name: "Align centre" },

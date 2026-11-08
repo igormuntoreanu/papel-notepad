@@ -49,6 +49,11 @@ export class Session {
      * Inserts an empty table after `after` and returns its block id.
      */
     insert_table(after: number, cols: number, rows: number): number;
+    /**
+     * Splits text block `id` at UTF-16 offset `at` and inserts a table there.
+     * Returns the caret for the text below the table.
+     */
+    insert_table_at(id: number, at: number, cols: number, rows: number): Caret | undefined;
     is_dirty(): boolean;
     language(): string;
     line_to_caret(line: number): Caret;
@@ -127,6 +132,7 @@ export interface InitOutput {
     readonly session_insert_image: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly session_insert_image_caret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly session_insert_table: (a: number, b: number, c: number, d: number) => number;
+    readonly session_insert_table_at: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_is_dirty: (a: number) => number;
     readonly session_language: (a: number) => [number, number];
     readonly session_line_to_caret: (a: number, b: number) => number;

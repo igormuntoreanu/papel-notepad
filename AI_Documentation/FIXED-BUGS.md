@@ -213,3 +213,33 @@ Guards live in `scripts/verify-bugs.mjs` unless a unit test is named. Build `dis
 - **Root cause:** `closeNote` called the delete path immediately when `is_dirty()` was false. Close always removes the note.
 - **Fix:** Always show the confirm dialog. Keep editing leaves the sheet in place. `src/components/quire/quire-app.tsx`.
 - **Guards:** `close-clean-confirms`
+
+## FB-22 — Undo after styling a table cell ate the cell text
+
+- **Severity:** high (data loss)
+- **Fixed in:** 0.3.9
+- **Symptom:** Bold/ink/highlight a selection inside a table cell, then Ctrl+Z. The style stayed painted and the cell lost one character per undo (`stack me` → `stack m` → `stack ` → …). In a normal text block the same undo correctly removed the style and kept the text.
+- **Repro:** Insert a table, click a cell, type `stack me`, select `stack`, click Bold, then Wax red ink, then Yellow highlighter, then press Ctrl+Z repeatedly.
+- **Root cause:** Two parts. (1) A cell's textarea is `.cell-input`, not `.editor`, so the global key handler classified it as a form `field` and bailed before the Ctrl+Z branch *without* `preventDefault()` — the browser's native textarea undo fired, reverting only the cell's DOM text (re-synced to the model) while the app's marks, living in the overlay, stayed. (2) Cell style changes were recorded as a whole-blocks `Structure` snapshot, which on undo could also revert text. `src/components/quire/quire-app.tsx` (`onKey`), `rust/quire-core/src/document.rs` (`table_style`).
+- **Fix:** Route Ctrl+Z / Ctrl+Y from a focused cell to the document undo and `preventDefault` the native undo. Record a cell style change as a marks-only `CellStyle` step whose undo restores exactly the prior runs via `set_cell_marks` and never touches `cell.text`. `src/components/quire/quire-app.tsx`, `rust/quire-core/src/document.rs` (`StepKind::CellStyle`, `set_cell_marks`, `push_cell_style`, `table_style`, `table_set_marks`).
+- **Guards:** `cell-style-undo-keeps-text` (verify-bugs.mjs); `V3-undo-block-vs-cell`, `R3-undo-in-cell` (qa-verify.mjs / qa-retest.mjs)
+
+## FB-23 — Adding a list marker threw the caret to the end of the block
+
+- **Severity:** medium
+- **Fixed in:** 0.3.9
+- **Symptom:** Click Bullet (or any list format) with the caret on a line other than the last and the cursor jumped to the end of the whole block, so you could not keep typing on the line you had just turned into a list item.
+- **Repro:** Type three lines, put the caret on line 2, open Lists → Bullet •.
+- **Root cause:** `applyListStyle` rewrites the entire block (`start:0, end:text.length`) and `applyList` set the caret to `change.insert.length` — the end of the block — instead of the end of the line the caret was on. `src/components/quire/quire-app.tsx` (`applyList`).
+- **Fix:** Compute the caret's line index before the edit (line count is preserved by the rewrite) and place the caret at the end of that same line in the new text, ready to type. `src/components/quire/quire-app.tsx`.
+- **Guards:** `FIX3-bullet-caret-*` (qa-fixes.mjs)
+
+## FB-24 — Alignment was offered with Word Wrap off; wrap is now the gated default
+
+- **Severity:** low
+- **Fixed in:** 0.3.9
+- **Symptom:** Align left/centre/right stayed enabled with Word Wrap off, where the textarea scrolls sideways and centring has no stable meaning. Word Wrap should default on and gate alignment.
+- **Repro:** Open a sheet, toggle Word Wrap off, click Align centre.
+- **Root cause:** The align buttons were gated only on `activeBlockId === null || activeKind === "table"`, never on wrap. `src/components/quire/sheet.tsx`.
+- **Fix:** Word Wrap defaults pressed (a new note is `wrap: true`); the align buttons are disabled while wrap is off, with a tooltip saying to turn Word Wrap on first, and re-enable when wrap returns. `src/components/quire/sheet.tsx`, `src/lib/quire/typefaces.ts`.
+- **Guards:** `FIX2-wrap-default-pressed`, `FIX2-align-disabled-when-wrap-off`, `FIX2-align-reenabled-when-wrap-back-on` (qa-fixes.mjs)
