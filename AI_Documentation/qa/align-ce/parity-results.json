@@ -1,0 +1,78 @@
+{
+  "suite": "qa-ce-parity",
+  "results": [
+    {
+      "name": "P1-plain-multiline-paste",
+      "ok": true,
+      "detail": [
+        "alphaONE",
+        "TWO",
+        "beta",
+        "gamma"
+      ]
+    },
+    {
+      "name": "P2-grid-paste-becomes-table",
+      "ok": true,
+      "detail": {
+        "tablesBefore": 0,
+        "tablesAfter": 1
+      }
+    },
+    {
+      "name": "P3-pagedown-moves-caret",
+      "ok": true,
+      "detail": {
+        "lineBefore": 0,
+        "lineAfter": 1
+      }
+    },
+    {
+      "name": "P4-list-continue",
+      "ok": true,
+      "detail": {
+        "bulletLine0": "• alphaONE",
+        "afterEnter": [
+          "• alphaONE",
+          "• "
+        ],
+        "caretLineIdx": 1
+      }
+    },
+    {
+      "name": "P5-box-select-column-delete",
+      "ok": true,
+      "detail": {
+        "diag": {
+          "geomLeft": 253,
+          "geomCw": 9.599990844726562,
+          "liveLeft": 253,
+          "liveCw": 9.599990844726562,
+          "targetX": 272.1999816894531,
+          "expectedCol": 2,
+          "fontFamily": "\"IBM Plex Mono\", ui-monospace, SFMono-Re"
+        },
+        "rectCount": 1,
+        "rectBox": {
+          "x": 253,
+          "y": 175,
+          "width": 19.1875,
+          "height": 54.390625
+        },
+        "rectAfter": 0,
+        "before": [
+          "• alphaONE",
+          "• "
+        ],
+        "afterDel": [
+          "alphaONE",
+          ""
+        ],
+        "colRemoved": true
+      }
+    }
+  ],
+  "pageErrors": [],
+  "pass": 5,
+  "fail": 0
+}

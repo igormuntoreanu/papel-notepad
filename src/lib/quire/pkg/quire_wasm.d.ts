@@ -14,6 +14,10 @@ export class Session {
     free(): void;
     [Symbol.dispose](): void;
     /**
+     * Aligns every line touched by `start..end` (collapsed => the caret line). Undoable.
+     */
+    align_lines(id: number, start: number, end: number, align: number): boolean;
+    /**
      * `kind`: bold | italic | underline | strike (value 0/1), ink | hl (palette index, 0 = none), clear.
      */
     apply_style(id: number, start: number, end: number, kind: string, value: number): boolean;
@@ -56,6 +60,14 @@ export class Session {
     insert_table_at(id: number, at: number, cols: number, rows: number): Caret | undefined;
     is_dirty(): boolean;
     language(): string;
+    /**
+     * Per-line align ids for a text block (one per line: 0 left, 1 centre, 2 right).
+     */
+    line_aligns(id: number): Uint8Array;
+    /**
+     * Per-line paragraph-style codes for a text block (one per line; 0 = body).
+     */
+    line_styles(id: number): Uint8Array;
     line_to_caret(line: number): Caret;
     mark_clean(): void;
     mark_dirty(): void;
@@ -70,10 +82,18 @@ export class Session {
     outline(): string;
     redo(): Caret | undefined;
     replace_all(query: string, replacement: string, case_sensitive: boolean): number;
+    /**
+     * Restores per-line aligns on load.
+     */
+    restore_aligns(id: number, aligns: Uint8Array): void;
     restore_begin(): void;
     restore_end(language: string, eol: string, encoding: string): void;
     restore_image(mime: string, bytes: Uint8Array): number;
     restore_marks(id: number, flat: Uint32Array): void;
+    /**
+     * Restores per-line paragraph styles on load.
+     */
+    restore_styles(id: number, styles: Uint8Array): void;
     /**
      * Loads a table from `{"cols":n,"cells":[{"t":"…","m":[…],"f":n}]}`.
      */
@@ -82,6 +102,16 @@ export class Session {
     set_encoding(enc: string): string;
     set_eol(eol: string): boolean;
     set_language(lang: string): void;
+    /**
+     * Sets the paragraph style of every line touched by `start..end` (collapsed => caret
+     * line). Undoable; never touches the text.
+     */
+    style_lines(id: number, start: number, end: number, style: number): boolean;
+    /**
+     * Aligns every cell in the rectangle `r0..=r1` × `c0..=c1` (a single cell when the
+     * corners match). 0 left, 1 centre, 2 right. One undoable step. Fixes BUG-2.
+     */
+    table_align(id: number, r0: number, c0: number, r1: number, c1: number, align: number): boolean;
     table_delete_col(id: number, at: number): boolean;
     table_delete_row(id: number, at: number): boolean;
     table_fill(id: number, target: string, row: number, col: number, fill: number): boolean;
@@ -108,6 +138,7 @@ export interface InitOutput {
     readonly __wbg_set_caret_block_id: (a: number, b: number) => void;
     readonly __wbg_set_caret_end: (a: number, b: number) => void;
     readonly __wbg_set_caret_start: (a: number, b: number) => void;
+    readonly session_align_lines: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_apply_style: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly session_can_redo: (a: number) => number;
     readonly session_can_undo: (a: number) => number;
@@ -135,6 +166,8 @@ export interface InitOutput {
     readonly session_insert_table_at: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_is_dirty: (a: number) => number;
     readonly session_language: (a: number) => [number, number];
+    readonly session_line_aligns: (a: number, b: number) => [number, number];
+    readonly session_line_styles: (a: number, b: number) => [number, number];
     readonly session_line_to_caret: (a: number, b: number) => number;
     readonly session_mark_clean: (a: number) => void;
     readonly session_mark_dirty: (a: number) => void;
@@ -146,15 +179,19 @@ export interface InitOutput {
     readonly session_outline: (a: number) => [number, number];
     readonly session_redo: (a: number) => number;
     readonly session_replace_all: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+    readonly session_restore_aligns: (a: number, b: number, c: number, d: number) => void;
     readonly session_restore_begin: (a: number) => void;
     readonly session_restore_end: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly session_restore_image: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_restore_marks: (a: number, b: number, c: number, d: number) => void;
+    readonly session_restore_styles: (a: number, b: number, c: number, d: number) => void;
     readonly session_restore_table: (a: number, b: number, c: number) => number;
     readonly session_restore_text: (a: number, b: number, c: number) => number;
     readonly session_set_encoding: (a: number, b: number, c: number) => [number, number];
     readonly session_set_eol: (a: number, b: number, c: number) => number;
     readonly session_set_language: (a: number, b: number, c: number) => void;
+    readonly session_style_lines: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly session_table_align: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly session_table_delete_col: (a: number, b: number, c: number) => number;
     readonly session_table_delete_row: (a: number, b: number, c: number) => number;
     readonly session_table_fill: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;

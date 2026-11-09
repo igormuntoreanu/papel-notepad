@@ -1,0 +1,66 @@
+{
+  "suite": "qa-cell (table cells)",
+  "results": [
+    {
+      "name": "table-present",
+      "ok": true,
+      "detail": {
+        "tables": 1
+      }
+    },
+    {
+      "name": "C1-cell-align-centre",
+      "ok": true,
+      "detail": {
+        "centreEnabled": true,
+        "cells": [
+          "a:center/center",
+          "b:left/start",
+          "c:left/start",
+          "d:left/start"
+        ]
+      }
+    },
+    {
+      "name": "C2-font-reaches-cell",
+      "ok": true,
+      "detail": {
+        "dataFont": "inter",
+        "family": "Inter, ui-sans-serif, system-ui, sans-serif",
+        "trigger": "Font: Inter",
+        "anyDataFont": [
+          "block table-block=inter"
+        ]
+      }
+    },
+    {
+      "name": "C3-undo-reverts-cell-align",
+      "ok": true,
+      "detail": {
+        "cells": [
+          "a:left",
+          "b:left",
+          "c:left",
+          "d:left"
+        ],
+        "textBefore": "a"
+      }
+    },
+    {
+      "name": "C4-cell-align-font-persist",
+      "ok": true,
+      "detail": {
+        "cells": [
+          "a:left",
+          "b:left",
+          "c:left",
+          "d:right"
+        ],
+        "persistedFont": "inter"
+      }
+    }
+  ],
+  "pageErrors": [],
+  "pass": 5,
+  "fail": 0
+}

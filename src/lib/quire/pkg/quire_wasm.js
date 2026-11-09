@@ -71,6 +71,18 @@ export class Session {
         wasm.__wbg_session_free(ptr, 0);
     }
     /**
+     * Aligns every line touched by `start..end` (collapsed => the caret line). Undoable.
+     * @param {number} id
+     * @param {number} start
+     * @param {number} end
+     * @param {number} align
+     * @returns {boolean}
+     */
+    align_lines(id, start, end, align) {
+        const ret = wasm.session_align_lines(this.__wbg_ptr, id, start, end, align);
+        return ret !== 0;
+    }
+    /**
      * `kind`: bold | italic | underline | strike (value 0/1), ink | hl (palette index, 0 = none), clear.
      * @param {number} id
      * @param {number} start
@@ -391,6 +403,28 @@ export class Session {
         }
     }
     /**
+     * Per-line align ids for a text block (one per line: 0 left, 1 centre, 2 right).
+     * @param {number} id
+     * @returns {Uint8Array}
+     */
+    line_aligns(id) {
+        const ret = wasm.session_line_aligns(this.__wbg_ptr, id);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * Per-line paragraph-style codes for a text block (one per line; 0 = body).
+     * @param {number} id
+     * @returns {Uint8Array}
+     */
+    line_styles(id) {
+        const ret = wasm.session_line_styles(this.__wbg_ptr, id);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
      * @param {number} line
      * @returns {Caret}
      */
@@ -502,6 +536,16 @@ export class Session {
         const ret = wasm.session_replace_all(this.__wbg_ptr, ptr0, len0, ptr1, len1, case_sensitive);
         return ret >>> 0;
     }
+    /**
+     * Restores per-line aligns on load.
+     * @param {number} id
+     * @param {Uint8Array} aligns
+     */
+    restore_aligns(id, aligns) {
+        const ptr0 = passArray8ToWasm0(aligns, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.session_restore_aligns(this.__wbg_ptr, id, ptr0, len0);
+    }
     restore_begin() {
         wasm.session_restore_begin(this.__wbg_ptr);
     }
@@ -540,6 +584,16 @@ export class Session {
         const ptr0 = passArray32ToWasm0(flat, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         wasm.session_restore_marks(this.__wbg_ptr, id, ptr0, len0);
+    }
+    /**
+     * Restores per-line paragraph styles on load.
+     * @param {number} id
+     * @param {Uint8Array} styles
+     */
+    restore_styles(id, styles) {
+        const ptr0 = passArray8ToWasm0(styles, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.session_restore_styles(this.__wbg_ptr, id, ptr0, len0);
     }
     /**
      * Loads a table from `{"cols":n,"cells":[{"t":"…","m":[…],"f":n}]}`.
@@ -597,6 +651,34 @@ export class Session {
         const ptr0 = passStringToWasm0(lang, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         wasm.session_set_language(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * Sets the paragraph style of every line touched by `start..end` (collapsed => caret
+     * line). Undoable; never touches the text.
+     * @param {number} id
+     * @param {number} start
+     * @param {number} end
+     * @param {number} style
+     * @returns {boolean}
+     */
+    style_lines(id, start, end, style) {
+        const ret = wasm.session_style_lines(this.__wbg_ptr, id, start, end, style);
+        return ret !== 0;
+    }
+    /**
+     * Aligns every cell in the rectangle `r0..=r1` × `c0..=c1` (a single cell when the
+     * corners match). 0 left, 1 centre, 2 right. One undoable step. Fixes BUG-2.
+     * @param {number} id
+     * @param {number} r0
+     * @param {number} c0
+     * @param {number} r1
+     * @param {number} c1
+     * @param {number} align
+     * @returns {boolean}
+     */
+    table_align(id, r0, c0, r1, c1, align) {
+        const ret = wasm.session_table_align(this.__wbg_ptr, id, r0, c0, r1, c1, align);
+        return ret !== 0;
     }
     /**
      * @param {number} id

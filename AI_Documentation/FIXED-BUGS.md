@@ -243,3 +243,23 @@ Guards live in `scripts/verify-bugs.mjs` unless a unit test is named. Build `dis
 - **Root cause:** The align buttons were gated only on `activeBlockId === null || activeKind === "table"`, never on wrap. `src/components/quire/sheet.tsx`.
 - **Fix:** Word Wrap defaults pressed (a new note is `wrap: true`); the align buttons are disabled while wrap is off, with a tooltip saying to turn Word Wrap on first, and re-enable when wrap returns. `src/components/quire/sheet.tsx`, `src/lib/quire/typefaces.ts`.
 - **Guards:** `FIX2-wrap-default-pressed`, `FIX2-align-disabled-when-wrap-off`, `FIX2-align-reenabled-when-wrap-back-on` (qa-fixes.mjs)
+
+## FB-25 — Alignment was a no-op inside table cells
+
+- **Severity:** medium
+- **Fixed in:** 0.4.0
+- **Symptom:** With a table cell focused, Align left/centre/right did nothing — the buttons were disabled for tables, and cells had no alignment of their own.
+- **Repro:** Insert a table, click a cell, type, click Align centre.
+- **Root cause:** `Cell` had no align field and the align toolbar was gated off whenever `activeKind === "table"`.
+- **Fix:** `Cell` gains `align: u8`; `table_align(id, r0, c0, r1, c1, align)` aligns one cell or a whole drag rectangle in a single undoable structure step (mirrors `table_fill`); the cell renders `data-align` and CSS aligns the highlight overlay and the textarea together; the align toolbar is enabled for tables and routes through `liveCellTarget()`/`cellRange` rather than `sel.blockId` (which still points at a text block when a cell is focused). Align survives save/reload via `table_json`'s `a` field. `rust/quire-core/src/document.rs`, `rust/quire-wasm/src/lib.rs`, `src/components/quire/{table-block,sheet,quire-app}.tsx`, `src/styles.css`.
+- **Guards:** `C1-cell-align-centre`, `C3-undo-reverts-cell-align`, `C4-cell-align-font-persist` (qa-cell.mjs); `table_align_sets_cells_and_undos` (`cargo +stable-x86_64-pc-windows-msvc test -p quire-core`)
+
+## FB-26 — Font change was a no-op inside table cells
+
+- **Severity:** medium
+- **Fixed in:** 0.4.0
+- **Symptom:** With a table cell focused, picking a face did nothing; cells stayed IBM Plex Mono.
+- **Repro:** Insert a table, click a cell, open Font → Inter.
+- **Root cause:** Three parts. (1) The font menu was disabled for tables. (2) The cell rule `.block .cell .cell-input { font-family: var(--font-mono) }` (specificity 0,3,0) outranked `.block[data-font] textarea` (0,2,1), so even a set face lost. (3) The `look` action targeted `sel.blockId` — a text block — not the focused cell's table.
+- **Fix:** Each `[data-font]` now also sets `--editor-font`, which the cell rule consumes (`var(--editor-font, var(--font-mono))`); the font menu is enabled for tables; the `look` action retargets to `liveCellTarget().tableId`; the toolbar font indicator reflects the focused cell; and the table's font persists through the IndexedDB snapshot, `.papel` and the archive. `src/styles.css`, `src/components/quire/{sheet,quire-app,table-block,store}.tsx/ts`, `src/lib/quire/{persist,backup}.ts`.
+- **Guards:** `C2-font-reaches-cell`, `C4-cell-align-font-persist` (qa-cell.mjs)

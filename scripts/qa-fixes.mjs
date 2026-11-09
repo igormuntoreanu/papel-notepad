@@ -39,6 +39,7 @@ let shotN = 0;
 async function snap(n) { shotN += 1; const f = `${String(shotN).padStart(2, "0")}-${n.replace(/[^a-z0-9-]+/gi, "-").slice(0, 50)}.png`; try { await page.screenshot({ path: join(OUT, f), timeout: 8000 }); return f; } catch { return null; } }
 
 await page.addInitScript(() => {
+  try { localStorage.setItem("papel-ce", "0"); } catch {} // these guards target the legacy textarea renderer
   const dir = { id: "d", name: "d" }; const files = new Map(); let maximized = false; window.__papelWin = [];
   window.__PAPEL_DESKTOP__ = { version: 2, async appVersion() { return "0.3.8"; }, async minimize() { window.__papelWin.push("minimize"); }, async toggleMaximize() { maximized = !maximized; window.__papelWin.push(maximized ? "maximize" : "restore"); }, async isMaximized() { return maximized; }, async close() { window.__papelWin.push("close"); }, async pickDirectory() { return dir; }, async resolveDirectory() { return dir; }, async readFile(_i, n) { return files.get(n) ?? null; }, async writeFile(_i, n, b) { files.set(n, b); }, async removeFile(_i, n) { files.delete(n); }, async listFiles() { return [...files.keys()]; }, async saveFile(n) { window.__papelWin.push(`save:${n}`); return true; } };
 });

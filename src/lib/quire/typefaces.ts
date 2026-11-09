@@ -45,6 +45,28 @@ export const STYLE_SIZES: Record<StyleId, number> = {
   body: 16,
 };
 
+/** Per-line paragraph-style codes stored in the core. 0 = body (the default), so an
+ *  all-zero array means "no per-line styling". Ids are stable; do not renumber. */
+export const STYLE_CODES: Record<StyleId, number> = {
+  body: 0,
+  title: 1,
+  subtitle: 2,
+  heading: 3,
+  subheading: 4,
+  section: 5,
+  subsection: 6,
+};
+/** Reverse of STYLE_CODES: core code -> StyleId. */
+export const CODE_STYLES: StyleId[] = [
+  "body",
+  "title",
+  "subtitle",
+  "heading",
+  "subheading",
+  "section",
+  "subsection",
+];
+
 /** Paragraph alignment, offered while Word Wrap is on. */
 export const ALIGNMENTS = [
   { id: "left", name: "Align left" },

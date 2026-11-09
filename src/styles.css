@@ -1721,7 +1721,10 @@
   margin: 0;
   padding: 4px 8px;
   border: 0;
-  font-family: var(--font-mono);
+  /* BUG-3: cells honour the block face. The base cell rule outranks
+     `.block[data-font] textarea`, so the face is routed through --editor-font,
+     which each [data-font] rule below sets on the block. */
+  font-family: var(--editor-font, var(--font-mono));
   font-size: var(--editor-size);
   font-weight: 400;
   line-height: var(--editor-leading);
@@ -1730,6 +1733,17 @@
   white-space: pre;
   overflow-wrap: normal;
   word-break: normal;
+}
+
+/* Per-cell alignment (BUG-2): text-align on both the highlight overlay and the
+   textarea so the glyphs and their painted colours stay registered. */
+.cell[data-align="center"] .hl,
+.cell[data-align="center"] .cell-input {
+  text-align: center;
+}
+.cell[data-align="right"] .hl,
+.cell[data-align="right"] .cell-input {
+  text-align: right;
 }
 
 .block .cell .hl {
@@ -2352,6 +2366,18 @@
   font-family: var(--font-jetbrains-mono);
 }
 
+/* BUG-3: expose the chosen face as --editor-font on the block so table cells
+   (whose base rule above outranks the `pre, textarea` selectors) inherit it too. */
+.block[data-font="plex-sans"] { --editor-font: var(--font-paper-sans); }
+.block[data-font="plex-mono"] { --editor-font: var(--font-paper-mono); }
+.block[data-font="inter"] { --editor-font: var(--font-inter); }
+.block[data-font="roboto"] { --editor-font: var(--font-roboto); }
+.block[data-font="open-sans"] { --editor-font: var(--font-open-sans); }
+.block[data-font="lato"] { --editor-font: var(--font-lato); }
+.block[data-font="montserrat"] { --editor-font: var(--font-montserrat); }
+.block[data-font="poppins"] { --editor-font: var(--font-poppins); }
+.block[data-font="jetbrains-mono"] { --editor-font: var(--font-jetbrains-mono); }
+
 /* ---------- Alignment and Word Wrap ---------- */
 
 /* Paragraph alignment, offered in the toolbar while Word Wrap is off. The highlight
@@ -2364,6 +2390,149 @@
 .block[data-align="right"] pre,
 .block[data-align="right"] textarea {
   text-align: right;
+}
+
+/* ---------- Per-line contenteditable renderer (Phase 2) ----------
+   Here the text IS the content (no transparent-textarea-over-overlay trick), so the
+   mark classes paint the real glyphs directly. Metrics mirror `.block pre/textarea`;
+   alignment is per `.ce-line`, not per block, so the native caret follows it. */
+.ce-root {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: var(--editor-size);
+  font-weight: 400;
+  line-height: var(--editor-leading);
+  letter-spacing: 0;
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: var(--ink);
+  caret-color: var(--ink);
+  outline: none;
+  min-height: var(--line);
+}
+
+.page[data-wrap="off"] .ce-root {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.block.grow .ce-root {
+  min-height: 50vh;
+}
+
+.ce-line {
+  font-size: var(--editor-size);
+  line-height: var(--editor-leading);
+  min-height: calc(var(--editor-size) * var(--editor-leading));
+}
+
+/* Whole-sheet select (Ctrl+A): the renderer toggles .is-select-all; paint the selection
+   across every line div (currentColor keeps it legible on light and dark skins). */
+.ce-root.is-select-all .ce-line {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+/* Per-line paragraph style (Phase 4): each line carries its own size/leading, so a Title
+   line and a Body line coexist in one block. Mirrors the block-level [data-style] rules. */
+.ce-line[data-style="title"] {
+  --editor-size: 32px;
+  --editor-leading: 1.25;
+}
+.ce-line[data-style="subtitle"] {
+  --editor-size: 26px;
+  --editor-leading: 1.3;
+}
+.ce-line[data-style="heading"] {
+  --editor-size: 22.5px;
+  --editor-leading: 1.35;
+}
+.ce-line[data-style="subheading"] {
+  --editor-size: 20px;
+  --editor-leading: 1.4;
+}
+.ce-line[data-style="section"] {
+  --editor-size: 18px;
+  --editor-leading: 1.45;
+}
+.ce-line[data-style="subsection"] {
+  --editor-size: 17px;
+  --editor-leading: 1.5;
+}
+.ce-line[data-style="title"],
+.ce-line[data-style="subtitle"],
+.ce-line[data-style="heading"] {
+  font-weight: 600;
+}
+.ce-line[data-style="subheading"],
+.ce-line[data-style="section"],
+.ce-line[data-style="subsection"] {
+  font-weight: 500;
+}
+
+.ce-line[data-align="center"] {
+  text-align: center;
+}
+
+.ce-line[data-align="right"] {
+  text-align: right;
+}
+
+.ce-line[data-align="left"] {
+  text-align: left;
+}
+
+.ce-root ::selection {
+  background: var(--selection);
+}
+
+/* Inline marks — same palette as the `.hl` overlay. */
+.ce-root .sb {
+  font-weight: 600;
+}
+.ce-root .si {
+  font-style: italic;
+}
+.ce-root .su {
+  text-decoration-line: underline;
+  text-underline-offset: 3px;
+}
+.ce-root .ss {
+  text-decoration-line: line-through;
+}
+.ce-root .su.ss {
+  text-decoration-line: underline line-through;
+}
+.ce-root .ink1 {
+  color: #9c3b2e;
+}
+.ce-root .ink2 {
+  color: #1e4f8c;
+}
+.ce-root .ink3 {
+  color: #2f5a2c;
+}
+.ce-root .ink4 {
+  color: #5a544c;
+}
+.ce-root .hl1 {
+  background: #f0d44a;
+}
+.ce-root .hl2 {
+  background: #ef8fa8;
+}
+.ce-root .hl3 {
+  background: #9ed47a;
+}
+.ce-root .hl4 {
+  background: #8ebef0;
+}
+.ce-root .find-hit {
+  background: #f0d44a;
+  color: var(--ink);
+  border-radius: 1px;
 }
 
 /* Word Wrap off: a long line grows past the page and the block scrolls sideways
@@ -2380,7 +2549,8 @@
 }
 
 .block.is-column-select pre,
-.block.is-column-select textarea {
+.block.is-column-select textarea,
+.block.is-column-select .ce-root {
   white-space: pre;
   overflow-wrap: normal;
   word-break: normal;

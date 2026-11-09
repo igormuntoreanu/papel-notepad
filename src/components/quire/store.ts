@@ -107,21 +107,40 @@ export async function ensureLoaded(): Promise<Loaded> {
           const session = createSession();
           session.restore_begin();
           const pending: [number, number[]][] = [];
+          const pendingAligns: [number, number[]][] = [];
+          const pendingStyles: [number, number[]][] = [];
+          // Pre-0.4.0 files stored one block-level align; migrate it to per-line aligns so
+          // the contenteditable renderer (which reads the core's per-line aligns) keeps it.
+          const pendingBlockAlign: [number, number][] = [];
           const looks: Record<string, BlockLook> = {};
           for (const block of stored.blocks) {
             if (block.kind === "text") {
               const blockId = session.restore_text(block.text);
               if (block.marks?.length) pending.push([blockId, block.marks]);
+              if (block.aligns?.length) pendingAligns.push([blockId, block.aligns]);
+              if (block.styles?.length) pendingStyles.push([blockId, block.styles]);
               // The look travels inside the block, so the id this restore just handed
               // out is the right key even when block ids were renumbered.
               const look = readLook(block);
               if (look.font || look.style || look.align) looks[String(blockId)] = look;
+              if (look.align && !block.aligns?.length) {
+                const code = look.align === "center" ? 1 : look.align === "right" ? 2 : 0;
+                if (code) pendingBlockAlign.push([blockId, code]);
+              }
             } else if (block.kind === "table") {
-              session.restore_table(JSON.stringify({ cols: block.cols, cells: block.cells }));
+              const blockId = session.restore_table(JSON.stringify({ cols: block.cols, cells: block.cells }));
+              const look = readLook(block);
+              if (look.font || look.style || look.align) looks[String(blockId)] = look;
             } else session.restore_image(block.mime, new Uint8Array(block.bytes));
           }
           session.restore_end(stored.language, stored.eol, stored.encoding);
           for (const [blockId, marks] of pending) session.restore_marks(blockId, Uint32Array.from(marks));
+          for (const [blockId, aligns] of pendingAligns) session.restore_aligns(blockId, Uint8Array.from(aligns));
+          for (const [blockId, styles] of pendingStyles) session.restore_styles(blockId, Uint8Array.from(styles));
+          for (const [blockId, code] of pendingBlockAlign) {
+            const n = session.text_of(blockId).split("\n").length;
+            session.restore_aligns(blockId, new Uint8Array(n).fill(code));
+          }
           sessions.set(id, session);
           notes.push({
             id,
@@ -172,9 +191,14 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
           }
           if (item.kind === "table") {
             const table = JSON.parse(session.table_json(item.id)) as { cols: number; cells: unknown[] };
-            return { kind: "table", cols: table.cols, cells: table.cells };
+            const look = meta.looks?.[String(item.id)] ?? {};
+            return { kind: "table", cols: table.cols, cells: table.cells, ...(look.font ? { font: look.font } : {}) };
           }
           const marks = session.marks(item.id);
+          const aligns = session.line_aligns(item.id);
+          const hasAligns = aligns.some((a) => a !== 0);
+          const styles = session.line_styles(item.id);
+          const hasStyles = styles.some((s) => s !== 0);
           const look = meta.looks?.[String(item.id)] ?? {};
           return {
             kind: "text" as const,
@@ -183,6 +207,8 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
             ...(look.font ? { font: look.font } : {}),
             ...(look.style ? { style: look.style } : {}),
             ...(look.align ? { align: look.align } : {}),
+            ...(hasAligns ? { aligns: [...aligns] } : {}),
+            ...(hasStyles ? { styles: [...styles] } : {}),
           };
         });
         return {
@@ -211,9 +237,14 @@ export function toPapel(session: Session, looks: Record<string, BlockLook> = {})
     }
     if (item.kind === "table") {
       const table = JSON.parse(session.table_json(item.id)) as { cols: number; cells: unknown[] };
-      return { type: "table", cols: table.cols, cells: table.cells };
+      const look = looks[String(item.id)] ?? {};
+      return { type: "table", cols: table.cols, cells: table.cells, ...(look.font ? { font: look.font } : {}) };
     }
     const marks = session.marks(item.id);
+    const aligns = session.line_aligns(item.id);
+    const hasAligns = aligns.some((a) => a !== 0);
+    const styles = session.line_styles(item.id);
+    const hasStyles = styles.some((s) => s !== 0);
     const look = looks[String(item.id)] ?? {};
     return {
       type: "text",
@@ -222,6 +253,8 @@ export function toPapel(session: Session, looks: Record<string, BlockLook> = {})
       ...(look.font ? { font: look.font } : {}),
       ...(look.style ? { style: look.style } : {}),
             ...(look.align ? { align: look.align } : {}),
+      ...(hasAligns ? { aligns: [...aligns] } : {}),
+      ...(hasStyles ? { styles: [...styles] } : {}),
     };
   });
   return JSON.stringify({
@@ -244,6 +277,10 @@ type PapelFile = {
     mime?: string;
     data?: string;
     marks?: number[];
+    /** Per-line align codes (0 left, 1 centre, 2 right); absent = all left. */
+    aligns?: number[];
+    /** Per-line paragraph-style codes (0 = body); absent = all body. */
+    styles?: number[];
     /** Optional per-block face and paragraph style. */
     font?: string;
     style?: string;
@@ -271,20 +308,38 @@ export function fromPapel(
   }
   session.restore_begin();
   const pending: [number, number[]][] = [];
+  const pendingAligns: [number, number[]][] = [];
+  const pendingStyles: [number, number[]][] = [];
+  // Pre-0.4.0 block-level align -> per-line aligns (mirrors the IndexedDB restore path).
+  const pendingBlockAlign: [number, number][] = [];
   for (const block of parsed.blocks ?? []) {
     if (block.type === "image" && block.data) {
       session.restore_image(block.mime || "image/png", base64ToBytes(block.data));
     } else if (block.type === "table" && Array.isArray(block.cells)) {
-      session.restore_table(JSON.stringify({ cols: block.cols ?? 1, cells: block.cells }));
+      const id = session.restore_table(JSON.stringify({ cols: block.cols ?? 1, cells: block.cells }));
+      const look = readLook(block);
+      if (outLooks && (look.font || look.style || look.align)) outLooks[String(id)] = look;
     } else {
       const id = session.restore_text(block.text ?? "");
       if (Array.isArray(block.marks) && block.marks.length) pending.push([id, block.marks]);
+      if (Array.isArray(block.aligns) && block.aligns.length) pendingAligns.push([id, block.aligns]);
+      if (Array.isArray(block.styles) && block.styles.length) pendingStyles.push([id, block.styles]);
       const look = readLook(block);
       if (outLooks && (look.font || look.style || look.align)) outLooks[String(id)] = look;
+      if (look.align && !(Array.isArray(block.aligns) && block.aligns.length)) {
+        const code = look.align === "center" ? 1 : look.align === "right" ? 2 : 0;
+        if (code) pendingBlockAlign.push([id, code]);
+      }
     }
   }
   session.restore_end(parsed.language || "auto", parsed.eol || "lf", parsed.encoding || "utf-8");
   for (const [id, marks] of pending) session.restore_marks(id, Uint32Array.from(marks.map((n) => Number(n) >>> 0)));
+  for (const [id, aligns] of pendingAligns) session.restore_aligns(id, Uint8Array.from(aligns.map((n) => Number(n) & 0xff)));
+  for (const [id, styles] of pendingStyles) session.restore_styles(id, Uint8Array.from(styles.map((n) => Number(n) & 0xff)));
+  for (const [id, code] of pendingBlockAlign) {
+    const n = session.text_of(id).split("\n").length;
+    session.restore_aligns(id, new Uint8Array(n).fill(code));
+  }
   return true;
 }
 
@@ -327,7 +382,8 @@ function blocksToArchive(session: Session, looks: Record<string, BlockLook> = {}
     }
     if (item.kind === "table") {
       const table = JSON.parse(session.table_json(item.id)) as { cols: number; cells: unknown[] };
-      return { kind: "table", cols: table.cols, cells: table.cells };
+      const look = looks[String(item.id)] ?? {};
+      return { kind: "table", cols: table.cols, cells: table.cells, ...(look.font ? { font: look.font } : {}) };
     }
     const marks = session.marks(item.id);
     const look = looks[String(item.id)] ?? {};
@@ -396,7 +452,7 @@ export function sessionFromArchiveNote(note: ArchiveNote): {
     encoding: note.encoding,
     blocks: note.blocks.map((block) => {
       if (block.kind === "image") return { type: "image", mime: block.mime, data: block.data };
-      if (block.kind === "table") return { type: "table", cols: block.cols, cells: block.cells };
+      if (block.kind === "table") return { type: "table", cols: block.cols, cells: block.cells, ...(block.font ? { font: block.font } : {}) };
       return {
         type: "text",
         text: block.text,

@@ -43,6 +43,7 @@ const check = (name, ok, detail) => {
 };
 
 await page.addInitScript(() => {
+  try { localStorage.setItem("papel-ce", "0"); } catch {} // these guards target the legacy textarea renderer
   // Bridge contract is v2 (src/lib/desktop/bridge.ts). v1 is rejected, Chromium
   // still exposes showDirectoryPicker, and the folder gate then covers the board.
   const dir = { id: "d", name: "d" };

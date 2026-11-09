@@ -76,6 +76,37 @@ impl Session {
         self.doc.edit(id, start, end, text, coalesce);
     }
 
+    /// Per-line align ids for a text block (one per line: 0 left, 1 centre, 2 right).
+    pub fn line_aligns(&self, id: u32) -> Vec<u8> {
+        self.doc.line_aligns(id)
+    }
+
+    /// Aligns every line touched by `start..end` (collapsed => the caret line). Undoable.
+    pub fn align_lines(&mut self, id: u32, start: u32, end: u32, align: u8) -> bool {
+        self.doc.align_lines(id, start, end, align)
+    }
+
+    /// Restores per-line aligns on load.
+    pub fn restore_aligns(&mut self, id: u32, aligns: &[u8]) {
+        self.doc.restore_aligns(id, aligns);
+    }
+
+    /// Per-line paragraph-style codes for a text block (one per line; 0 = body).
+    pub fn line_styles(&self, id: u32) -> Vec<u8> {
+        self.doc.line_styles(id)
+    }
+
+    /// Sets the paragraph style of every line touched by `start..end` (collapsed => caret
+    /// line). Undoable; never touches the text.
+    pub fn style_lines(&mut self, id: u32, start: u32, end: u32, style: u8) -> bool {
+        self.doc.style_lines(id, start, end, style)
+    }
+
+    /// Restores per-line paragraph styles on load.
+    pub fn restore_styles(&mut self, id: u32, styles: &[u8]) {
+        self.doc.restore_styles(id, styles);
+    }
+
     pub fn insert_image(&mut self, id: u32, at: u32, mime: &str, bytes: &[u8]) -> u32 {
         self.doc
             .insert_image(id, at, mime, bytes.to_vec())
@@ -270,6 +301,8 @@ impl Session {
             m: Vec<u32>,
             #[serde(default)]
             f: u8,
+            #[serde(default)]
+            a: u8,
         }
         #[derive(serde::Deserialize)]
         struct TableIn {
@@ -283,7 +316,7 @@ impl Session {
                 let cells = parsed
                     .cells
                     .into_iter()
-                    .map(|cell| Cell { text: cell.t, marks: unflatten(&cell.m), fill: cell.f })
+                    .map(|cell| Cell { text: cell.t, marks: unflatten(&cell.m), fill: cell.f, align: cell.a })
                     .collect();
                 self.doc.restore_table(parsed.cols, cells)
             }
@@ -321,6 +354,12 @@ impl Session {
 
     pub fn table_fill(&mut self, id: u32, target: &str, row: u32, col: u32, fill: u8) -> bool {
         self.doc.table_fill(id, target, row, col, fill)
+    }
+
+    /// Aligns every cell in the rectangle `r0..=r1` × `c0..=c1` (a single cell when the
+    /// corners match). 0 left, 1 centre, 2 right. One undoable step. Fixes BUG-2.
+    pub fn table_align(&mut self, id: u32, r0: u32, c0: u32, r1: u32, c1: u32, align: u8) -> bool {
+        self.doc.table_align(id, r0, c0, r1, c1, align)
     }
 
     pub fn table_style(

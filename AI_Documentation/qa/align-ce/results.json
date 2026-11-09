@@ -1,0 +1,94 @@
+{
+  "suite": "qa-align (CE renderer)",
+  "results": [
+    {
+      "name": "CE-renderer-active",
+      "ok": true,
+      "detail": {
+        "ceRoot": 1,
+        "textarea": 0
+      }
+    },
+    {
+      "name": "A1-caret-line-only",
+      "ok": true,
+      "detail": [
+        "alpha:left/left",
+        "beta:center/center",
+        "gamma:left/left"
+      ]
+    },
+    {
+      "name": "A2-every-touched-line",
+      "ok": true,
+      "detail": [
+        "alpha:right",
+        "beta:right",
+        "gamma:right"
+      ]
+    },
+    {
+      "name": "A3-caret-follows-align",
+      "ok": true,
+      "detail": {
+        "caretRight": 1241,
+        "lineRight": 1241,
+        "lineLeft": 253,
+        "align": "right"
+      }
+    },
+    {
+      "name": "A4-enter-inherits-align",
+      "ok": true,
+      "detail": [
+        "\"alpha\":right",
+        "\"beta\":right",
+        "\"\":right",
+        "\"gamma\":right"
+      ]
+    },
+    {
+      "name": "A5-undo-reverts-align-keeps-text",
+      "ok": true,
+      "detail": {
+        "lines": [
+          "alpha:left",
+          "beta:center",
+          "gamma:left"
+        ],
+        "textAfter": "alpha\nbeta\ngamma"
+      }
+    },
+    {
+      "name": "A6-typing-syncs-to-core",
+      "ok": true,
+      "detail": {
+        "domAfterType": "alpha XYZ",
+        "afterRerender": {
+          "text": "alpha XYZ",
+          "align": "center"
+        }
+      }
+    },
+    {
+      "name": "A7-bold-mark-renders",
+      "ok": true,
+      "detail": {
+        "boldPresent": true,
+        "html": "<span class=\"sb\">gamma</span>"
+      }
+    },
+    {
+      "name": "A8-aligns-persist-across-reload",
+      "ok": true,
+      "detail": [
+        "alpha XYZ:center",
+        "beta:center",
+        "gamma:right"
+      ]
+    }
+  ],
+  "pageErrors": [],
+  "pass": 9,
+  "fail": 0
+}

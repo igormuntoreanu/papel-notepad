@@ -12,13 +12,21 @@ export type StoredBlock =
       style?: StyleId;
       /** Paragraph alignment; absent means left. */
       align?: AlignId;
+      /** Per-line align codes (0 left, 1 centre, 2 right), one per line; absent = all left.
+       *  Written by the per-line contenteditable renderer (Phase 2). */
+      aligns?: number[];
+      /** Per-line paragraph-style codes (0 = body), one per line; absent = all body.
+       *  Written by the per-line contenteditable renderer (Phase 4). */
+      styles?: number[];
     }
   | { kind: "image"; mime: string; bytes: ArrayBuffer }
   | {
       kind: "table";
       cols: number;
-      /** Cell objects from `table_json`: `{ t, f, m? }`. */
+      /** Cell objects from `table_json`: `{ t, f, m?, a? }`. */
       cells: unknown[];
+      /** Chosen face for the whole table; absent means the paper default (BUG-3). */
+      font?: FontId;
     };
 
 export type StoredNote = {

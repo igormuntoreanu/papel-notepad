@@ -12,24 +12,64 @@ const MAX_IMAGE: usize = 12_000_000;
 /// One table cell: plain text, its inline style runs, and a fill index.
 ///
 /// `fill` is 0 for "no fill" or an index into the caller's highlighter palette;
-/// the core stores the number and never interprets the colour.
+/// the core stores the number and never interprets the colour. `align` is the per-cell
+/// paragraph alignment (0 left, 1 centre, 2 right); it defaults to 0 (left).
 #[derive(Clone, Debug, Default)]
 pub struct Cell {
     pub text: String,
     pub marks: Vec<Run>,
     pub fill: u8,
+    pub align: u8,
 }
 
 #[derive(Clone, Debug)]
 enum Block {
-    Text { id: u32, body: String, marks: Vec<Run> },
+    /// `aligns` holds one align id per line of `body` (lines split on '\n'):
+    /// 0 = left, 1 = centre, 2 = right. Invariant:
+    /// `aligns.len() == body.matches('\n').count() + 1`. It lives in the core, not
+    /// the frontend, so line edits and undo keep it correct exactly like `marks`
+    /// (Word-style per-paragraph alignment that survives editing and undo).
+    Text { id: u32, body: String, marks: Vec<Run>, aligns: Vec<u8>, styles: Vec<u8> },
     Image { id: u32, mime: String, data: Vec<u8> },
     /// Row-major cells; `cells.len()` is `rows * cols`.
     Table { id: u32, cols: usize, cells: Vec<Cell> },
 }
 
+/// Number of lines in `body` (always at least one).
+fn line_count(body: &str) -> usize {
+    body.matches('\n').count() + 1
+}
+
+/// Count of '\n' in `body[0..end]`, where `end` is a UTF-16 offset; this is the
+/// zero-based index of the line containing that offset.
+fn nl_before(body: &str, end: u32) -> usize {
+    slice_utf16(body, 0, end as usize).matches('\n').count()
+}
+
+/// Pad/truncate a per-line code array so its length matches the line count of `body`.
+fn normalize_aligns(aligns: &mut Vec<u8>, body: &str) {
+    aligns.resize(line_count(body), 0);
+}
+
+/// Maintain one per-line code array (`aligns` or `styles`) across a splice that turned
+/// lines `line_start..=line_end` into `inserted_nl + 1` lines. When the line count is
+/// unchanged the existing codes map 1:1 and are kept; otherwise the touched lines all take
+/// the first touched line's code (Enter => inherit, Backspace-merge => keep the upper line).
+fn splice_para(arr: &mut Vec<u8>, before: &[u8], line_start: usize, line_end: usize, inserted_nl: usize) {
+    let deleted_nl = line_end.saturating_sub(line_start);
+    if inserted_nl != deleted_nl {
+        let inherit = before.get(line_start).copied().unwrap_or(0);
+        let from = line_start.min(arr.len());
+        let to = (line_end + 1).min(arr.len());
+        if from <= to {
+            arr.splice(from..to, std::iter::repeat(inherit).take(inserted_nl + 1));
+        }
+    }
+}
+
 fn text_block(id: u32, body: String) -> Block {
-    Block::Text { id, body, marks: Vec::new() }
+    let n = line_count(&body);
+    Block::Text { id, body, marks: Vec::new(), aligns: vec![0u8; n], styles: vec![0u8; n] }
 }
 
 impl Block {
@@ -56,8 +96,18 @@ enum StepKind {
         inserted: String,
         marks_before: Vec<Run>,
         marks_after: Vec<Run>,
+        aligns_before: Vec<u8>,
+        aligns_after: Vec<u8>,
+        styles_before: Vec<u8>,
+        styles_after: Vec<u8>,
     },
     Marks { id: u32, before: Vec<Run>, after: Vec<Run> },
+    /// A per-line alignment change: undo restores the previous align array and never
+    /// touches the text (same shape as `Marks`).
+    Align { id: u32, before: Vec<u8>, after: Vec<u8> },
+    /// A per-line paragraph-style change: undo restores the previous style array and never
+    /// touches the text (same shape as `Align`).
+    Style { id: u32, before: Vec<u8>, after: Vec<u8> },
     /// One cell's text, as a step small enough to run per keystroke.
     Cell { id: u32, row: u32, col: u32, deleted: String, inserted: String, marks_before: Vec<Run>, marks_after: Vec<Run> },
     /// One cell's style change: undo reverts the marks and never touches the text.
@@ -273,12 +323,12 @@ impl Document {
         if coalesce && self.try_coalesce(id, start, end, text) {
             return;
         }
-        let (deleted, marks_before, marks_after) = self.splice_block(id, start, end, text);
+        let (deleted, marks_before, marks_after, aligns_before, aligns_after, styles_before, styles_after) = self.splice_block(id, start, end, text);
         let rev_before = self.revision;
         self.revision += 1;
         let after = start + utf16_len(text) as u32;
         self.push(Step {
-            kind: StepKind::Replace { id, at: start, deleted, inserted: text.to_string(), marks_before, marks_after },
+            kind: StepKind::Replace { id, at: start, deleted, inserted: text.to_string(), marks_before, marks_after, aligns_before, aligns_after, styles_before, styles_after },
             caret_before: Caret { block_id: id, start, end },
             caret_after: Caret { block_id: id, start: after, end: after },
             rev_before,
@@ -286,18 +336,36 @@ impl Document {
         });
     }
 
-    /// Splices text into a block and shifts its style runs. Returns (deleted, marks before, marks after).
-    fn splice_block(&mut self, id: u32, start: u32, end: u32, text: &str) -> (String, Vec<Run>, Vec<Run>) {
+    /// Splices text into a block, shifting its style runs and per-line aligns.
+    /// Returns (deleted, marks before, marks after, aligns before, aligns after).
+    fn splice_block(&mut self, id: u32, start: u32, end: u32, text: &str) -> (String, Vec<Run>, Vec<Run>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
         let inserted = utf16_len(text) as u32;
-        let Some(Block::Text { body, marks: m, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) else {
-            return (String::new(), Vec::new(), Vec::new());
+        let Some(Block::Text { body, marks: m, aligns, styles, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) else {
+            return (String::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
         };
+        // Line range the splice touches, computed before `body` changes.
+        let line_start = nl_before(body, start);
+        let line_end = nl_before(body, end);
+        let inserted_nl = text.matches('\n').count();
+        let aligns_before = aligns.clone();
+        let styles_before = styles.clone();
         let deleted = splice_utf16(body, start as usize, end as usize, text);
         let before = m.clone();
         if !m.is_empty() {
             *m = marks::shift(m, start, end, inserted);
         }
-        (deleted, before, m.clone())
+        // Maintain per-line aligns across the splice:
+        //  - Same number of lines in the touched range (inserted_nl == deleted_nl, e.g.
+        //    typing, list renumbering, whole-block reformat): the existing aligns map 1:1
+        //    and are preserved.
+        //  - Otherwise the touched lines collapse/expand and all take the first touched
+        //    line's align: Enter => the new line inherits; Backspace across a newline =>
+        //    the merged line keeps the upper line's align.
+        splice_para(aligns, &aligns_before, line_start, line_end, inserted_nl);
+        splice_para(styles, &styles_before, line_start, line_end, inserted_nl);
+        normalize_aligns(aligns, body);
+        normalize_aligns(styles, body);
+        (deleted, before, m.clone(), aligns_before, aligns.clone(), styles_before, styles.clone())
     }
 
     fn try_coalesce(&mut self, id: u32, start: u32, end: u32, text: &str) -> bool {
@@ -313,25 +381,29 @@ impl Document {
             return false;
         }
         if deleted_empty && start == end && !text.contains('\n') && utf16_len(text) <= 2 && start == at + inserted_len {
-            let (_, _, after_marks) = self.splice_block(id, start, start, text);
+            let (_, _, after_marks, _, after_aligns, _, after_styles) = self.splice_block(id, start, start, text);
             let last = self.undo.last_mut().expect("step");
-            if let StepKind::Replace { inserted, marks_after, .. } = &mut last.kind {
+            if let StepKind::Replace { inserted, marks_after, aligns_after, styles_after, .. } = &mut last.kind {
                 inserted.push_str(text);
                 *marks_after = after_marks;
+                *aligns_after = after_aligns;
+                *styles_after = after_styles;
             }
             let after = start + utf16_len(text) as u32;
             last.caret_after = Caret { block_id: id, start: after, end: after };
             return true;
         }
         if text.is_empty() && start < end && inserted_empty && end == at {
-            let (removed, _, after_marks) = self.splice_block(id, start, end, "");
+            let (removed, _, after_marks, _, after_aligns, _, after_styles) = self.splice_block(id, start, end, "");
             let last = self.undo.last_mut().expect("step");
-            if let StepKind::Replace { at, deleted, marks_after, .. } = &mut last.kind {
+            if let StepKind::Replace { at, deleted, marks_after, aligns_after, styles_after, .. } = &mut last.kind {
                 let mut combined = removed;
                 combined.push_str(deleted);
                 *deleted = combined;
                 *at = start;
                 *marks_after = after_marks;
+                *aligns_after = after_aligns;
+                *styles_after = after_styles;
             }
             last.caret_after = Caret { block_id: id, start, end: start };
             return true;
@@ -384,6 +456,132 @@ impl Document {
         }
     }
 
+    fn set_aligns(&mut self, id: u32, next: &[u8]) {
+        if let Some(Block::Text { aligns, body, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
+            *aligns = next.to_vec();
+            normalize_aligns(aligns, body);
+        }
+    }
+
+    fn set_styles(&mut self, id: u32, next: &[u8]) {
+        if let Some(Block::Text { styles, body, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
+            *styles = next.to_vec();
+            normalize_aligns(styles, body);
+        }
+    }
+
+    /// Per-line align ids for a text block (one per line: 0 left, 1 centre, 2 right).
+    pub fn line_aligns(&self, id: u32) -> Vec<u8> {
+        self.blocks.iter().find_map(|b| match b {
+            Block::Text { id: bid, aligns, .. } if *bid == id => Some(aligns.clone()),
+            _ => None,
+        }).unwrap_or_default()
+    }
+
+    /// Per-line paragraph-style codes for a text block (one per line; 0 = body).
+    pub fn line_styles(&self, id: u32) -> Vec<u8> {
+        self.blocks.iter().find_map(|b| match b {
+            Block::Text { id: bid, styles, .. } if *bid == id => Some(styles.clone()),
+            _ => None,
+        }).unwrap_or_default()
+    }
+
+    /// Restores per-line aligns on load, clamped to the block's line count.
+    pub fn restore_aligns(&mut self, id: u32, aligns: &[u8]) {
+        if let Some(Block::Text { aligns: a, body, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
+            *a = aligns.to_vec();
+            normalize_aligns(a, body);
+        }
+    }
+
+    /// Restores per-line paragraph styles on load, clamped to the block's line count.
+    pub fn restore_styles(&mut self, id: u32, styles: &[u8]) {
+        if let Some(Block::Text { styles: s, body, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
+            *s = styles.to_vec();
+            normalize_aligns(s, body);
+        }
+    }
+
+    /// Sets the align of every line touched by the selection `start..end` (a collapsed
+    /// selection => the caret's line). One undoable step; never touches the text.
+    /// `align`: 0 = left, 1 = centre, 2 = right. Returns true if anything changed.
+    pub fn align_lines(&mut self, id: u32, start: u32, end: u32, align: u8) -> bool {
+        let Some(len) = self.text_len(id) else { return false };
+        let (start, end) = (start.min(end).min(len), start.max(end).min(len));
+        let (changed, before, after) = {
+            let Some(Block::Text { body, aligns, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) else {
+                return false;
+            };
+            normalize_aligns(aligns, body);
+            let last = aligns.len().saturating_sub(1);
+            let line_start = nl_before(body, start).min(last);
+            let line_end = nl_before(body, end).min(last);
+            let before = aligns.clone();
+            let mut changed = false;
+            for i in line_start..=line_end {
+                if aligns[i] != align {
+                    aligns[i] = align;
+                    changed = true;
+                }
+            }
+            (changed, before, aligns.clone())
+        };
+        if !changed {
+            return false;
+        }
+        let rev_before = self.revision;
+        self.revision += 1;
+        let caret = Caret { block_id: id, start, end };
+        self.push(Step {
+            kind: StepKind::Align { id, before, after },
+            caret_before: caret,
+            caret_after: caret,
+            rev_before,
+            rev_after: self.revision,
+        });
+        true
+    }
+
+    /// Sets the paragraph style of every line touched by `start..end` (collapsed => the
+    /// caret line). One undoable step; never touches the text. `style` indexes the
+    /// paragraph-style list (0 = body). Returns true if anything changed.
+    pub fn style_lines(&mut self, id: u32, start: u32, end: u32, style: u8) -> bool {
+        let Some(len) = self.text_len(id) else { return false };
+        let (start, end) = (start.min(end).min(len), start.max(end).min(len));
+        let (changed, before, after) = {
+            let Some(Block::Text { body, styles, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) else {
+                return false;
+            };
+            normalize_aligns(styles, body);
+            let last = styles.len().saturating_sub(1);
+            let line_start = nl_before(body, start).min(last);
+            let line_end = nl_before(body, end).min(last);
+            let before = styles.clone();
+            let mut changed = false;
+            for i in line_start..=line_end {
+                if styles[i] != style {
+                    styles[i] = style;
+                    changed = true;
+                }
+            }
+            (changed, before, styles.clone())
+        };
+        if !changed {
+            return false;
+        }
+        let rev_before = self.revision;
+        self.revision += 1;
+        let caret = Caret { block_id: id, start, end };
+        self.push(Step {
+            kind: StepKind::Style { id, before, after },
+            caret_before: caret,
+            caret_after: caret,
+            rev_before,
+            rev_after: self.revision,
+        });
+        true
+    }
+
     pub fn insert_image(&mut self, id: u32, at: u32, mime: &str, data: Vec<u8>) -> Option<Caret> {
         if data.is_empty() || data.len() > MAX_IMAGE {
             return None;
@@ -401,14 +599,27 @@ impl Document {
         let right_id = self.alloc_id();
         let mime = if mime.starts_with("image/") { mime.to_string() } else { "image/png".into() };
         let mut right_marks = Vec::new();
-        if let Block::Text { body, marks: m, .. } = &mut self.blocks[idx] {
+        let mut right_aligns = Vec::new();
+        let mut right_styles = Vec::new();
+        if let Block::Text { body, marks: m, aligns, styles, .. } = &mut self.blocks[idx] {
+            let line_at = nl_before(body, at);
+            let ls = line_at.min(aligns.len().saturating_sub(1));
+            right_aligns = aligns[ls..].to_vec();
+            let ss = line_at.min(styles.len().saturating_sub(1));
+            right_styles = styles[ss..].to_vec();
             *body = left;
             let (l, r) = marks::split(m, at);
             *m = l;
             right_marks = r;
+            aligns.truncate(line_at + 1);
+            normalize_aligns(aligns, body);
+            styles.truncate(line_at + 1);
+            normalize_aligns(styles, body);
         }
+        normalize_aligns(&mut right_aligns, &right);
+        normalize_aligns(&mut right_styles, &right);
         self.blocks.insert(idx + 1, Block::Image { id: image_id, mime, data });
-        self.blocks.insert(idx + 2, Block::Text { id: right_id, body: right, marks: right_marks });
+        self.blocks.insert(idx + 2, Block::Text { id: right_id, body: right, marks: right_marks, aligns: right_aligns, styles: right_styles });
         let caret_before = Caret { block_id: id, start: at, end: at };
         let caret_after = Caret { block_id: right_id, start: 0, end: 0 };
         self.push_structure(before, caret_before, caret_after);
@@ -426,12 +637,24 @@ impl Document {
                 let pid = *pid;
                 let join = utf16_len(body) as u32;
                 if p + 1 < self.blocks.len() {
-                    if let Block::Text { body: right, marks: right_marks, .. } = &self.blocks[p + 1] {
+                    if let Block::Text { body: right, marks: right_marks, aligns: right_aligns, styles: right_styles, .. } = &self.blocks[p + 1] {
                         let right = right.clone();
                         let right_marks = right_marks.clone();
-                        if let Block::Text { body, marks: m, .. } = &mut self.blocks[p] {
+                        let right_aligns = right_aligns.clone();
+                        let right_styles = right_styles.clone();
+                        if let Block::Text { body, marks: m, aligns, styles, .. } = &mut self.blocks[p] {
                             body.push_str(&right);
                             *m = marks::join(m, &right_marks, join);
+                            // The two halves of the split line rejoin: keep this block's
+                            // codes, then the next block's except its first line.
+                            if right_aligns.len() > 1 {
+                                aligns.extend_from_slice(&right_aligns[1..]);
+                            }
+                            if right_styles.len() > 1 {
+                                styles.extend_from_slice(&right_styles[1..]);
+                            }
+                            normalize_aligns(aligns, body);
+                            normalize_aligns(styles, body);
                         }
                         self.blocks.remove(p + 1);
                     }
@@ -522,11 +745,15 @@ impl Document {
 
     fn invert(&mut self, step: &Step) {
         match &step.kind {
-            StepKind::Replace { id, at, deleted, inserted, marks_before, .. } => {
+            StepKind::Replace { id, at, deleted, inserted, marks_before, aligns_before, styles_before, .. } => {
                 self.apply_replace(*id, *at, inserted, deleted);
                 self.set_marks(*id, marks_before);
+                self.set_aligns(*id, aligns_before);
+                self.set_styles(*id, styles_before);
             }
             StepKind::Marks { id, before, .. } => self.set_marks(*id, before),
+            StepKind::Align { id, before, .. } => self.set_aligns(*id, before),
+            StepKind::Style { id, before, .. } => self.set_styles(*id, before),
             StepKind::Cell { id, row, col, deleted, marks_before, .. } => {
                 self.apply_cell(*id, *row, *col, deleted, marks_before)
             }
@@ -540,11 +767,15 @@ impl Document {
 
     fn reapply(&mut self, step: &Step) {
         match &step.kind {
-            StepKind::Replace { id, at, deleted, inserted, marks_after, .. } => {
+            StepKind::Replace { id, at, deleted, inserted, marks_after, aligns_after, styles_after, .. } => {
                 self.apply_replace(*id, *at, deleted, inserted);
                 self.set_marks(*id, marks_after);
+                self.set_aligns(*id, aligns_after);
+                self.set_styles(*id, styles_after);
             }
             StepKind::Marks { id, after, .. } => self.set_marks(*id, after),
+            StepKind::Align { id, after, .. } => self.set_aligns(*id, after),
+            StepKind::Style { id, after, .. } => self.set_styles(*id, after),
             StepKind::Cell { id, row, col, inserted, marks_after, .. } => {
                 self.apply_cell(*id, *row, *col, inserted, marks_after)
             }
@@ -574,7 +805,7 @@ impl Document {
         let mut changed = false;
         let mut first_err: Option<String> = None;
         for block in &mut self.blocks {
-            let Block::Text { id, body, marks: m } = block else { continue };
+            let Block::Text { id, body, marks: m, aligns, styles } = block else { continue };
             if body.trim().is_empty() {
                 continue;
             }
@@ -591,8 +822,11 @@ impl Document {
             match format_source(body, lang) {
                 Ok(next) => {
                     if next != *body {
+                        let n = line_count(&next);
                         *body = next;
                         m.clear();
+                        *aligns = vec![0u8; n];
+                        *styles = vec![0u8; n];
                         changed = true;
                     }
                     if !names.contains(&lang.label()) {
@@ -697,7 +931,7 @@ impl Document {
             if matches.is_empty() {
                 continue;
             }
-            let Block::Text { body, marks: m, .. } = block else { continue };
+            let Block::Text { body, marks: m, aligns, styles, .. } = block else { continue };
             let ins = utf16_len(replacement) as u32;
             if !m.is_empty() {
                 // Descending order keeps earlier coordinates valid; styles are
@@ -707,6 +941,11 @@ impl Document {
                 }
             }
             *body = splice_many(body, matches, replacement);
+            // Replace All only changes the line count when the query/replacement contain
+            // newlines; clamp per-line codes to the rebuilt body. The common
+            // same-newline-count case leaves them exactly valid by index.
+            normalize_aligns(aligns, body);
+            normalize_aligns(styles, body);
         }
         let caret = self.fallback_caret();
         self.push_structure(before, caret, caret);
@@ -813,6 +1052,9 @@ impl Document {
                 let mut item = serde_json::Map::new();
                 item.insert("t".into(), serde_json::Value::String(cell.text.clone()));
                 item.insert("f".into(), serde_json::Value::from(cell.fill));
+                if cell.align != 0 {
+                    item.insert("a".into(), serde_json::Value::from(cell.align));
+                }
                 if !cell.marks.is_empty() {
                     let flat: Vec<u32> = cell
                         .marks
@@ -1052,6 +1294,40 @@ impl Document {
         changed
     }
 
+    /// Aligns every cell in the rectangle `r0..=r1` × `c0..=c1` (a single cell when
+    /// `r0 == r1 && c0 == c1`). `align` is 0 left, 1 centre, 2 right. One undoable
+    /// structure step regardless of how many cells change, so a range align undoes at once.
+    pub fn table_align(&mut self, id: u32, r0: u32, c0: u32, r1: u32, c1: u32, align: u8) -> bool {
+        let Some((rows, cols)) = self.table_shape(id) else { return false };
+        let (r0, c0) = (r0 as usize, c0 as usize);
+        if r0 >= rows || c0 >= cols {
+            return false;
+        }
+        let r1 = (r1 as usize).min(rows - 1);
+        let c1 = (c1 as usize).min(cols - 1);
+        let before = self.blocks.clone();
+        let changed = match self.blocks.iter_mut().find(|b| b.id() == id) {
+            Some(Block::Table { cells, .. }) => {
+                let mut touched = false;
+                for r in r0..=r1 {
+                    for c in c0..=c1 {
+                        let cell = &mut cells[r * cols + c];
+                        if cell.align != align {
+                            cell.align = align;
+                            touched = true;
+                        }
+                    }
+                }
+                touched
+            }
+            _ => false,
+        };
+        if changed {
+            self.finish_structure(before);
+        }
+        changed
+    }
+
     /// Inserts an empty `rows` × `cols` table after block `after`, or at the end.
     ///
     /// A text block is always left directly after the table when the next block is
@@ -1074,7 +1350,7 @@ impl Document {
             .insert(at, Block::Table { id, cols, cells: vec![Cell::default(); cols * rows] });
         if !matches!(self.blocks.get(at + 1), Some(Block::Text { .. })) {
             let text_id = self.alloc_id();
-            self.blocks.insert(at + 1, Block::Text { id: text_id, body: String::new(), marks: Vec::new() });
+            self.blocks.insert(at + 1, Block::Text { id: text_id, body: String::new(), marks: Vec::new(), aligns: vec![0u8], styles: vec![0u8] });
         }
         let caret = self.fallback_caret();
         self.push_structure(before, caret, caret);
@@ -1107,12 +1383,25 @@ impl Document {
         let table_id = self.alloc_id();
         let right_id = self.alloc_id();
         let mut right_marks = Vec::new();
-        if let Block::Text { body, marks: m, .. } = &mut self.blocks[idx] {
+        let mut right_aligns = Vec::new();
+        let mut right_styles = Vec::new();
+        if let Block::Text { body, marks: m, aligns, styles, .. } = &mut self.blocks[idx] {
+            let line_at = nl_before(body, at);
+            let ls = line_at.min(aligns.len().saturating_sub(1));
+            right_aligns = aligns[ls..].to_vec();
+            let ss = line_at.min(styles.len().saturating_sub(1));
+            right_styles = styles[ss..].to_vec();
             *body = left;
             let (l, r) = marks::split(m, at);
             *m = l;
             right_marks = r;
+            aligns.truncate(line_at + 1);
+            normalize_aligns(aligns, body);
+            styles.truncate(line_at + 1);
+            normalize_aligns(styles, body);
         }
+        normalize_aligns(&mut right_aligns, &right);
+        normalize_aligns(&mut right_styles, &right);
         self.blocks.insert(
             idx + 1,
             Block::Table {
@@ -1127,6 +1416,8 @@ impl Document {
                 id: right_id,
                 body: right,
                 marks: right_marks,
+                aligns: right_aligns,
+                styles: right_styles,
             },
         );
         let caret_before = Caret { block_id: id, start: at, end: at };
@@ -1652,7 +1943,7 @@ mod tests {
     #[test]
     fn table_model_round_trips_and_undoes() {
         let mut doc = Document::new();
-        let cell = |text: &str| Cell { text: text.to_string(), marks: Vec::new(), fill: 0 };
+        let cell = |text: &str| Cell { text: text.to_string(), marks: Vec::new(), fill: 0, align: 0 };
         let id = doc.restore_table(2, vec![cell("ab"), cell("fd"), cell("one"), cell("two")]);
 
         assert_eq!(doc.table_shape(id), Some((2, 2)));
@@ -1694,7 +1985,7 @@ mod tests {
     #[test]
     fn table_cell_styles_apply_to_a_range() {
         let mut doc = Document::new();
-        let cell = Cell { text: "hello".into(), marks: Vec::new(), fill: 0 };
+        let cell = Cell { text: "hello".into(), marks: Vec::new(), fill: 0, align: 0 };
         let id = doc.restore_table(1, vec![cell]);
 
         assert!(doc.table_style(id, 0, 0, 0, 2, StyleChange::Flag(marks::BOLD, true)));
@@ -1805,7 +2096,7 @@ mod tests {
     #[test]
     fn table_style_runs_are_clamped_to_their_cell() {
         let mut doc = Document::new();
-        let id = doc.restore_table(1, vec![Cell { text: "abcd".into(), marks: Vec::new(), fill: 0 }]);
+        let id = doc.restore_table(1, vec![Cell { text: "abcd".into(), marks: Vec::new(), fill: 0, align: 0 }]);
         assert!(doc.table_set_marks(id, 0, 0, &[0, 4, marks::BOLD as u32, 0, 0]));
         assert!(doc.table_json(id).contains("\"m\":[0,4,1,0,0]"));
         doc.table_set_text(id, 0, 0, "ab");
@@ -1910,6 +2201,169 @@ mod tests {
         eprintln!(
             "size={size}B edit={edit:?} text_of={read:?} highlight={highlight:?} replace_all({replaced})={replace:?}"
         );
+    }
+
+    // ---------- Per-line alignment (Word-style paragraph property) ----------
+
+    #[test]
+    fn align_lines_targets_caret_line_and_every_touched_line() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "line1\nline2\nline3", false);
+        assert_eq!(doc.line_aligns(id), vec![0u8, 0, 0]);
+        // Collapsed caret on line 2 (offset 6) aligns only that line.
+        assert!(doc.align_lines(id, 6, 6, 1));
+        assert_eq!(doc.line_aligns(id), vec![0u8, 1, 0]);
+        // Idempotent: no change, no step.
+        assert!(!doc.align_lines(id, 6, 6, 1));
+        // A range mid-line1..mid-line3 aligns every touched line.
+        assert!(doc.align_lines(id, 2, 13, 2));
+        assert_eq!(doc.line_aligns(id), vec![2u8, 2, 2]);
+    }
+
+    #[test]
+    fn align_change_undos_without_touching_text() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "line1\nline2\nline3", false);
+        doc.align_lines(id, 6, 6, 1);
+        doc.undo();
+        assert_eq!(doc.line_aligns(id), vec![0u8, 0, 0]);
+        assert_eq!(doc.text_of(id), "line1\nline2\nline3");
+        doc.redo();
+        assert_eq!(doc.line_aligns(id), vec![0u8, 1, 0]);
+    }
+
+    #[test]
+    fn enter_inherits_align_and_undo_restores_it() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa\nbbb", false);
+        doc.align_lines(id, 0, 0, 1);
+        assert_eq!(doc.line_aligns(id), vec![1u8, 0]);
+        doc.edit(id, 3, 3, "\n", false); // Enter at the end of "aaa"
+        assert_eq!(doc.text_of(id), "aaa\n\nbbb");
+        assert_eq!(doc.line_aligns(id), vec![1u8, 1, 0]); // the new line inherits centre
+        doc.undo();
+        assert_eq!(doc.text_of(id), "aaa\nbbb");
+        assert_eq!(doc.line_aligns(id), vec![1u8, 0]);
+    }
+
+    #[test]
+    fn typing_inside_a_line_keeps_aligns() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa\nbbb\nccc", false);
+        doc.align_lines(id, 4, 4, 2); // line 2 -> right
+        assert_eq!(doc.line_aligns(id), vec![0u8, 2, 0]);
+        doc.edit(id, 0, 0, "XYZ", false);
+        assert_eq!(doc.line_aligns(id), vec![0u8, 2, 0]);
+    }
+
+    #[test]
+    fn backspace_across_newline_merges_and_keeps_upper_align() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa\nbbb", false);
+        doc.align_lines(id, 0, 0, 1);
+        doc.align_lines(id, 4, 4, 2);
+        assert_eq!(doc.line_aligns(id), vec![1u8, 2]);
+        doc.edit(id, 3, 4, "", false); // delete the "\n"
+        assert_eq!(doc.text_of(id), "aaabbb");
+        assert_eq!(doc.line_aligns(id), vec![1u8]); // merged line keeps the upper align
+    }
+
+    #[test]
+    fn insert_image_splits_aligns_at_the_line() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa\nbbb\nccc", false);
+        doc.align_lines(id, 0, 0, 1);
+        doc.align_lines(id, 4, 4, 2);
+        doc.align_lines(id, 8, 8, 1);
+        assert_eq!(doc.line_aligns(id), vec![1u8, 2, 1]);
+        let png = vec![0x89u8, 0x50, 0x4e, 0x47, 1, 2, 3];
+        let caret = doc.insert_image(id, 1, "image/png", png).unwrap();
+        assert_eq!(doc.line_aligns(id), vec![1u8]); // left half "a"
+        assert_eq!(doc.line_aligns(caret.block_id), vec![1u8, 2, 1]); // right half "aa\nbbb\nccc"
+        assert_eq!(doc.text_of(caret.block_id), "aa\nbbb\nccc");
+    }
+
+    #[test]
+    fn restore_aligns_clamps_to_line_count() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa\nbbb\nccc", false);
+        doc.restore_aligns(id, &[2u8, 0, 1]);
+        assert_eq!(doc.line_aligns(id), vec![2u8, 0, 1]);
+        doc.restore_aligns(id, &[9u8, 9]); // shorter than the line count
+        assert_eq!(doc.line_aligns(id).len(), 3);
+    }
+
+    #[test]
+    fn same_line_count_replace_preserves_aligns() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa\nbbb\nccc", false);
+        doc.align_lines(id, 0, 0, 1); // line 1 -> centre
+        doc.align_lines(id, 8, 8, 2); // line 3 -> right
+        assert_eq!(doc.line_aligns(id), vec![1u8, 0, 2]);
+        // A whole-block replace that keeps the line count (list renumbering, reformat)
+        // must preserve the per-line aligns rather than flattening them to line 1's.
+        doc.edit(id, 0, 11, "111\n222\n333", false);
+        assert_eq!(doc.text_of(id), "111\n222\n333");
+        assert_eq!(doc.line_aligns(id), vec![1u8, 0, 2]);
+    }
+
+    #[test]
+    fn style_lines_targets_touched_lines_and_undos() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa\nbbb\nccc", false);
+        assert_eq!(doc.line_styles(id), vec![0u8, 0, 0]);
+        // Collapsed caret on line 2 -> only that line.
+        assert!(doc.style_lines(id, 4, 4, 1));
+        assert_eq!(doc.line_styles(id), vec![0u8, 1, 0]);
+        // A range -> every touched line.
+        assert!(doc.style_lines(id, 0, 8, 2));
+        assert_eq!(doc.line_styles(id), vec![2u8, 2, 2]);
+        // Undo reverts the style and never touches the text.
+        doc.undo();
+        assert_eq!(doc.line_styles(id), vec![0u8, 1, 0]);
+        assert_eq!(doc.text_of(id), "aaa\nbbb\nccc");
+    }
+
+    #[test]
+    fn enter_inherits_style_like_align() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa\nbbb", false);
+        doc.style_lines(id, 0, 0, 3); // line 1 -> style 3
+        assert_eq!(doc.line_styles(id), vec![3u8, 0]);
+        doc.edit(id, 3, 3, "\n", false); // Enter at the end of "aaa"
+        assert_eq!(doc.line_styles(id), vec![3u8, 3, 0]); // the new line inherits
+    }
+
+    #[test]
+    fn table_align_sets_cells_and_undos() {
+        let mut doc = Document::new();
+        let id = doc.restore_table(2, vec![Cell::default(); 4]); // 2 cols x 2 rows
+        let count_a = |s: &str| s.matches("\"a\":").count();
+        // A single cell (0,1) -> centre.
+        assert!(doc.table_align(id, 0, 1, 0, 1, 1));
+        assert_eq!(count_a(&doc.table_json(id)), 1);
+        // A rectangle (rows 0-1, col 0) -> right: two more cells, one undo step.
+        assert!(doc.table_align(id, 0, 0, 1, 0, 2));
+        assert_eq!(count_a(&doc.table_json(id)), 3);
+        // Undo the rectangle: back to just the centred cell.
+        doc.undo();
+        assert_eq!(count_a(&doc.table_json(id)), 1);
+        // Undo the single-cell align: nothing aligned.
+        doc.undo();
+        assert_eq!(count_a(&doc.table_json(id)), 0);
+        // Idempotent: re-aligning an already-aligned cell records no step.
+        assert!(doc.table_align(id, 0, 0, 0, 0, 1));
+        assert!(!doc.table_align(id, 0, 0, 0, 0, 1));
     }
 }
 

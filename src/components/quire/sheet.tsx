@@ -29,6 +29,7 @@ import { HIGHLIGHTERS, INKS, type FlagName } from "@/lib/quire/marks";
 import type { ListKind } from "@/lib/quire/lists";
 import {
   ALIGNMENTS,
+  CODE_STYLES,
   DEFAULT_FONT,
   DEFAULT_STYLE,
   STYLE_SIZES,
@@ -36,11 +37,14 @@ import {
   TEXT_STYLES,
   fontName,
   styleName,
+  type AlignId,
   type BlockLook,
+  type StyleId,
 } from "@/lib/quire/typefaces";
 import type { DateStampStyle } from "@/lib/quire/text";
 import { tornClip } from "@/lib/quire/torn";
 import { TextBlock } from "./text-block";
+import { TextBlockCE } from "./text-block-ce";
 import { TableBlock, type CellRange, type CellTarget } from "./table-block";
 import { DropMenu } from "./drop-menu";
 import { imageUrl, outlineOf, type NoteMeta, type Place } from "./store";
@@ -137,6 +141,10 @@ export type SheetActions = {
   bullets: () => void;
   /** Sets the face and/or paragraph style of one text block. */
   look: (blockId: number, patch: BlockLook) => void;
+  /** Aligns the selected lines (or the caret line) - per line via the core, or per block. */
+  align: (blockId: number, align: AlignId) => void;
+  /** Styles the selected lines (or the caret line) - per line via the core, or per block. */
+  style: (blockId: number, style: StyleId) => void;
 };
 
 /** Toolbar buttons that must not steal focus (and the selection) from the editor. */
@@ -195,12 +203,15 @@ export function Sheet({
   looks,
   activeBlockId,
   activeKind,
+  cellTarget,
   selectAll,
   onSelectAll,
   onClearSelectAll,
   saveExt,
   saveExts,
   actions,
+  ceRenderer,
+  sel,
 }: {
   note: NoteMeta;
   session: Session;
@@ -227,6 +238,8 @@ export function Sheet({
   activeBlockId: number | null;
   /** Kind of the active block: text, table or image. */
   activeKind: string | null;
+  /** The focused table cell, or null when a text editor owns the caret. */
+  cellTarget: CellTarget | null;
   /** Ctrl+A selected the whole sheet. */
   selectAll: boolean;
   onSelectAll: () => void;
@@ -235,6 +248,10 @@ export function Sheet({
   saveExt: string;
   /** Every extension this note can be written as, default first. */
   saveExts: string[];
+  /** Phase 2 preview: use the per-line contenteditable renderer for text blocks. */
+  ceRenderer: boolean;
+  /** Current selection; the caret line drives the per-line align indicator. */
+  sel: { blockId: number; start: number; end: number };
   actions: SheetActions;
 }) {
   const [renaming, setRenaming] = useState(false);
@@ -243,7 +260,44 @@ export function Sheet({
   const noSel = !styles.hasSelection;
   const selHint = noSel ? " (select text first)" : "";
   // Where a paragraph style or font choice applies: the block holding the caret.
-  const currentLook: BlockLook = activeBlockId === null ? {} : (looks[String(activeBlockId)] ?? {});
+  // When a table cell holds the caret, the toolbar's face/align reflect that cell's table,
+  // not the text block `sel.blockId` happens to point at (cell focus does not move `sel`).
+  const lookBlockId = cellTarget ? cellTarget.tableId : activeBlockId;
+  const currentLook: BlockLook = lookBlockId === null ? {} : (looks[String(lookBlockId)] ?? {});
+  // Per-line align indicator (Phase 2 contenteditable renderer): reflect the caret line's
+  // core align. The textarea renderer keeps the per-block look.align.
+  const caretAlign: AlignId = (() => {
+    if (cellTarget) {
+      // A table cell is focused: reflect that cell's own align (BUG-2).
+      try {
+        const tbl = JSON.parse(session.table_json(cellTarget.tableId)) as { cols: number; cells: { a?: number }[] };
+        const cell = tbl.cells[cellTarget.row * tbl.cols + cellTarget.col];
+        return ALIGNMENTS[cell?.a ?? 0]?.id ?? "left";
+      } catch {
+        return "left";
+      }
+    }
+    if (!ceRenderer || activeBlockId === null) return currentLook.align ?? "left";
+    const aligns = session.line_aligns(activeBlockId);
+    if (!aligns.length) return "left";
+    const text = session.text_of(activeBlockId);
+    const start = sel.blockId === activeBlockId ? Math.min(sel.start, text.length) : 0;
+    const line = text.slice(0, start).split("\n").length - 1;
+    return ALIGNMENTS[aligns[line] ?? 0]?.id ?? "left";
+  })();
+  // Per-line paragraph-style indicator: reflect the caret line's core style. The textarea
+  // renderer keeps the per-block look.style.
+  const caretStyle: StyleId = (() => {
+    if (!ceRenderer || activeBlockId === null) return currentLook.style ?? DEFAULT_STYLE;
+    const styles = session.line_styles(activeBlockId);
+    if (!styles.length) return DEFAULT_STYLE;
+    const text = session.text_of(activeBlockId);
+    const start = sel.blockId === activeBlockId ? Math.min(sel.start, text.length) : 0;
+    const line = text.slice(0, start).split("\n").length - 1;
+    return CODE_STYLES[styles[line] ?? 0] ?? DEFAULT_STYLE;
+  })();
+  // Swap the text-block renderer without duplicating the (large) prop list.
+  const TextBlockOrCE = (ceRenderer ? TextBlockCE : TextBlock) as typeof TextBlock;
 
   return (
     <section className="sheet-wrap" data-edge={edge} aria-label={note.title}>
@@ -290,15 +344,15 @@ export function Sheet({
                 <div className="tool-group" role="group" aria-label="Paragraph style and font">
                   <DropMenu
                     className="tool text-only"
-                    ariaLabel={`Paragraph style: ${styleName(currentLook.style)}`}
-                    title="Paragraph style for this block"
+                    ariaLabel={`Paragraph style: ${styleName(caretStyle)}`}
+                    title="Paragraph style for the selected lines (or the caret line)"
                     label={
                       <span>
-                        {styleName(currentLook.style)} <ChevronDown size={13} aria-hidden="true" />
+                        {styleName(caretStyle)} <ChevronDown size={13} aria-hidden="true" />
                       </span>
                     }
                     items={TEXT_STYLES.map((style) => {
-                      const on = (currentLook.style ?? DEFAULT_STYLE) === style.id;
+                      const on = caretStyle === style.id;
                       return (
                         <button
                           key={style.id}
@@ -307,7 +361,7 @@ export function Sheet({
                           role="menuitemradio"
                           aria-checked={on}
                           disabled={activeBlockId === null}
-                          onClick={() => activeBlockId !== null && actions.look(activeBlockId, { style: style.id })}
+                          onClick={() => activeBlockId !== null && actions.style(activeBlockId, style.id)}
                           // Preview at 0.6x the real size so Title reads bigger than Body
                           // without any row overflowing the menu.
                           style={{ fontSize: `${Math.round(STYLE_SIZES[style.id] * 0.6)}px` }}
@@ -336,7 +390,7 @@ export function Sheet({
                           className="menu-item"
                           role="menuitemradio"
                           aria-checked={on}
-                          disabled={activeBlockId === null || activeKind === "table"}
+                          disabled={activeBlockId === null}
                           onClick={() => activeBlockId !== null && actions.look(activeBlockId, { font: font.id })}
                         >
                           <span style={{ fontFamily: font.css }}>{font.name}</span>
@@ -475,7 +529,7 @@ export function Sheet({
                       {ALIGNMENTS.map((align) => {
                         const Icon =
                           align.id === "left" ? AlignLeft : align.id === "center" ? AlignCenter : AlignRight;
-                        const on = (currentLook.align ?? "left") === align.id;
+                        const on = caretAlign === align.id;
                         // Alignment needs Word Wrap on: with wrap off the textarea scrolls
                         // sideways, so centring/right-aligning has no stable meaning.
                         const wrapOff = !note.wrap;
@@ -485,8 +539,8 @@ export function Sheet({
                             label={align.name}
                             title={wrapOff ? `${align.name} (turn Word Wrap on first)` : align.name}
                             pressed={on}
-                            disabled={activeBlockId === null || activeKind === "table" || wrapOff}
-                            onPress={() => actions.look(activeBlockId, { align: align.id })}
+                            disabled={activeBlockId === null || (activeKind !== "table" && wrapOff)}
+                            onPress={() => actions.align(activeBlockId, align.id)}
                           >
                             <Icon />
                           </Keep>
@@ -554,9 +608,10 @@ export function Sheet({
                   range={cellRange}
                   onRange={onCellRange}
                   onDelete={() => actions.deleteTable(item.id)}
+                  look={looks[String(item.id)]}
                 />
               ) : (
-                <TextBlock
+                <TextBlockOrCE
                   key={item.id}
                   noteId={note.id}
                   blockId={item.id}

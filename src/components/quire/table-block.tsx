@@ -2,8 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Session } from "@/lib/quire/engine";
 import { HIGHLIGHTERS, paint, readMarks } from "@/lib/quire/marks";
+import type { BlockLook } from "@/lib/quire/typefaces";
 
-type CellData = { t: string; f: number; m?: number[] };
+type CellData = { t: string; f: number; m?: number[]; a?: number };
+/** Per-cell align code -> CSS text-align (0 left, 1 centre, 2 right). */
+const CELL_ALIGN = ["left", "center", "right"];
 type TableData = { cols: number; cells: CellData[] };
 type Menu = { row: number; col: number; x: number; y: number; sheet: boolean };
 type Scope = "cell" | "row" | "col" | "table";
@@ -42,6 +45,7 @@ export function TableBlock({
   range,
   onRange,
   onDelete,
+  look,
 }: {
   blockId: number;
   session: Session;
@@ -53,6 +57,9 @@ export function TableBlock({
   onRange: (range: CellRange | null) => void;
   /** Removes the whole table; the sheet owns the undoable step. */
   onDelete: () => void;
+  /** Per-block face. Routing it onto the table root as `data-font` lets the toolbar
+   *  font reach the cells (BUG-3); cells inherit it through `--editor-font`. */
+  look?: BlockLook;
 }) {
   const table = useMemo<TableData>(() => {
     try {
@@ -164,6 +171,7 @@ export function TableBlock({
     <div
       className="block table-block"
       data-block-id={blockId}
+      data-font={look?.font ?? undefined}
       ref={rootRef}
       onBlur={(event) => {
         flush();
@@ -234,7 +242,7 @@ export function TableBlock({
                         setMenu({ row, col, x: event.clientX, y: event.clientY, sheet: false });
                       }}
                     >
-                      <div className="cell">
+                      <div className="cell" data-align={CELL_ALIGN[cell.a ?? 0] ?? "left"}>
                         <pre className="hl" aria-hidden="true" />
                         <textarea
                           rows={1}

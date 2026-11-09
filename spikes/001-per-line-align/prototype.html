@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Per-line alignment prototype</title>
+<style>
+  :root{
+    --fg: var(--foreground, #2b2118);
+    --muted: var(--muted-foreground, #8a7862);
+    --accent: var(--accent, #9c3b2e);
+    --border: var(--border, #d9ccb6);
+    --card: var(--card, #fffdf7);
+    --mono: var(--font-mono, ui-monospace, "IBM Plex Mono", "Cascadia Mono", Consolas, monospace);
+  }
+  .wrap{ max-width: 740px; }
+  h2{ font-size:15px; color:var(--fg); margin:0 0 3px; font-weight:650; }
+  .sub{ font-size:12.5px; color:var(--muted); margin:0 0 12px; line-height:1.5; }
+  .toolbar{ display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; align-items:center; }
+  .toolbar button{
+    font:inherit; font-size:13px; padding:5px 12px; cursor:pointer;
+    border:1px solid var(--border); background:var(--card); color:var(--fg); border-radius:7px;
+  }
+  .toolbar button:hover{ border-color:var(--accent); color:var(--accent); }
+  .toolbar .spacer{ flex:1; }
+  .editor{
+    border:1px solid var(--border); background:var(--card); border-radius:9px;
+    padding:14px 16px; min-height:210px; outline:none;
+    font-family:var(--mono); font-size:15px; line-height:1.75; color:var(--fg);
+  }
+  .editor:focus{ border-color:var(--accent); }
+  .line{ white-space:pre-wrap; word-break:break-word; border-radius:3px; }
+  .line[data-align="center"]{ text-align:center; }
+  .line[data-align="right"]{ text-align:right; }
+  .line[data-align="left"]{ text-align:left; }
+  .line.caret-here{ background:color-mix(in srgb, var(--accent) 9%, transparent); }
+  .status{
+    margin-top:11px; font-size:11.5px; color:var(--muted);
+    border-top:1px dashed var(--border); padding-top:9px;
+    font-family:var(--mono); white-space:pre-wrap; line-height:1.5;
+  }
+  .hint{ font-size:12px; color:var(--muted); margin:11px 0 0; line-height:1.55; }
+  .hint b{ color:var(--accent); font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>Per-line alignment — contenteditable prototype</h2>
+  <p class="sub">Each line is its own element with its own <code>text-align</code>. Click a line (or drag across several), then align — <b>only the touched lines</b> change, and the caret stays glued to the text on centred/right lines.</p>
+
+  <div class="toolbar">
+    <button type="button" data-align="left">Align left</button>
+    <button type="button" data-align="center">Align centre</button>
+    <button type="button" data-align="right">Align right</button>
+    <span class="spacer"></span>
+    <button type="button" id="seed">Reset sample</button>
+  </div>
+
+  <div class="editor" id="editor" contenteditable="true" spellcheck="false"></div>
+
+  <div class="status" id="status"></div>
+
+  <p class="hint">
+    Try: <b>caret on line 2 → Align centre</b> (only line 2 moves). <b>Drag from mid-line 1 to mid-line 3 → Align right</b> (all three move — “every touched line”). <b>Type on a centred line</b> — the caret follows the text. <b>Enter</b> at the end of a centred line — the new line inherits the alignment. Alignment travels with its line as you edit.
+  </p>
+</div>
+
+<script>
+(function () {
+  const editor = document.getElementById("editor");
+  const statusEl = document.getElementById("status");
+  const SAMPLE = [
+    "The quick brown fox",
+    "jumps over the lazy dog",
+    "Pack my box with five dozen liquor jugs",
+    "Sphinx of black quartz, judge my vow",
+    ""
+  ];
+
+  function seed() {
+    editor.innerHTML = "";
+    SAMPLE.forEach((t) => {
+      const d = document.createElement("div");
+      d.className = "line";
+      d.setAttribute("data-align", "left");
+      d.textContent = t;
+      editor.appendChild(d);
+    });
+    const r = document.createRange();
+    r.selectNodeContents(editor.firstChild || editor);
+    r.collapse(true);
+    const s = getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+    editor.focus();
+    update();
+  }
+
+  const lines = () => Array.from(editor.querySelectorAll(".line"));
+
+  function lineOf(node) {
+    let n = node;
+    while (n && n !== editor) {
+      if (n.nodeType === 1 && n.classList && n.classList.contains("line")) return n;
+      n = n.parentNode;
+    }
+    return null;
+  }
+
+  // Lines the current selection touches; collapsed selection => the caret's line.
+  function touched() {
+    const s = getSelection();
+    if (!s || s.rangeCount === 0 || !editor.contains(s.anchorNode)) return [];
+    const a = lineOf(s.anchorNode);
+    const b = lineOf(s.focusNode);
+    const all = lines();
+    if (!a) return [];
+    if (!b || a === b) return [a];
+    let i = all.indexOf(a), j = all.indexOf(b);
+    if (i > j) { const t = i; i = j; j = t; }
+    return all.slice(i, j + 1);
+  }
+
+  function applyAlign(align) {
+    const t = touched();
+    if (!t.length) return;
+    t.forEach((l) => l.setAttribute("data-align", align));
+    update();
+  }
+
+  document.querySelectorAll(".toolbar button[data-align]").forEach((btn) => {
+    // Keep the editor selection alive when a toolbar button is clicked.
+    btn.addEventListener("mousedown", (e) => e.preventDefault());
+    btn.addEventListener("click", () => applyAlign(btn.getAttribute("data-align")));
+  });
+  document.getElementById("seed").addEventListener("click", seed);
+
+  // Enter: split the current line at the caret; the new line inherits alignment.
+  editor.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    const s = getSelection();
+    if (!s || s.rangeCount === 0) return;
+    const range = s.getRangeAt(0);
+    const line = lineOf(range.startContainer);
+    if (!line) return;
+    range.deleteContents();
+    const tail = document.createRange();
+    tail.selectNodeContents(line);
+    tail.setStart(range.endContainer, range.endOffset);
+    const frag = tail.extractContents();
+    const nl = document.createElement("div");
+    nl.className = "line";
+    nl.setAttribute("data-align", line.getAttribute("data-align") || "left");
+    nl.appendChild(frag);
+    if (!nl.firstChild) nl.appendChild(document.createTextNode(""));
+    line.after(nl);
+    const nr = document.createRange();
+    nr.setStart(nl.firstChild, 0);
+    nr.collapse(true);
+    s.removeAllRanges();
+    s.addRange(nr);
+    update();
+  });
+
+  // Backspace at the start of a line merges it into the previous one.
+  editor.addEventListener("keydown", (e) => {
+    if (e.key !== "Backspace") return;
+    const s = getSelection();
+    if (!s || s.rangeCount === 0 || !s.isCollapsed) return;
+    const line = lineOf(s.anchorNode);
+    if (!line) return;
+    const atStart = s.anchorOffset === 0 && (s.anchorNode === line || line.textContent.length === 0 || s.anchorNode === line.firstChild);
+    const prev = line.previousElementSibling;
+    if (atStart && prev && prev.classList.contains("line")) {
+      e.preventDefault();
+      const caret = prev.textContent.length;
+      while (line.firstChild) prev.appendChild(line.firstChild);
+      line.remove();
+      const r = document.createRange();
+      const target = prev.lastChild || prev;
+      r.setStart(target, Math.min(caret, target.textContent ? target.textContent.length : 0));
+      r.collapse(true);
+      s.removeAllRanges();
+      s.addRange(r);
+      update();
+    }
+  });
+
+  editor.addEventListener("paste", (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData("text/plain");
+    document.execCommand("insertText", false, text);
+  });
+
+  // Normalise stray nodes into .line divs (contenteditable can inject <br>/<div>).
+  function normalise() {
+    Array.from(editor.childNodes).forEach((n) => {
+      if (n.nodeType === 1 && !n.classList.contains("line")) {
+        const d = document.createElement("div");
+        d.className = "line";
+        d.setAttribute("data-align", n.getAttribute && n.getAttribute("data-align") ? n.getAttribute("data-align") : "left");
+        n.replaceWith(d);
+        d.appendChild(n);
+      }
+    });
+    if (!editor.querySelector(".line")) {
+      const d = document.createElement("div");
+      d.className = "line";
+      d.setAttribute("data-align", "left");
+      editor.appendChild(d);
+    }
+  }
+
+  function caretLineIndex() {
+    const s = getSelection();
+    if (!s || s.rangeCount === 0 || !editor.contains(s.anchorNode)) return -1;
+    const l = lineOf(s.anchorNode);
+    return l ? lines().indexOf(l) : -1;
+  }
+
+  function update() {
+    normalise();
+    const all = lines();
+    const ci = caretLineIndex();
+    all.forEach((l, i) => l.classList.toggle("caret-here", i === ci));
+    const tIdx = touched().map((l) => all.indexOf(l) + 1);
+    const model = all.map((l, i) => `${String(i + 1).padStart(2, " ")}. [${(l.getAttribute("data-align") || "left").padEnd(6)}] ${JSON.stringify(l.textContent)}`).join("\n");
+    statusEl.textContent =
+      `caret line: ${ci + 1}    selection touches line(s): ${tIdx.length ? tIdx.join(", ") : "—"}\n` +
+      `── per-line model ──\n${model}`;
+  }
+
+  editor.addEventListener("input", update);
+  editor.addEventListener("keyup", update);
+  editor.addEventListener("click", update);
+  document.addEventListener("selectionchange", () => { if (document.activeElement === editor) update(); });
+
+  seed();
+})();
+</script>
+</body>
+</html>

@@ -37,7 +37,8 @@ import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
 import type { CellRange, CellTarget } from "./table-block";
-import type { BlockLook } from "@/lib/quire/typefaces";
+import { STYLE_CODES, type AlignId, type BlockLook, type StyleId } from "@/lib/quire/typefaces";
+import { ceRendererOn } from "@/lib/quire/ce-renderer";
 import { applyListStyle } from "@/lib/quire/lists";
 import type { ListKind } from "@/lib/quire/lists";
 import {
@@ -193,6 +194,8 @@ export function QuireApp() {
 
   const session = activeId ? (sessions.get(activeId) ?? null) : null;
   const note = notes.find((n) => n.id === activeId) ?? null;
+  /** Phase 2 preview: render text blocks with the per-line contenteditable engine. */
+  const ceRenderer = ceRendererOn();
   const skinMeta = SKINS.find((s) => s.id === skin) ?? SKINS[0];
   // Cards refresh once typing pauses, so the side column does not repaint on every keystroke.
   const [cardTick, setCardTick] = useState(0);
@@ -1472,7 +1475,59 @@ export function QuireApp() {
     list: applyList,
     zoomIn: () => setZoom((current) => clampZoom(current + 1)),
     zoomOut: () => setZoom((current) => clampZoom(current - 1)),
-    look: setBlockLook,
+    look: (blockId, patch) => {
+      // A focused table cell takes the block look (e.g. font) on its own table, not
+      // whatever text block `sel.blockId` happens to point at (BUG-3). liveCellTarget()
+      // is null when a text editor owns the caret, so text blocks are unaffected.
+      const cell = liveCellTarget();
+      setBlockLook(cell ? cell.tableId : blockId, patch);
+    },
+    align: (blockId, alignId) => {
+      if (!session) return;
+      const code = alignId === "center" ? 1 : alignId === "right" ? 2 : 0;
+      // Table: align the drag range, else the focused cell (BUG-2). Mirrors the mark
+      // actions' cell targeting; table_align records one undo step for the whole range.
+      if (cellRange) {
+        const r0 = Math.min(cellRange.r0, cellRange.r1);
+        const r1 = Math.max(cellRange.r0, cellRange.r1);
+        const c0 = Math.min(cellRange.c0, cellRange.c1);
+        const c1 = Math.max(cellRange.c0, cellRange.c1);
+        session.table_align(cellRange.tableId, r0, c0, r1, c1, code);
+        setTick((t) => t + 1);
+        return;
+      }
+      const cell = liveCellTarget();
+      if (cell) {
+        session.table_align(cell.tableId, cell.row, cell.col, cell.row, cell.col, code);
+        setTick((t) => t + 1);
+        return;
+      }
+      if (ceRenderer) {
+        // Per-line align is a core paragraph property: align every line the selection
+        // touches (collapsed => the caret line), then let the block re-render from core.
+        const s = selRef.current;
+        const start = s.blockId === blockId ? s.start : 0;
+        const end = s.blockId === blockId ? s.end : 0;
+        session.align_lines(blockId, start, end, code);
+        setTick((t) => t + 1);
+      } else {
+        setBlockLook(blockId, { align: alignId });
+      }
+    },
+    style: (blockId, styleId) => {
+      if (!session) return;
+      if (ceRenderer) {
+        // Per-line paragraph style is a core property: style every line the selection
+        // touches (collapsed => the caret line), then re-render from core.
+        const s = selRef.current;
+        const start = s.blockId === blockId ? s.start : 0;
+        const end = s.blockId === blockId ? s.end : 0;
+        session.style_lines(blockId, start, end, STYLE_CODES[styleId]);
+        setTick((t) => t + 1);
+      } else {
+        setBlockLook(blockId, { style: styleId });
+      }
+    },
   };
 
   const boardStamp = [
@@ -1655,7 +1710,10 @@ export function QuireApp() {
                 saveExts={saveExts}
                 looks={note.looks ?? {}}
                 activeBlockId={sel.blockId ?? null}
+                ceRenderer={ceRenderer}
+                sel={sel}
                 activeKind={activeBlock ? activeBlock.kind : null}
+                cellTarget={cellTarget}
                 selectAll={selectAll}
                 onSelectAll={selectWholeSheet}
                 onClearSelectAll={() => setSelectAll(false)}

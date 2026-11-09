@@ -1,0 +1,55 @@
+{
+  "suite": "qa-style (CE renderer)",
+  "results": [
+    {
+      "name": "CE-renderer-active",
+      "ok": true,
+      "detail": {
+        "ceRoot": 1
+      }
+    },
+    {
+      "name": "S1-caret-line-only",
+      "ok": true,
+      "detail": [
+        "alpha:body/16px",
+        "beta:title/32px",
+        "gamma:body/16px"
+      ]
+    },
+    {
+      "name": "S2-every-touched-line",
+      "ok": true,
+      "detail": [
+        "alpha:heading/22.5px",
+        "beta:heading/22.5px",
+        "gamma:heading/22.5px"
+      ]
+    },
+    {
+      "name": "S3-undo-reverts-style-keeps-text",
+      "ok": true,
+      "detail": {
+        "lines": [
+          "alpha:body",
+          "beta:title",
+          "gamma:body"
+        ],
+        "textBefore": "alpha\nbeta\ngamma",
+        "textAfter": "alpha\nbeta\ngamma"
+      }
+    },
+    {
+      "name": "S4-styles-persist-across-reload",
+      "ok": true,
+      "detail": [
+        "alpha:body/16px",
+        "beta:title/32px",
+        "gamma:subtitle/26px"
+      ]
+    }
+  ],
+  "pageErrors": [],
+  "pass": 5,
+  "fail": 0
+}
