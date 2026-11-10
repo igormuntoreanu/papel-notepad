@@ -4,6 +4,11 @@ export const INKS = [
   { id: 2, name: "Blue", color: "#1e4f8c" },
   { id: 3, name: "Green", color: "#2f5a2c" },
   { id: 4, name: "Pencil", color: "#5a544c" },
+  { id: 5, name: "Dark orange", color: "#cc5a1e" },
+  { id: 6, name: "Red", color: "#d81f26" },
+  { id: 7, name: "Matrix green", color: "#00d83d" },
+  { id: 8, name: "Silver neon", color: "#a7b0bc" },
+  { id: 9, name: "Gold", color: "#d9a521" },
 ] as const;
 
 export const HIGHLIGHTERS = [

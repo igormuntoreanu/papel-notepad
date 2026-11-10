@@ -14,12 +14,13 @@ import {
 } from "./typefaces.ts";
 
 describe("typefaces", () => {
-  it("exposes nine faces and seven paragraph styles with unique ids", () => {
-    assert.equal(FONTS.length, 9);
+  it("exposes ten faces and seven paragraph styles with unique ids", () => {
+    assert.equal(FONTS.length, 10);
     assert.equal(TEXT_STYLES.length, 7);
     assert.equal(new Set(FONTS.map((f) => f.id)).size, FONTS.length);
     assert.equal(new Set(TEXT_STYLES.map((s) => s.id)).size, TEXT_STYLES.length);
     assert.ok(FONTS.some((f) => f.id === "jetbrains-mono"));
+    assert.ok(FONTS.some((f) => f.id === "fira-code" && f.mono));
     assert.deepEqual(
       TEXT_STYLES.map((s) => s.id),
       ["title", "subtitle", "heading", "subheading", "section", "subsection", "body"],

@@ -15,6 +15,7 @@ export const FONTS = [
   { id: "montserrat", name: "Montserrat", css: "var(--font-montserrat)", mono: false },
   { id: "poppins", name: "Poppins", css: "var(--font-poppins)", mono: false },
   { id: "jetbrains-mono", name: "JetBrains Mono", css: "var(--font-jetbrains-mono)", mono: true },
+  { id: "fira-code", name: "Fira Code", css: "var(--font-fira-code)", mono: true },
 ] as const;
 
 export type FontId = (typeof FONTS)[number]["id"];

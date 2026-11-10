@@ -60,7 +60,7 @@ import {
   type Place,
 } from "./store";
 
-type Ask = { title: string; body: string; confirm: string; tone?: "danger"; run: () => void };
+type Ask = { title: string; body: string; confirm: string; tone?: "danger"; run: () => void; hardConfirm?: boolean };
 type Sel = { blockId: number; start: number; end: number };
 
 const ZOOM_MIN = 10;
@@ -106,6 +106,9 @@ export function QuireApp() {
   const [message, setMessage] = useState("");
   const [alert, setAlert] = useState("");
   const [ask, setAsk] = useState<Ask | null>(null);
+  // Extra "are you sure" gate for destructive dialogs (deleting a sheet): the confirm button
+  // stays disabled until the box is ticked, so a stray click can never wipe a sheet + its file.
+  const [ackDelete, setAckDelete] = useState(false);
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
   const [cellTarget, setCellTarget] = useState<CellTarget | null>(null);
   const [cellRange, setCellRange] = useState<CellRange | null>(null);
@@ -513,13 +516,16 @@ export function QuireApp() {
       }
       setTick((n) => n + 1);
     };
-    // Close removes the sheet from the board. A clean sheet used to vanish
-    // with no question, because only a dirty one asked.
+    // Closing a sheet DELETES it (board entry + the file on disk), so the dialog says
+    // "delete", not "close", and demands an explicit tick before the button arms. A clean
+    // sheet used to vanish with no question at all, which cost people their files.
+    setAckDelete(false);
     setAsk({
-      title: "Close this sheet?",
-      body: `${meta?.title ?? "This sheet"} will be removed from the board${meta?.diskName ? ` and ${meta.diskName} will be deleted from your folder` : ""}.`,
-      confirm: "Close",
+      title: "\u26A0 Delete this sheet?",
+      body: `${meta?.title ?? "This sheet"} will be permanently deleted from the board${meta?.diskName ? `, and ${meta.diskName} will be removed from your folder` : ""}. This cannot be undone.`,
+      confirm: "Delete",
       tone: "danger",
+      hardConfirm: true,
       run,
     });
   }
@@ -1827,13 +1833,25 @@ export function QuireApp() {
           >
             <h2 id="ask-title">{ask.title}</h2>
             <p>{ask.body}</p>
+            {ask.hardConfirm && (
+              <label className="modal-ack">
+                <input
+                  type="checkbox"
+                  checked={ackDelete}
+                  autoFocus
+                  onChange={(e) => setAckDelete(e.target.checked)}
+                />
+                <span>Yes, permanently delete this sheet and its file</span>
+              </label>
+            )}
             <div className="modal-actions">
-              <button type="button" className="btn primary" autoFocus onClick={() => setAsk(null)}>
+              <button type="button" className={ask.hardConfirm ? "btn" : "btn primary"} autoFocus={ask.hardConfirm ? undefined : true} onClick={() => setAsk(null)}>
                 Keep editing
               </button>
               <button
                 type="button"
                 className={ask.tone === "danger" ? "btn danger" : "btn"}
+                disabled={ask.hardConfirm && !ackDelete}
                 onClick={() => {
                   const run = ask.run;
                   setAsk(null);

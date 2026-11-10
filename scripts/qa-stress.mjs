@@ -1249,25 +1249,25 @@ async function exerciseEditor(context, { hasSel, allowMutate }) {
     matrixRow(context, "Rename sheet", "PASS", await rename.innerText());
   } else matrixRow(context, "Rename sheet", "ABSENT", "");
 
-  const close = await buttonState(/^Close sheet$/);
-  if (!close.present) matrixRow(context, "Close sheet", "ABSENT", "");
+  const close = await buttonState(/^Delete sheet$/);
+  if (!close.present) matrixRow(context, "Delete sheet", "ABSENT", "");
   else {
     // A clean sheet is removed from the board with no confirm (see closeNote).
     // Clicking it here deletes the fixture, so the destructive path is recorded
     // from the first observation and later contexts only check the button.
     const dirty = (await page.locator('.sheet-title-row [aria-label="Unsaved"]').count()) > 0;
     if (!dirty) {
-      matrixRow(context, "Close sheet", "PASS", "enabled; a clean sheet is removed with no confirm, so it was not clicked");
+      matrixRow(context, "Delete sheet", "PASS", "enabled; a clean sheet is removed with no confirm, so it was not clicked");
     } else {
-      await page.getByRole("button", { name: "Close sheet" }).click();
+      await page.getByRole("button", { name: "Delete sheet" }).click();
       await page.waitForTimeout(150);
       const ask = await page.getByRole("button", { name: "Keep editing" }).count();
       if (ask) {
         await page.getByRole("button", { name: "Keep editing" }).click();
-        matrixRow(context, "Close sheet", "PASS", "dirty sheet asks before closing; Keep editing");
+        matrixRow(context, "Delete sheet", "PASS", "dirty sheet asks before closing; Keep editing");
       } else if (await onBoard()) {
-        matrixRow(context, "Close sheet", "FAIL", "sheet left the board without a confirm");
-      } else matrixRow(context, "Close sheet", "PASS", "clicked, still in a sheet");
+        matrixRow(context, "Delete sheet", "FAIL", "sheet left the board without a confirm");
+      } else matrixRow(context, "Delete sheet", "PASS", "clicked, still in a sheet");
     }
   }
 }

@@ -263,3 +263,23 @@ Guards live in `scripts/verify-bugs.mjs` unless a unit test is named. Build `dis
 - **Root cause:** Three parts. (1) The font menu was disabled for tables. (2) The cell rule `.block .cell .cell-input { font-family: var(--font-mono) }` (specificity 0,3,0) outranked `.block[data-font] textarea` (0,2,1), so even a set face lost. (3) The `look` action targeted `sel.blockId` — a text block — not the focused cell's table.
 - **Fix:** Each `[data-font]` now also sets `--editor-font`, which the cell rule consumes (`var(--editor-font, var(--font-mono))`); the font menu is enabled for tables; the `look` action retargets to `liveCellTarget().tableId`; the toolbar font indicator reflects the focused cell; and the table's font persists through the IndexedDB snapshot, `.papel` and the archive. `src/styles.css`, `src/components/quire/{sheet,quire-app,table-block,store}.tsx/ts`, `src/lib/quire/{persist,backup}.ts`.
 - **Guards:** `C2-font-reaches-cell`, `C4-cell-align-font-persist` (qa-cell.mjs)
+
+## FB-27 — Tab walked focus out of a list item instead of indenting it
+
+- **Severity:** medium
+- **Fixed in:** 0.5.0
+- **Symptom:** In a numbered/bulleted list, pressing Tab to indent an item (`1.` → `1.1`) moved focus to the sheet switcher instead; the item never nested.
+- **Repro:** Type `1. a`, press Enter (`2.` appears), press Tab.
+- **Root cause:** The contenteditable renderer (default since 0.4.0) had no Tab handler, so the browser's default focus navigation ran. The legacy textarea renderer handled Tab via `indentList`.
+- **Fix:** The CE renderer handles Tab/Shift+Tab through `indentList` (same path as the textarea), always `preventDefault` so focus stays in the editor; outside a list, Tab inserts a literal tab. `src/components/quire/text-block-ce.tsx`.
+- **Guards:** `T1-tab-indents-list-item`, `T2-shift-tab-outdents` (qa-tab.mjs)
+
+## FB-28 — Closing a sheet deleted it behind an easy-to-miss confirmation
+
+- **Severity:** high (data loss)
+- **Fixed in:** 0.5.0
+- **Symptom:** The "Close sheet" action permanently deletes the sheet and its file on disk, but the dialog read "Close" and a single click confirmed it, so sheets were lost by accident.
+- **Repro:** Click the X (Close sheet), then click the confirm button.
+- **Root cause:** A destructive delete was labelled "Close" with a one-click danger confirm and no acknowledgement step.
+- **Fix:** The toolbar action and dialog are relabelled "Delete sheet" / "⚠ Delete this sheet?"; the body states the deletion is permanent and cannot be undone; and a hard-confirm checkbox ("Yes, permanently delete this sheet and its file") must be ticked before the Delete button arms (it renders disabled until then). `src/components/quire/quire-app.tsx`, `src/components/quire/sheet.tsx`, `src/styles.css`.
+- **Guards:** `close-clean-confirms` (verify-bugs.mjs)

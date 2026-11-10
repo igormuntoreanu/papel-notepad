@@ -572,7 +572,7 @@ export function Sheet({
                 </button>
               ))}
             />
-            <Keep label="Close sheet" title="Close sheet" onPress={actions.close}>
+            <Keep label="Delete sheet" title="Delete sheet — removes it from the board and deletes the file" onPress={actions.close}>
               <X />
             </Keep>
           </div>

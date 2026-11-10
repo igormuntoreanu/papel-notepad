@@ -21,6 +21,8 @@
 @import "@fontsource/poppins/latin-600.css";
 @import "@fontsource/jetbrains-mono/latin-400.css";
 @import "@fontsource/jetbrains-mono/latin-600.css";
+@import "@fontsource/fira-code/latin-400.css";
+@import "@fontsource/fira-code/latin-600.css";
 @import "tailwindcss";
 
 @theme {
@@ -36,6 +38,18 @@
   --font-montserrat: "Montserrat", ui-sans-serif, system-ui, sans-serif;
   --font-poppins: "Poppins", ui-sans-serif, system-ui, sans-serif;
   --font-jetbrains-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-fira-code: "Fira Code", ui-monospace, monospace;
+  /* Ink palette, addressed by the ids stored in marks. Dark skins redefine these to
+     lighter tints so coloured text stays legible (one source for both renderers). */
+  --ink1: #9c3b2e;
+  --ink2: #1e4f8c;
+  --ink3: #2f5a2c;
+  --ink4: #5a544c;
+  --ink5: #cc5a1e;
+  --ink6: #d81f26;
+  --ink7: #00d83d;
+  --ink8: #a7b0bc;
+  --ink9: #d9a521;
   --radius-xs: 3px;
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -212,16 +226,109 @@
   --noise: none;
   --mottle: none;
   --grain: none;
+  --ink1: #f0a090;
+  --ink2: #9ec8f0;
+  --ink3: #a8d8a0;
+  --ink4: #c5d4e4;
+  --ink5: #f0a86a;
+  --ink6: #ff8a8a;
+  --ink7: #6dff94;
+  --ink8: #e2e8f0;
+  --ink9: #f0cf7a;
   color-scheme: dark;
   background:
     radial-gradient(ellipse at 50% 35%, transparent 40%, rgb(0 8 20 / 0.55) 100%),
     linear-gradient(180deg, #14304c, #0c1e32);
 }
 
+.desk[data-skin="terminal"] {
+  --paper: #161b1a;
+  --paper-2: #111615;
+  --paper-edge: transparent;
+  --rule: #24302c;
+  --syn-key: #7ee787;
+  --syn-str: #d6a86a;
+  --syn-com: #5a7a63;
+  --syn-type: #a8e6c0;
+  --selection: rgb(126 231 135 / 0.22);
+  --kraft: #0e1211;
+  --kraft-light: #1a2220;
+  --kraft-dark: #060908;
+  --ink: #c8f7c5;
+  --ink-soft: #93cf90;
+  --muted: #6aa76a;
+  --field: #1a2220;
+  --accent: #7ee787;
+  --accent-deep: #46a758;
+  --status-paper: #111615;
+  --shadow: rgb(0 0 0 / 0.6);
+  --shadow-soft: rgb(0 0 0 / 0.4);
+  --fibers: none;
+  --noise: none;
+  --mottle: none;
+  --grain: none;
+  --ink1: #f0a090;
+  --ink2: #9ec8f0;
+  --ink3: #a8d8a0;
+  --ink4: #c5d4e4;
+  --ink5: #f0a86a;
+  --ink6: #ff8a8a;
+  --ink7: #6dff94;
+  --ink8: #e2e8f0;
+  --ink9: #f0cf7a;
+  color-scheme: dark;
+  background:
+    radial-gradient(ellipse at 50% 35%, transparent 40%, rgb(0 0 0 / 0.6) 100%),
+    linear-gradient(180deg, #1a2120, #0c100f);
+}
+
+.desk[data-skin="matrix"] {
+  --paper: #000000;
+  --paper-2: #020a02;
+  --paper-edge: transparent;
+  --rule: #0a2a0a;
+  --syn-key: #00ff41;
+  --syn-str: #b6ffb6;
+  --syn-com: #1c6b1c;
+  --syn-type: #6dff94;
+  --selection: rgb(0 255 65 / 0.25);
+  --kraft: #000000;
+  --kraft-light: #061206;
+  --kraft-dark: #000000;
+  --ink: #00ff41;
+  --ink-soft: #4dff77;
+  --muted: #1fa83a;
+  --field: #031003;
+  --accent: #00ff41;
+  --accent-deep: #00b32d;
+  --status-paper: #020a02;
+  --shadow: rgb(0 0 0 / 0.85);
+  --shadow-soft: rgb(0 30 0 / 0.5);
+  --fibers: none;
+  --noise: none;
+  --mottle: none;
+  --grain: none;
+  --ink1: #ff9d8a;
+  --ink2: #8ad4ff;
+  --ink3: #6dff94;
+  --ink4: #b8f0b8;
+  --ink5: #ffb36a;
+  --ink6: #ff7a7a;
+  --ink7: #00ff41;
+  --ink8: #d6ffe0;
+  --ink9: #ffe066;
+  color-scheme: dark;
+  background:
+    radial-gradient(ellipse at 50% 25%, rgb(0 50 0 / 0.4) 0%, transparent 60%),
+    linear-gradient(180deg, #010801, #000000);
+}
+
 .desk[data-skin="ink"] .strip,
 .desk[data-skin="sulphite"] .strip,
 .desk[data-skin="carbon"] .strip,
-.desk[data-skin="blueprint"] .strip {
+.desk[data-skin="blueprint"] .strip,
+.desk[data-skin="terminal"] .strip,
+.desk[data-skin="matrix"] .strip {
   filter: none;
 }
 
@@ -229,7 +336,9 @@
 .desk[data-skin="ink"] .strip-bg,
 .desk[data-skin="sulphite"] .strip-bg,
 .desk[data-skin="carbon"] .strip-bg,
-.desk[data-skin="blueprint"] .strip-bg {
+.desk[data-skin="blueprint"] .strip-bg,
+.desk[data-skin="terminal"] .strip-bg,
+.desk[data-skin="matrix"] .strip-bg {
   display: none;
 }
 
@@ -794,6 +903,17 @@
   color: #fff8ee;
 }
 
+/* A gated destructive action (e.g. Delete sheet, armed only after the ack checkbox)
+   must read as disabled until then. Scoped to the modal so other buttons are untouched. */
+.modal .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: saturate(0.5);
+}
+.modal .btn:disabled:hover {
+  background: var(--accent);
+}
+
 .filter-chip {
   display: inline-flex;
   align-items: center;
@@ -1065,6 +1185,20 @@
     #1a3d62;
   border-radius: 2px;
   box-shadow: 0 2px 4px rgb(0 8 16 / 0.4);
+}
+
+.swatch[data-skin="terminal"] {
+  background: #161b1a;
+  border: 1px solid #7ee787;
+  border-radius: 2px;
+  box-shadow: 0 0 4px rgb(126 231 135 / 0.45);
+}
+
+.swatch[data-skin="matrix"] {
+  background: #000000;
+  border: 1px solid #00ff41;
+  border-radius: 2px;
+  box-shadow: 0 0 5px rgb(0 255 65 / 0.6);
 }
 
 /* ---------- Board & cards ---------- */
@@ -1998,18 +2132,15 @@
 .hl .su.ss {
   text-decoration-line: underline line-through;
 }
-.hl .ink1 {
-  color: #9c3b2e;
-}
-.hl .ink2 {
-  color: #1e4f8c;
-}
-.hl .ink3 {
-  color: #2f5a2c;
-}
-.hl .ink4 {
-  color: #5a544c;
-}
+.hl .ink1, .ce-root .ink1 { color: var(--ink1); }
+.hl .ink2, .ce-root .ink2 { color: var(--ink2); }
+.hl .ink3, .ce-root .ink3 { color: var(--ink3); }
+.hl .ink4, .ce-root .ink4 { color: var(--ink4); }
+.hl .ink5, .ce-root .ink5 { color: var(--ink5); }
+.hl .ink6, .ce-root .ink6 { color: var(--ink6); }
+.hl .ink7, .ce-root .ink7 { color: var(--ink7); }
+.hl .ink8, .ce-root .ink8 { color: var(--ink8); }
+.hl .ink9, .ce-root .ink9 { color: var(--ink9); }
 .hl .hl1,
 .hl .hl2,
 .hl .hl3,
@@ -2044,18 +2175,6 @@
   font-weight: 500;
 }
 
-.desk[data-skin="blueprint"] .hl .ink1 {
-  color: #f0a090;
-}
-.desk[data-skin="blueprint"] .hl .ink2 {
-  color: #9ec8f0;
-}
-.desk[data-skin="blueprint"] .hl .ink3 {
-  color: #a8d8a0;
-}
-.desk[data-skin="blueprint"] .hl .ink4 {
-  color: #c5d4e4;
-}
 .desk[data-skin="blueprint"] .hl .c.hl1,
 .desk[data-skin="blueprint"] .hl .m.hl1,
 .desk[data-skin="blueprint"] .hl .c.hl2,
@@ -2124,6 +2243,30 @@
 .modal p {
   margin: 0 0 20px;
   color: var(--ink-soft);
+}
+
+/* Destructive-dialog acknowledgement gate (delete sheet): a red-tinted box the user must
+   tick before the confirm button arms. */
+.modal-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: -6px 0 18px;
+  padding: 10px 12px;
+  border: 1px solid rgb(176 42 32 / 0.4);
+  border-radius: 8px;
+  background: rgb(176 42 32 / 0.08);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--ink);
+  cursor: pointer;
+}
+.modal-ack input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  cursor: pointer;
 }
 
 .modal-actions {
@@ -2366,6 +2509,11 @@
   font-family: var(--font-jetbrains-mono);
 }
 
+.block[data-font="fira-code"] pre,
+.block[data-font="fira-code"] textarea {
+  font-family: var(--font-fira-code);
+}
+
 /* BUG-3: expose the chosen face as --editor-font on the block so table cells
    (whose base rule above outranks the `pre, textarea` selectors) inherit it too. */
 .block[data-font="plex-sans"] { --editor-font: var(--font-paper-sans); }
@@ -2377,6 +2525,7 @@
 .block[data-font="montserrat"] { --editor-font: var(--font-montserrat); }
 .block[data-font="poppins"] { --editor-font: var(--font-poppins); }
 .block[data-font="jetbrains-mono"] { --editor-font: var(--font-jetbrains-mono); }
+.block[data-font="fira-code"] { --editor-font: var(--font-fira-code); }
 
 /* ---------- Alignment and Word Wrap ---------- */
 
@@ -2504,18 +2653,6 @@
 }
 .ce-root .su.ss {
   text-decoration-line: underline line-through;
-}
-.ce-root .ink1 {
-  color: #9c3b2e;
-}
-.ce-root .ink2 {
-  color: #1e4f8c;
-}
-.ce-root .ink3 {
-  color: #2f5a2c;
-}
-.ce-root .ink4 {
-  color: #5a544c;
 }
 .ce-root .hl1 {
   background: #f0d44a;

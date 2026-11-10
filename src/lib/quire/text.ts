@@ -4,6 +4,13 @@ import { asBytes, desktopBridge } from "../desktop/bridge.ts";
 
 export const SKINS = [
   {
+    id: "sulphite",
+    name: "Sulphite",
+    edge: "clean",
+    pattern: "blank",
+    blurb: "Bare white sheet, a hairline, nothing else.",
+  },
+  {
     id: "ink",
     name: "Ink",
     edge: "clean",
@@ -25,18 +32,25 @@ export const SKINS = [
     blurb: "Drafting card, grid, perforated edge.",
   },
   {
-    id: "sulphite",
-    name: "Sulphite",
-    edge: "clean",
-    pattern: "blank",
-    blurb: "Bare white sheet, a hairline, nothing else.",
-  },
-  {
     id: "blueprint",
     name: "Blueprint",
     edge: "clean",
     pattern: "grid",
     blurb: "Night drafting paper. Chalk on deep blue.",
+  },
+  {
+    id: "terminal",
+    name: "Terminal",
+    edge: "clean",
+    pattern: "blank",
+    blurb: "Phosphor green on charcoal. A CRT for your words.",
+  },
+  {
+    id: "matrix",
+    name: "Matrix",
+    edge: "clean",
+    pattern: "blank",
+    blurb: "Digital rain: neon green code on pure black.",
   },
 ] as const;
 

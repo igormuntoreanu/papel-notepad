@@ -730,7 +730,7 @@ check(
 // ---- 20) Closing a clean sheet asks before deleting it.
 await page.getByRole("button", { name: /^Save \(/ }).click();
 await page.waitForTimeout(250);
-await page.getByRole("button", { name: "Close sheet" }).click();
+await page.getByRole("button", { name: "Delete sheet" }).click();
 await page.waitForTimeout(200);
 const keep = await page.getByRole("button", { name: "Keep editing" }).count();
 if (keep) await page.getByRole("button", { name: "Keep editing" }).click();

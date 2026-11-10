@@ -15,7 +15,7 @@ import { diffText } from "@/lib/quire/text";
 import { correctionAt } from "@/lib/quire/autocorrect";
 import { parseDelimited } from "@/lib/quire/blocks";
 import { htmlHasEmphasis, parseHtmlClipboard, parseHtmlTable } from "@/lib/quire/html-paste";
-import { continueList, renumberLists } from "@/lib/quire/lists";
+import { continueList, indentList, renumberLists } from "@/lib/quire/lists";
 import { CODE_STYLES, type BlockLook } from "@/lib/quire/typefaces";
 import type { Place } from "./store";
 
@@ -463,6 +463,51 @@ export function TextBlockCE({
           return;
         }
       }
+    }
+    // Tab indents a list item (1. -> 1.1.), Shift+Tab outdents; outside a list Tab inserts a
+    // literal tab. Always preventDefault so focus stays in the editor - otherwise the browser
+    // walks focus to the sheet switcher (the reported bug). Mirrors the textarea renderer.
+    if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const { start, end } = currentSel();
+      const text = session.text_of(blockId);
+      const moved = indentList(text, start, end, e.shiftKey ? -1 : 1);
+      const lineIndex = (text.slice(0, start).match(/\n/g) ?? []).length;
+      if (moved) {
+        e.preventDefault();
+        const linesBefore = text.split("\n");
+        const lineStartBefore = linesBefore.slice(0, lineIndex).reduce((n, l) => n + l.length + 1, 0);
+        const oldLine = linesBefore[lineIndex] ?? "";
+        const oldCol = start - lineStartBefore;
+        const atEnd = oldCol >= oldLine.length;
+        session.edit(blockId, moved.start, moved.end, moved.insert, false);
+        let grown = session.text_of(blockId);
+        const renumbered = renumberLists(grown.split("\n")).join("\n");
+        if (renumbered !== grown) {
+          session.edit(blockId, 0, grown.length, renumbered, false);
+          grown = renumbered;
+        }
+        prev.current = grown;
+        renderedMarks.current = session.marks(blockId).join(",");
+        const lines = grown.split("\n");
+        const lineStart = lines.slice(0, lineIndex).reduce((n, l) => n + l.length + 1, 0);
+        const newLine = lines[lineIndex] ?? "";
+        const col = atEnd ? newLine.length : Math.min(newLine.length, Math.max(0, oldCol + (newLine.length - oldLine.length)));
+        const pos = Math.min(grown.length, lineStart + col);
+        renderLines(pos, pos);
+        report();
+        onEdited();
+        return;
+      }
+      if (e.shiftKey) return;
+      e.preventDefault();
+      session.edit(blockId, start, end, "\t", false);
+      const next = session.text_of(blockId);
+      prev.current = next;
+      renderedMarks.current = session.marks(blockId).join(",");
+      renderLines(start + 1, start + 1);
+      report();
+      onEdited();
+      return;
     }
     // PageUp/PageDown move by a viewport of lines; scrolling lives on `.sheet`.
     if ((e.key === "PageDown" || e.key === "PageUp") && !e.shiftKey && !e.altKey) {
