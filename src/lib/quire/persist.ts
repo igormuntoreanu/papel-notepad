@@ -18,6 +18,9 @@ export type StoredBlock =
       /** Per-line paragraph-style codes (0 = body), one per line; absent = all body.
        *  Written by the per-line contenteditable renderer (Phase 4). */
       styles?: number[];
+      /** Per-line font codes (0 = inherit the block face), one per line; absent = no override.
+       *  Written by the per-line contenteditable renderer (0.5.1). */
+      fonts?: number[];
     }
   | { kind: "image"; mime: string; bytes: ArrayBuffer }
   | {

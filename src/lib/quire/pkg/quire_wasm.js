@@ -276,6 +276,19 @@ export class Session {
         return ret >>> 0;
     }
     /**
+     * Sets the font of every line touched by `start..end` (collapsed => caret line).
+     * Undoable; never touches the text.
+     * @param {number} id
+     * @param {number} start
+     * @param {number} end
+     * @param {number} font
+     * @returns {boolean}
+     */
+    font_lines(id, start, end, font) {
+        const ret = wasm.session_font_lines(this.__wbg_ptr, id, start, end, font);
+        return ret !== 0;
+    }
+    /**
      * @param {string} lang
      */
     force_language(lang) {
@@ -409,6 +422,17 @@ export class Session {
      */
     line_aligns(id) {
         const ret = wasm.session_line_aligns(this.__wbg_ptr, id);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * Per-line font codes for a text block (one per line; 0 = default font).
+     * @param {number} id
+     * @returns {Uint8Array}
+     */
+    line_fonts(id) {
+        const ret = wasm.session_line_fonts(this.__wbg_ptr, id);
         var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         return v1;
@@ -562,6 +586,16 @@ export class Session {
         const ptr2 = passStringToWasm0(encoding, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len2 = WASM_VECTOR_LEN;
         wasm.session_restore_end(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+    }
+    /**
+     * Restores per-line fonts on load.
+     * @param {number} id
+     * @param {Uint8Array} fonts
+     */
+    restore_fonts(id, fonts) {
+        const ptr0 = passArray8ToWasm0(fonts, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.session_restore_fonts(this.__wbg_ptr, id, ptr0, len0);
     }
     /**
      * @param {string} mime

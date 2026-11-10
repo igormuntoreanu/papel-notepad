@@ -26,6 +26,7 @@ export const session_export_text: (a: number) => [number, number];
 export const session_find: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
 export const session_find_count: (a: number, b: number, c: number, d: number) => number;
 export const session_first_text_id: (a: number) => number;
+export const session_font_lines: (a: number, b: number, c: number, d: number, e: number) => number;
 export const session_force_language: (a: number, b: number, c: number) => void;
 export const session_format_all: (a: number) => [number, number];
 export const session_has_marks: (a: number) => number;
@@ -38,6 +39,7 @@ export const session_insert_table_at: (a: number, b: number, c: number, d: numbe
 export const session_is_dirty: (a: number) => number;
 export const session_language: (a: number) => [number, number];
 export const session_line_aligns: (a: number, b: number) => [number, number];
+export const session_line_fonts: (a: number, b: number) => [number, number];
 export const session_line_styles: (a: number, b: number) => [number, number];
 export const session_line_to_caret: (a: number, b: number) => number;
 export const session_mark_clean: (a: number) => void;
@@ -53,6 +55,7 @@ export const session_replace_all: (a: number, b: number, c: number, d: number, e
 export const session_restore_aligns: (a: number, b: number, c: number, d: number) => void;
 export const session_restore_begin: (a: number) => void;
 export const session_restore_end: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+export const session_restore_fonts: (a: number, b: number, c: number, d: number) => void;
 export const session_restore_image: (a: number, b: number, c: number, d: number, e: number) => number;
 export const session_restore_marks: (a: number, b: number, c: number, d: number) => void;
 export const session_restore_styles: (a: number, b: number, c: number, d: number) => void;

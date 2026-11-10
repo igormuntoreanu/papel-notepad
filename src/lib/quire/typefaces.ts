@@ -68,6 +68,15 @@ export const CODE_STYLES: StyleId[] = [
   "subsection",
 ];
 
+/** Per-line font codes stored in the core. 0 = inherit the block's default font, so an
+ *  all-zero array means "no per-line font override". Codes 1..N index FONTS (code = i + 1).
+ *  Ids are stable; do not renumber. */
+export const FONT_CODES: Record<FontId, number> = Object.fromEntries(
+  FONTS.map((font, i) => [font.id, i + 1]),
+) as Record<FontId, number>;
+/** Reverse of FONT_CODES: core code -> FontId. Index 0 is null (0 = inherit block font). */
+export const CODE_FONTS: (FontId | null)[] = [null, ...FONTS.map((font) => font.id)];
+
 /** Paragraph alignment, offered while Word Wrap is on. */
 export const ALIGNMENTS = [
   { id: "left", name: "Align left" },

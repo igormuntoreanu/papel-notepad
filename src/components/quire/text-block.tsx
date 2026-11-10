@@ -500,7 +500,8 @@ export function TextBlock({
             if (!change) return;
             e.preventDefault();
             const grown = text.slice(0, change.start) + change.insert + text.slice(change.end);
-            const caretLine = (text.slice(0, change.start).match(/\n/g) ?? []).length + 1;
+            const startLine = (text.slice(0, change.start).match(/\n/g) ?? []).length;
+            const caretLine = change.insert.includes("\n") ? startLine + 1 : startLine;
             const next = renumberLists(grown.split("\n")).join("\n");
             session.edit(blockId, 0, text.length, next, false);
             const lines = next.split("\n");

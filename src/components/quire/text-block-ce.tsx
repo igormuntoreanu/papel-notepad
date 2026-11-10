@@ -16,7 +16,7 @@ import { correctionAt } from "@/lib/quire/autocorrect";
 import { parseDelimited } from "@/lib/quire/blocks";
 import { htmlHasEmphasis, parseHtmlClipboard, parseHtmlTable } from "@/lib/quire/html-paste";
 import { continueList, indentList, renumberLists } from "@/lib/quire/lists";
-import { CODE_STYLES, type BlockLook } from "@/lib/quire/typefaces";
+import { CODE_FONTS, CODE_STYLES, type BlockLook } from "@/lib/quire/typefaces";
 import type { Place } from "./store";
 
 /**
@@ -249,6 +249,7 @@ export function TextBlockCE({
     renderedFind.current = findHit && findHit.end > findHit.start ? `${findHit.start}:${findHit.end}` : "";
     const aligns = session.line_aligns(blockId);
     const styles = session.line_styles(blockId);
+    const fonts = session.line_fonts(blockId);
     const lines = text.split("\n");
     const html: string[] = [];
     let lineStart = 0;
@@ -271,7 +272,9 @@ export function TextBlockCE({
       const inner = lt.length === 0 ? "<br>" : paint(lt, [], local, hit);
       const align = ALIGN_ATTR[aligns[i] ?? 0] ?? "left";
       const styleId = CODE_STYLES[styles[i] ?? 0] ?? "body";
-      html.push(`<div class="ce-line" data-align="${align}" data-style="${styleId}">${inner}</div>`);
+      const fontId = CODE_FONTS[fonts[i] ?? 0];
+      const fontAttr = fontId ? ` data-font="${fontId}"` : "";
+      html.push(`<div class="ce-line" data-align="${align}" data-style="${styleId}"${fontAttr}>${inner}</div>`);
       lineStart = lineEnd + 1; // +1 for the "\n"
     }
     suppress.current = true;
@@ -292,9 +295,13 @@ export function TextBlockCE({
     if (!root) return;
     const aligns = session.line_aligns(blockId);
     const styles = session.line_styles(blockId);
+    const fonts = session.line_fonts(blockId);
     lineDivs(root).forEach((d, i) => {
       d.setAttribute("data-align", ALIGN_ATTR[aligns[i] ?? 0] ?? "left");
       d.setAttribute("data-style", CODE_STYLES[styles[i] ?? 0] ?? "body");
+      const fontId = CODE_FONTS[fonts[i] ?? 0];
+      if (fontId) d.setAttribute("data-font", fontId);
+      else d.removeAttribute("data-font");
     });
   }
 
@@ -445,7 +452,8 @@ export function TextBlockCE({
         const change = continueList(text, start);
         if (change) {
           e.preventDefault();
-          const caretLine = (text.slice(0, change.start).match(/\n/g) ?? []).length + 1;
+          const startLine = (text.slice(0, change.start).match(/\n/g) ?? []).length;
+          const caretLine = change.insert.includes("\n") ? startLine + 1 : startLine;
           session.edit(blockId, change.start, change.end, change.insert, false);
           let grown = session.text_of(blockId);
           const renumbered = renumberLists(grown.split("\n")).join("\n");

@@ -37,7 +37,7 @@ import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
 import type { CellRange, CellTarget } from "./table-block";
-import { STYLE_CODES, type AlignId, type BlockLook, type StyleId } from "@/lib/quire/typefaces";
+import { FONT_CODES, STYLE_CODES, type AlignId, type BlockLook, type FontId, type StyleId } from "@/lib/quire/typefaces";
 import { ceRendererOn } from "@/lib/quire/ce-renderer";
 import { applyListStyle } from "@/lib/quire/lists";
 import type { ListKind } from "@/lib/quire/lists";
@@ -1532,6 +1532,26 @@ export function QuireApp() {
         setTick((t) => t + 1);
       } else {
         setBlockLook(blockId, { style: styleId });
+      }
+    },
+    font: (blockId, fontId) => {
+      if (!session) return;
+      // A focused table cell takes the face on its own table (block look), mirroring `look`.
+      const cell = liveCellTarget();
+      if (cell) {
+        setBlockLook(cell.tableId, { font: fontId });
+        return;
+      }
+      if (ceRenderer) {
+        // Per-line font is a core property: set the face on every line the selection
+        // touches (collapsed => the caret line); every other line keeps its own face.
+        const s = selRef.current;
+        const start = s.blockId === blockId ? s.start : 0;
+        const end = s.blockId === blockId ? s.end : 0;
+        session.font_lines(blockId, start, end, FONT_CODES[fontId]);
+        setTick((t) => t + 1);
+      } else {
+        setBlockLook(blockId, { font: fontId });
       }
     },
   };

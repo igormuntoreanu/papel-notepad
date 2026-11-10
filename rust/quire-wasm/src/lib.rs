@@ -107,6 +107,22 @@ impl Session {
         self.doc.restore_styles(id, styles);
     }
 
+    /// Per-line font codes for a text block (one per line; 0 = default font).
+    pub fn line_fonts(&self, id: u32) -> Vec<u8> {
+        self.doc.line_fonts(id)
+    }
+
+    /// Sets the font of every line touched by `start..end` (collapsed => caret line).
+    /// Undoable; never touches the text.
+    pub fn font_lines(&mut self, id: u32, start: u32, end: u32, font: u8) -> bool {
+        self.doc.font_lines(id, start, end, font)
+    }
+
+    /// Restores per-line fonts on load.
+    pub fn restore_fonts(&mut self, id: u32, fonts: &[u8]) {
+        self.doc.restore_fonts(id, fonts);
+    }
+
     pub fn insert_image(&mut self, id: u32, at: u32, mime: &str, bytes: &[u8]) -> u32 {
         self.doc
             .insert_image(id, at, mime, bytes.to_vec())

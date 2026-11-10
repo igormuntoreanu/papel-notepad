@@ -1,0 +1,55 @@
+{
+  "suite": "qa-font (CE renderer)",
+  "results": [
+    {
+      "name": "CE-renderer-active",
+      "ok": true,
+      "detail": {
+        "ceRoot": 1
+      }
+    },
+    {
+      "name": "F1-caret-line-only",
+      "ok": true,
+      "detail": [
+        "alpha:null/IBM Plex Mono",
+        "beta:inter/Inter",
+        "gamma:null/IBM Plex Mono"
+      ]
+    },
+    {
+      "name": "F2-every-touched-line",
+      "ok": true,
+      "detail": [
+        "alpha:fira-code/Fira Code",
+        "beta:fira-code/Fira Code",
+        "gamma:fira-code/Fira Code"
+      ]
+    },
+    {
+      "name": "F3-undo-reverts-font-keeps-text",
+      "ok": true,
+      "detail": {
+        "lines": [
+          "alpha:null",
+          "beta:inter",
+          "gamma:null"
+        ],
+        "textBefore": "alpha\nbeta\ngamma",
+        "textAfter": "alpha\nbeta\ngamma"
+      }
+    },
+    {
+      "name": "F4-fonts-persist-across-reload",
+      "ok": true,
+      "detail": [
+        "alpha:null/IBM Plex Mono",
+        "beta:inter/Inter",
+        "gamma:roboto/Roboto"
+      ]
+    }
+  ],
+  "pageErrors": [],
+  "pass": 5,
+  "fail": 0
+}

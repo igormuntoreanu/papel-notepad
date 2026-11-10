@@ -283,3 +283,41 @@ Guards live in `scripts/verify-bugs.mjs` unless a unit test is named. Build `dis
 - **Root cause:** A destructive delete was labelled "Close" with a one-click danger confirm and no acknowledgement step.
 - **Fix:** The toolbar action and dialog are relabelled "Delete sheet" / "⚠ Delete this sheet?"; the body states the deletion is permanent and cannot be undone; and a hard-confirm checkbox ("Yes, permanently delete this sheet and its file") must be ticked before the Delete button arms (it renders disabled until then). `src/components/quire/quire-app.tsx`, `src/components/quire/sheet.tsx`, `src/styles.css`.
 - **Guards:** `close-clean-confirms` (verify-bugs.mjs)
+
+## FB-29 — Font choice never reached contenteditable text; font is now per-line
+
+- **Severity:** high
+- **Fixed in:** 0.5.1
+- **Symptom:** Picking a face in the Font menu did not change body text in the default (contenteditable) renderer — it stayed IBM Plex Mono. Font was also block-level, so one line could not keep a different face from its neighbours.
+- **Repro:** Open a sheet (CE renderer is default), select a line, Font → Inter; the text stays mono.
+- **Root cause:** `.ce-root { font-family: var(--font-mono) }` never consumed `--editor-font`; the `[data-font]` rules only targeted the legacy `pre`/`textarea`. Font lived on the block (`look.font`), not per line.
+- **Fix:** `.ce-root`/`.ce-line` now use `var(--editor-font, var(--font-mono))`, and font became a per-line core property (`fonts: Vec<u8>` on `Block::Text`; code 0 = inherit the block face) mirroring per-line align/style — `font_lines`/`line_fonts`/`restore_fonts`, a `Font` undo step, CE `data-font` per line, and persistence through the IndexedDB snapshot and `.papel`. Picking a font now changes only the selected lines (or the caret line); every other line keeps its previous face, and a new line inherits its parent's face. `rust/quire-core/src/document.rs`, `rust/quire-wasm/src/lib.rs`, `src/components/quire/{text-block-ce,sheet,quire-app,store}.tsx/ts`, `src/lib/quire/{typefaces,persist}.ts`, `src/styles.css`.
+- **Guards:** `F1-caret-line-only`, `F2-every-touched-line`, `F3-undo-reverts-font-keeps-text`, `F4-fonts-persist-across-reload` (qa-font.mjs); `font_lines_targets_touched_lines_and_undos`, `enter_inherits_font_like_style` (`cargo +stable-x86_64-pc-windows-msvc test -p quire-core`)
+
+## FB-30 — Enter on an empty nested list item ended the list instead of outdenting
+
+- **Severity:** medium
+- **Fixed in:** 0.5.1
+- **Symptom:** In a nested numbered list, pressing Enter on an empty deep item (e.g. `1.1.3.`) deleted the marker and dropped out of the list, instead of stepping the item out to the parent level (`1.2`, then `2.`).
+- **Repro:** Type `1. a`, Enter, Tab (`1.1.`), Enter (`1.1.1.`), then Enter on the empty `1.1.1.`.
+- **Root cause:** `continueList` treated every empty item alike — replacing the marker with `""` (ending the list) — with no notion of outdenting one level. Both renderers also computed the caret line assuming Enter always adds a line.
+- **Fix:** `continueList` now outdents an empty item by one level when it is nested (level > 1), so the caller renumbers it into the next sibling at the parent level; a top-level empty item still ends the list. Both renderers derive the caret line from whether the change actually inserted a newline. `src/lib/quire/lists.ts`, `src/components/quire/{text-block-ce,text-block}.tsx`.
+- **Guards:** `outdents an empty nested item on Enter` (`npm run test`); `P4-list-continue` (qa-ce-parity.mjs)
+
+## FB-31 — Terminal/Matrix status strip was unreadable
+
+- **Severity:** medium
+- **Fixed in:** 0.5.1
+- **Symptom:** On the Terminal and Matrix skins the header status strip (brand, sheet title, Ln/Col, chars…) showed dark text on the dark strip; the brand name and title were near-invisible.
+- **Repro:** Switch skin to Terminal or Matrix and look at the top status strip.
+- **Root cause:** The strip paper follows `--status-paper` (dark on these skins), but `.brand-name`/`.brand-ver`/`.variant` used hardcoded light-skin colours; only the blueprint skin overrode them.
+- **Fix:** Terminal and Matrix retint the strip from the skin vars (as blueprint does): `.strip-paper` follows `--status-paper`, `.brand-name` → `--muted`, `.brand-ver` → `--ink-soft`, `.variant`/`.variant-label` → `--ink`, with light borders. `src/styles.css`.
+- **Guards:** manual (visual); the override selectors are present in the built CSS.
+
+## FB-32 — Insert-table picker capped at 5×5
+
+- **Severity:** low (enhancement)
+- **Fixed in:** 0.5.1
+- **Symptom:** The insert-table grid only offered up to 5 rows × 5 columns.
+- **Fix:** The picker grid is now 8×8 (64 cells). `src/components/quire/sheet.tsx`, `src/styles.css`.
+- **Guards:** manual; the picker grid CSS is `repeat(8, 1fr)`.

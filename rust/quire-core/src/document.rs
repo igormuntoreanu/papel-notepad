@@ -29,7 +29,7 @@ enum Block {
     /// `aligns.len() == body.matches('\n').count() + 1`. It lives in the core, not
     /// the frontend, so line edits and undo keep it correct exactly like `marks`
     /// (Word-style per-paragraph alignment that survives editing and undo).
-    Text { id: u32, body: String, marks: Vec<Run>, aligns: Vec<u8>, styles: Vec<u8> },
+    Text { id: u32, body: String, marks: Vec<Run>, aligns: Vec<u8>, styles: Vec<u8>, fonts: Vec<u8> },
     Image { id: u32, mime: String, data: Vec<u8> },
     /// Row-major cells; `cells.len()` is `rows * cols`.
     Table { id: u32, cols: usize, cells: Vec<Cell> },
@@ -69,7 +69,7 @@ fn splice_para(arr: &mut Vec<u8>, before: &[u8], line_start: usize, line_end: us
 
 fn text_block(id: u32, body: String) -> Block {
     let n = line_count(&body);
-    Block::Text { id, body, marks: Vec::new(), aligns: vec![0u8; n], styles: vec![0u8; n] }
+    Block::Text { id, body, marks: Vec::new(), aligns: vec![0u8; n], styles: vec![0u8; n], fonts: vec![0u8; n] }
 }
 
 impl Block {
@@ -100,6 +100,8 @@ enum StepKind {
         aligns_after: Vec<u8>,
         styles_before: Vec<u8>,
         styles_after: Vec<u8>,
+        fonts_before: Vec<u8>,
+        fonts_after: Vec<u8>,
     },
     Marks { id: u32, before: Vec<Run>, after: Vec<Run> },
     /// A per-line alignment change: undo restores the previous align array and never
@@ -108,6 +110,8 @@ enum StepKind {
     /// A per-line paragraph-style change: undo restores the previous style array and never
     /// touches the text (same shape as `Align`).
     Style { id: u32, before: Vec<u8>, after: Vec<u8> },
+    /// A per-line font change: undo restores the previous font array, never the text.
+    Font { id: u32, before: Vec<u8>, after: Vec<u8> },
     /// One cell's text, as a step small enough to run per keystroke.
     Cell { id: u32, row: u32, col: u32, deleted: String, inserted: String, marks_before: Vec<Run>, marks_after: Vec<Run> },
     /// One cell's style change: undo reverts the marks and never touches the text.
@@ -323,12 +327,12 @@ impl Document {
         if coalesce && self.try_coalesce(id, start, end, text) {
             return;
         }
-        let (deleted, marks_before, marks_after, aligns_before, aligns_after, styles_before, styles_after) = self.splice_block(id, start, end, text);
+        let (deleted, marks_before, marks_after, aligns_before, aligns_after, styles_before, styles_after, fonts_before, fonts_after) = self.splice_block(id, start, end, text);
         let rev_before = self.revision;
         self.revision += 1;
         let after = start + utf16_len(text) as u32;
         self.push(Step {
-            kind: StepKind::Replace { id, at: start, deleted, inserted: text.to_string(), marks_before, marks_after, aligns_before, aligns_after, styles_before, styles_after },
+            kind: StepKind::Replace { id, at: start, deleted, inserted: text.to_string(), marks_before, marks_after, aligns_before, aligns_after, styles_before, styles_after, fonts_before, fonts_after },
             caret_before: Caret { block_id: id, start, end },
             caret_after: Caret { block_id: id, start: after, end: after },
             rev_before,
@@ -336,12 +340,13 @@ impl Document {
         });
     }
 
-    /// Splices text into a block, shifting its style runs and per-line aligns.
-    /// Returns (deleted, marks before, marks after, aligns before, aligns after).
-    fn splice_block(&mut self, id: u32, start: u32, end: u32, text: &str) -> (String, Vec<Run>, Vec<Run>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
+    /// Splices text into a block, shifting its style runs and per-line aligns/styles/fonts.
+    /// Returns (deleted, marks before/after, aligns before/after, styles before/after,
+    /// fonts before/after).
+    fn splice_block(&mut self, id: u32, start: u32, end: u32, text: &str) -> (String, Vec<Run>, Vec<Run>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
         let inserted = utf16_len(text) as u32;
-        let Some(Block::Text { body, marks: m, aligns, styles, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) else {
-            return (String::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let Some(Block::Text { body, marks: m, aligns, styles, fonts, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) else {
+            return (String::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
         };
         // Line range the splice touches, computed before `body` changes.
         let line_start = nl_before(body, start);
@@ -349,6 +354,7 @@ impl Document {
         let inserted_nl = text.matches('\n').count();
         let aligns_before = aligns.clone();
         let styles_before = styles.clone();
+        let fonts_before = fonts.clone();
         let deleted = splice_utf16(body, start as usize, end as usize, text);
         let before = m.clone();
         if !m.is_empty() {
@@ -363,9 +369,11 @@ impl Document {
         //    the merged line keeps the upper line's align.
         splice_para(aligns, &aligns_before, line_start, line_end, inserted_nl);
         splice_para(styles, &styles_before, line_start, line_end, inserted_nl);
+        splice_para(fonts, &fonts_before, line_start, line_end, inserted_nl);
         normalize_aligns(aligns, body);
         normalize_aligns(styles, body);
-        (deleted, before, m.clone(), aligns_before, aligns.clone(), styles_before, styles.clone())
+        normalize_aligns(fonts, body);
+        (deleted, before, m.clone(), aligns_before, aligns.clone(), styles_before, styles.clone(), fonts_before, fonts.clone())
     }
 
     fn try_coalesce(&mut self, id: u32, start: u32, end: u32, text: &str) -> bool {
@@ -381,22 +389,23 @@ impl Document {
             return false;
         }
         if deleted_empty && start == end && !text.contains('\n') && utf16_len(text) <= 2 && start == at + inserted_len {
-            let (_, _, after_marks, _, after_aligns, _, after_styles) = self.splice_block(id, start, start, text);
+            let (_, _, after_marks, _, after_aligns, _, after_styles, _, after_fonts) = self.splice_block(id, start, start, text);
             let last = self.undo.last_mut().expect("step");
-            if let StepKind::Replace { inserted, marks_after, aligns_after, styles_after, .. } = &mut last.kind {
+            if let StepKind::Replace { inserted, marks_after, aligns_after, styles_after, fonts_after, .. } = &mut last.kind {
                 inserted.push_str(text);
                 *marks_after = after_marks;
                 *aligns_after = after_aligns;
                 *styles_after = after_styles;
+                *fonts_after = after_fonts;
             }
             let after = start + utf16_len(text) as u32;
             last.caret_after = Caret { block_id: id, start: after, end: after };
             return true;
         }
         if text.is_empty() && start < end && inserted_empty && end == at {
-            let (removed, _, after_marks, _, after_aligns, _, after_styles) = self.splice_block(id, start, end, "");
+            let (removed, _, after_marks, _, after_aligns, _, after_styles, _, after_fonts) = self.splice_block(id, start, end, "");
             let last = self.undo.last_mut().expect("step");
-            if let StepKind::Replace { at, deleted, marks_after, aligns_after, styles_after, .. } = &mut last.kind {
+            if let StepKind::Replace { at, deleted, marks_after, aligns_after, styles_after, fonts_after, .. } = &mut last.kind {
                 let mut combined = removed;
                 combined.push_str(deleted);
                 *deleted = combined;
@@ -404,6 +413,7 @@ impl Document {
                 *marks_after = after_marks;
                 *aligns_after = after_aligns;
                 *styles_after = after_styles;
+                *fonts_after = after_fonts;
             }
             last.caret_after = Caret { block_id: id, start, end: start };
             return true;
@@ -470,6 +480,21 @@ impl Document {
         }
     }
 
+    /// Restore per-line fonts from a persisted array (load path, no undo step).
+    pub fn restore_fonts(&mut self, id: u32, codes: &[u8]) {
+        if let Some(Block::Text { fonts, body, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
+            *fonts = codes.to_vec();
+            normalize_aligns(fonts, body);
+        }
+    }
+
+    fn set_fonts(&mut self, id: u32, next: &[u8]) {
+        if let Some(Block::Text { fonts, body, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) {
+            *fonts = next.to_vec();
+            normalize_aligns(fonts, body);
+        }
+    }
+
     /// Per-line align ids for a text block (one per line: 0 left, 1 centre, 2 right).
     pub fn line_aligns(&self, id: u32) -> Vec<u8> {
         self.blocks.iter().find_map(|b| match b {
@@ -482,6 +507,14 @@ impl Document {
     pub fn line_styles(&self, id: u32) -> Vec<u8> {
         self.blocks.iter().find_map(|b| match b {
             Block::Text { id: bid, styles, .. } if *bid == id => Some(styles.clone()),
+            _ => None,
+        }).unwrap_or_default()
+    }
+
+    /// Per-line font codes for a text block (one per line; 0 = default font).
+    pub fn line_fonts(&self, id: u32) -> Vec<u8> {
+        self.blocks.iter().find_map(|b| match b {
+            Block::Text { id: bid, fonts, .. } if *bid == id => Some(fonts.clone()),
             _ => None,
         }).unwrap_or_default()
     }
@@ -582,6 +615,46 @@ impl Document {
         true
     }
 
+    /// Sets the font of every line touched by `start..end` (collapsed => the caret line).
+    /// One undoable step; never touches the text. `font` indexes the font list (0 = default).
+    /// Returns true if anything changed.
+    pub fn font_lines(&mut self, id: u32, start: u32, end: u32, font: u8) -> bool {
+        let Some(len) = self.text_len(id) else { return false };
+        let (start, end) = (start.min(end).min(len), start.max(end).min(len));
+        let (changed, before, after) = {
+            let Some(Block::Text { body, fonts, .. }) = self.blocks.iter_mut().find(|b| b.id() == id) else {
+                return false;
+            };
+            normalize_aligns(fonts, body);
+            let last = fonts.len().saturating_sub(1);
+            let line_start = nl_before(body, start).min(last);
+            let line_end = nl_before(body, end).min(last);
+            let before = fonts.clone();
+            let mut changed = false;
+            for i in line_start..=line_end {
+                if fonts[i] != font {
+                    fonts[i] = font;
+                    changed = true;
+                }
+            }
+            (changed, before, fonts.clone())
+        };
+        if !changed {
+            return false;
+        }
+        let rev_before = self.revision;
+        self.revision += 1;
+        let caret = Caret { block_id: id, start, end };
+        self.push(Step {
+            kind: StepKind::Font { id, before, after },
+            caret_before: caret,
+            caret_after: caret,
+            rev_before,
+            rev_after: self.revision,
+        });
+        true
+    }
+
     pub fn insert_image(&mut self, id: u32, at: u32, mime: &str, data: Vec<u8>) -> Option<Caret> {
         if data.is_empty() || data.len() > MAX_IMAGE {
             return None;
@@ -601,12 +674,15 @@ impl Document {
         let mut right_marks = Vec::new();
         let mut right_aligns = Vec::new();
         let mut right_styles = Vec::new();
-        if let Block::Text { body, marks: m, aligns, styles, .. } = &mut self.blocks[idx] {
+        let mut right_fonts = Vec::new();
+        if let Block::Text { body, marks: m, aligns, styles, fonts, .. } = &mut self.blocks[idx] {
             let line_at = nl_before(body, at);
             let ls = line_at.min(aligns.len().saturating_sub(1));
             right_aligns = aligns[ls..].to_vec();
             let ss = line_at.min(styles.len().saturating_sub(1));
             right_styles = styles[ss..].to_vec();
+            let fs = line_at.min(fonts.len().saturating_sub(1));
+            right_fonts = fonts[fs..].to_vec();
             *body = left;
             let (l, r) = marks::split(m, at);
             *m = l;
@@ -615,11 +691,14 @@ impl Document {
             normalize_aligns(aligns, body);
             styles.truncate(line_at + 1);
             normalize_aligns(styles, body);
+            fonts.truncate(line_at + 1);
+            normalize_aligns(fonts, body);
         }
         normalize_aligns(&mut right_aligns, &right);
         normalize_aligns(&mut right_styles, &right);
+        normalize_aligns(&mut right_fonts, &right);
         self.blocks.insert(idx + 1, Block::Image { id: image_id, mime, data });
-        self.blocks.insert(idx + 2, Block::Text { id: right_id, body: right, marks: right_marks, aligns: right_aligns, styles: right_styles });
+        self.blocks.insert(idx + 2, Block::Text { id: right_id, body: right, marks: right_marks, aligns: right_aligns, styles: right_styles, fonts: right_fonts });
         let caret_before = Caret { block_id: id, start: at, end: at };
         let caret_after = Caret { block_id: right_id, start: 0, end: 0 };
         self.push_structure(before, caret_before, caret_after);
@@ -637,12 +716,13 @@ impl Document {
                 let pid = *pid;
                 let join = utf16_len(body) as u32;
                 if p + 1 < self.blocks.len() {
-                    if let Block::Text { body: right, marks: right_marks, aligns: right_aligns, styles: right_styles, .. } = &self.blocks[p + 1] {
+                    if let Block::Text { body: right, marks: right_marks, aligns: right_aligns, styles: right_styles, fonts: right_fonts, .. } = &self.blocks[p + 1] {
                         let right = right.clone();
                         let right_marks = right_marks.clone();
                         let right_aligns = right_aligns.clone();
                         let right_styles = right_styles.clone();
-                        if let Block::Text { body, marks: m, aligns, styles, .. } = &mut self.blocks[p] {
+                        let right_fonts = right_fonts.clone();
+                        if let Block::Text { body, marks: m, aligns, styles, fonts, .. } = &mut self.blocks[p] {
                             body.push_str(&right);
                             *m = marks::join(m, &right_marks, join);
                             // The two halves of the split line rejoin: keep this block's
@@ -653,8 +733,12 @@ impl Document {
                             if right_styles.len() > 1 {
                                 styles.extend_from_slice(&right_styles[1..]);
                             }
+                            if right_fonts.len() > 1 {
+                                fonts.extend_from_slice(&right_fonts[1..]);
+                            }
                             normalize_aligns(aligns, body);
                             normalize_aligns(styles, body);
+                            normalize_aligns(fonts, body);
                         }
                         self.blocks.remove(p + 1);
                     }
@@ -745,15 +829,17 @@ impl Document {
 
     fn invert(&mut self, step: &Step) {
         match &step.kind {
-            StepKind::Replace { id, at, deleted, inserted, marks_before, aligns_before, styles_before, .. } => {
+            StepKind::Replace { id, at, deleted, inserted, marks_before, aligns_before, styles_before, fonts_before, .. } => {
                 self.apply_replace(*id, *at, inserted, deleted);
                 self.set_marks(*id, marks_before);
                 self.set_aligns(*id, aligns_before);
                 self.set_styles(*id, styles_before);
+                self.set_fonts(*id, fonts_before);
             }
             StepKind::Marks { id, before, .. } => self.set_marks(*id, before),
             StepKind::Align { id, before, .. } => self.set_aligns(*id, before),
             StepKind::Style { id, before, .. } => self.set_styles(*id, before),
+            StepKind::Font { id, before, .. } => self.set_fonts(*id, before),
             StepKind::Cell { id, row, col, deleted, marks_before, .. } => {
                 self.apply_cell(*id, *row, *col, deleted, marks_before)
             }
@@ -767,15 +853,17 @@ impl Document {
 
     fn reapply(&mut self, step: &Step) {
         match &step.kind {
-            StepKind::Replace { id, at, deleted, inserted, marks_after, aligns_after, styles_after, .. } => {
+            StepKind::Replace { id, at, deleted, inserted, marks_after, aligns_after, styles_after, fonts_after, .. } => {
                 self.apply_replace(*id, *at, deleted, inserted);
                 self.set_marks(*id, marks_after);
                 self.set_aligns(*id, aligns_after);
                 self.set_styles(*id, styles_after);
+                self.set_fonts(*id, fonts_after);
             }
             StepKind::Marks { id, after, .. } => self.set_marks(*id, after),
             StepKind::Align { id, after, .. } => self.set_aligns(*id, after),
             StepKind::Style { id, after, .. } => self.set_styles(*id, after),
+            StepKind::Font { id, after, .. } => self.set_fonts(*id, after),
             StepKind::Cell { id, row, col, inserted, marks_after, .. } => {
                 self.apply_cell(*id, *row, *col, inserted, marks_after)
             }
@@ -805,7 +893,7 @@ impl Document {
         let mut changed = false;
         let mut first_err: Option<String> = None;
         for block in &mut self.blocks {
-            let Block::Text { id, body, marks: m, aligns, styles } = block else { continue };
+            let Block::Text { id, body, marks: m, aligns, styles, fonts } = block else { continue };
             if body.trim().is_empty() {
                 continue;
             }
@@ -827,6 +915,7 @@ impl Document {
                         m.clear();
                         *aligns = vec![0u8; n];
                         *styles = vec![0u8; n];
+                        *fonts = vec![0u8; n];
                         changed = true;
                     }
                     if !names.contains(&lang.label()) {
@@ -931,7 +1020,7 @@ impl Document {
             if matches.is_empty() {
                 continue;
             }
-            let Block::Text { body, marks: m, aligns, styles, .. } = block else { continue };
+            let Block::Text { body, marks: m, aligns, styles, fonts, .. } = block else { continue };
             let ins = utf16_len(replacement) as u32;
             if !m.is_empty() {
                 // Descending order keeps earlier coordinates valid; styles are
@@ -946,6 +1035,7 @@ impl Document {
             // same-newline-count case leaves them exactly valid by index.
             normalize_aligns(aligns, body);
             normalize_aligns(styles, body);
+            normalize_aligns(fonts, body);
         }
         let caret = self.fallback_caret();
         self.push_structure(before, caret, caret);
@@ -1350,7 +1440,7 @@ impl Document {
             .insert(at, Block::Table { id, cols, cells: vec![Cell::default(); cols * rows] });
         if !matches!(self.blocks.get(at + 1), Some(Block::Text { .. })) {
             let text_id = self.alloc_id();
-            self.blocks.insert(at + 1, Block::Text { id: text_id, body: String::new(), marks: Vec::new(), aligns: vec![0u8], styles: vec![0u8] });
+            self.blocks.insert(at + 1, Block::Text { id: text_id, body: String::new(), marks: Vec::new(), aligns: vec![0u8], styles: vec![0u8], fonts: vec![0u8] });
         }
         let caret = self.fallback_caret();
         self.push_structure(before, caret, caret);
@@ -1385,12 +1475,15 @@ impl Document {
         let mut right_marks = Vec::new();
         let mut right_aligns = Vec::new();
         let mut right_styles = Vec::new();
-        if let Block::Text { body, marks: m, aligns, styles, .. } = &mut self.blocks[idx] {
+        let mut right_fonts = Vec::new();
+        if let Block::Text { body, marks: m, aligns, styles, fonts, .. } = &mut self.blocks[idx] {
             let line_at = nl_before(body, at);
             let ls = line_at.min(aligns.len().saturating_sub(1));
             right_aligns = aligns[ls..].to_vec();
             let ss = line_at.min(styles.len().saturating_sub(1));
             right_styles = styles[ss..].to_vec();
+            let fs = line_at.min(fonts.len().saturating_sub(1));
+            right_fonts = fonts[fs..].to_vec();
             *body = left;
             let (l, r) = marks::split(m, at);
             *m = l;
@@ -1399,9 +1492,12 @@ impl Document {
             normalize_aligns(aligns, body);
             styles.truncate(line_at + 1);
             normalize_aligns(styles, body);
+            fonts.truncate(line_at + 1);
+            normalize_aligns(fonts, body);
         }
         normalize_aligns(&mut right_aligns, &right);
         normalize_aligns(&mut right_styles, &right);
+        normalize_aligns(&mut right_fonts, &right);
         self.blocks.insert(
             idx + 1,
             Block::Table {
@@ -1418,6 +1514,7 @@ impl Document {
                 marks: right_marks,
                 aligns: right_aligns,
                 styles: right_styles,
+                fonts: right_fonts,
             },
         );
         let caret_before = Caret { block_id: id, start: at, end: at };
@@ -2342,6 +2439,35 @@ mod tests {
         assert_eq!(doc.line_styles(id), vec![3u8, 0]);
         doc.edit(id, 3, 3, "\n", false); // Enter at the end of "aaa"
         assert_eq!(doc.line_styles(id), vec![3u8, 3, 0]); // the new line inherits
+    }
+
+    #[test]
+    fn font_lines_targets_touched_lines_and_undos() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa\nbbb\nccc", false);
+        assert_eq!(doc.line_fonts(id), vec![0u8, 0, 0]);
+        // Collapsed caret on line 2 -> only that line keeps a new font.
+        assert!(doc.font_lines(id, 4, 4, 1));
+        assert_eq!(doc.line_fonts(id), vec![0u8, 1, 0]);
+        // A range -> every touched line.
+        assert!(doc.font_lines(id, 0, 8, 2));
+        assert_eq!(doc.line_fonts(id), vec![2u8, 2, 2]);
+        // Undo reverts the font and never touches the text.
+        doc.undo();
+        assert_eq!(doc.line_fonts(id), vec![0u8, 1, 0]);
+        assert_eq!(doc.text_of(id), "aaa\nbbb\nccc");
+    }
+
+    #[test]
+    fn enter_inherits_font_like_style() {
+        let mut doc = Document::new();
+        let id = id_of(&doc);
+        doc.edit(id, 0, 0, "aaa\nbbb", false);
+        doc.font_lines(id, 0, 0, 4); // line 1 -> font 4
+        assert_eq!(doc.line_fonts(id), vec![4u8, 0]);
+        doc.edit(id, 3, 3, "\n", false); // Enter at the end of "aaa"
+        assert_eq!(doc.line_fonts(id), vec![4u8, 4, 0]); // the new line inherits
     }
 
     #[test]

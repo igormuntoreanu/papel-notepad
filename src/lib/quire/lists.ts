@@ -168,7 +168,11 @@ export function continueList(text: string, caret: number): TextChange | null {
   const parsed = parseListItem(before);
   if (!parsed) return null;
   if (!parsed.item.text.trim()) {
-    // Enter on an empty item ends the list rather than adding a marker.
+    // Enter on an empty item outdents it one level (1.1.3 -> 1.2 at the parent level); the
+    // caller renumbers. At the top level there is nothing to outdent to, so end the list.
+    if (listLevel(parsed.indent) > 1) {
+      return { start: from, end: from + LIST_INDENT.length, insert: "" };
+    }
     return { start: from, end: caret, insert: "" };
   }
   const level = listLevel(parsed.indent);

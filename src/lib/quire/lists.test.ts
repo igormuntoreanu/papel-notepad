@@ -79,6 +79,22 @@ describe("lists", () => {
     assert.equal(continueList("no list", 7), null);
   });
 
+  it("outdents an empty nested item on Enter (0.5.1)", () => {
+    // Empty level-2 item: Enter removes one indent level so it becomes a level-1 sibling
+    // (the caller renumbers, e.g. 1.1.3 -> 1.2). start/end cover exactly one LIST_INDENT.
+    const dedent = continueList("  1.1. ", 7);
+    assert.equal(dedent?.insert, "");
+    assert.equal(dedent?.start, 0);
+    assert.equal(dedent?.end, 2);
+    // A deeper empty item (level 3) also outdents exactly one level.
+    const deep = continueList("    1.1.1. ", 11);
+    assert.equal(deep?.insert, "");
+    assert.equal(deep?.start, 0);
+    assert.equal(deep?.end, 2);
+    // A top-level empty item has nothing to outdent to, so it still ends the list.
+    assert.equal(continueList("1. ", 3)?.insert, "");
+  });
+
   it("indents and outdents list lines, renumbering the block", () => {
     const text = "1. one\n2. two";
     const indented = indentList(text, 7, 7, 1);

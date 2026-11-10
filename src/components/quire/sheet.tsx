@@ -29,6 +29,7 @@ import { HIGHLIGHTERS, INKS, type FlagName } from "@/lib/quire/marks";
 import type { ListKind } from "@/lib/quire/lists";
 import {
   ALIGNMENTS,
+  CODE_FONTS,
   CODE_STYLES,
   DEFAULT_FONT,
   DEFAULT_STYLE,
@@ -39,6 +40,7 @@ import {
   styleName,
   type AlignId,
   type BlockLook,
+  type FontId,
   type StyleId,
 } from "@/lib/quire/typefaces";
 import type { DateStampStyle } from "@/lib/quire/text";
@@ -52,10 +54,10 @@ import { imageUrl, outlineOf, type NoteMeta, type Place } from "./store";
 const SHEET_CLIP = tornClip("papel-sheet", 6, undefined, 40);
 const SHEET_UNDER = tornClip("papel-sheet-under", 8, undefined, 40);
 
-/** 5 × 5 grid of rows/cols, built once: the picker only mounts while open. */
-const PICKER_CELLS = Array.from({ length: 25 }, (_, i) => ({
-  rows: Math.floor(i / 5) + 1,
-  cols: (i % 5) + 1,
+/** 8 × 8 grid of rows/cols, built once: the picker only mounts while open. */
+const PICKER_CELLS = Array.from({ length: 64 }, (_, i) => ({
+  rows: Math.floor(i / 8) + 1,
+  cols: (i % 8) + 1,
 }));
 
 function TablePicker({ onPick }: { onPick: (rows: number, cols: number) => void }) {
@@ -145,6 +147,8 @@ export type SheetActions = {
   align: (blockId: number, align: AlignId) => void;
   /** Styles the selected lines (or the caret line) - per line via the core, or per block. */
   style: (blockId: number, style: StyleId) => void;
+  /** Sets the font of the selected lines (or the caret line) - per line via the core, or per block. */
+  font: (blockId: number, font: FontId) => void;
 };
 
 /** Toolbar buttons that must not steal focus (and the selection) from the editor. */
@@ -296,6 +300,16 @@ export function Sheet({
     const line = text.slice(0, start).split("\n").length - 1;
     return CODE_STYLES[styles[line] ?? 0] ?? DEFAULT_STYLE;
   })();
+  // Per-line font indicator: reflect the caret line's core font (0 => the block face).
+  const caretFont: FontId = (() => {
+    if (!ceRenderer || activeBlockId === null) return currentLook.font ?? DEFAULT_FONT;
+    const fonts = session.line_fonts(activeBlockId);
+    if (!fonts.length) return currentLook.font ?? DEFAULT_FONT;
+    const text = session.text_of(activeBlockId);
+    const start = sel.blockId === activeBlockId ? Math.min(sel.start, text.length) : 0;
+    const line = text.slice(0, start).split("\n").length - 1;
+    return CODE_FONTS[fonts[line] ?? 0] ?? currentLook.font ?? DEFAULT_FONT;
+  })();
   // Swap the text-block renderer without duplicating the (large) prop list.
   const TextBlockOrCE = (ceRenderer ? TextBlockCE : TextBlock) as typeof TextBlock;
 
@@ -374,15 +388,15 @@ export function Sheet({
                   />
                   <DropMenu
                     className="tool text-only"
-                    ariaLabel={`Font: ${fontName(currentLook.font)}`}
-                    title="Font for this block"
+                    ariaLabel={`Font: ${fontName(caretFont)}`}
+                    title="Font for the selected lines (or the caret line)"
                     label={
                       <span>
-                        {fontName(currentLook.font)} <ChevronDown size={13} aria-hidden="true" />
+                        {fontName(caretFont)} <ChevronDown size={13} aria-hidden="true" />
                       </span>
                     }
                     items={FONTS.map((font) => {
-                      const on = (currentLook.font ?? DEFAULT_FONT) === font.id;
+                      const on = caretFont === font.id;
                       return (
                         <button
                           key={font.id}
@@ -391,7 +405,7 @@ export function Sheet({
                           role="menuitemradio"
                           aria-checked={on}
                           disabled={activeBlockId === null}
-                          onClick={() => activeBlockId !== null && actions.look(activeBlockId, { font: font.id })}
+                          onClick={() => activeBlockId !== null && actions.font(activeBlockId, font.id)}
                         >
                           <span style={{ fontFamily: font.css }}>{font.name}</span>
                           {on ? " ✓" : ""}

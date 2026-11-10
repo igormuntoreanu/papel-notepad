@@ -415,6 +415,41 @@
   background: #163454;
 }
 
+/* Terminal & Matrix: dark header strip. The brand name and sheet-title dropdown use
+   hardcoded light-skin colours, so retint them from the skin vars (as blueprint does),
+   and pull the strip paper from --status-paper so it is dark, not the light default. */
+.desk[data-skin="terminal"] .strip-paper,
+.desk[data-skin="matrix"] .strip-paper {
+  background: var(--status-paper);
+  border-bottom: 1px solid rgb(255 255 255 / 0.1);
+}
+.desk[data-skin="terminal"] .strip-status,
+.desk[data-skin="matrix"] .strip-status {
+  border-left-color: rgb(255 255 255 / 0.12);
+  border-right-color: rgb(255 255 255 / 0.12);
+}
+.desk[data-skin="terminal"] .sheet-frame,
+.desk[data-skin="terminal"] .card-bg,
+.desk[data-skin="matrix"] .sheet-frame,
+.desk[data-skin="matrix"] .card-bg {
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+.desk[data-skin="terminal"] .brand-name,
+.desk[data-skin="matrix"] .brand-name {
+  color: var(--muted);
+  border-right-color: rgb(255 255 255 / 0.18);
+}
+.desk[data-skin="terminal"] .brand-ver,
+.desk[data-skin="matrix"] .brand-ver {
+  color: var(--ink-soft);
+}
+.desk[data-skin="terminal"] .variant,
+.desk[data-skin="terminal"] .variant-label,
+.desk[data-skin="matrix"] .variant,
+.desk[data-skin="matrix"] .variant-label {
+  color: var(--ink);
+}
+
 /* ---------- Desk ---------- */
 
 .desk {
@@ -1013,7 +1048,7 @@
 
 .table-picker-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   gap: 4px;
 }
 
@@ -2547,7 +2582,7 @@
    alignment is per `.ce-line`, not per block, so the native caret follows it. */
 .ce-root {
   position: relative;
-  font-family: var(--font-mono);
+  font-family: var(--editor-font, var(--font-mono));
   font-size: var(--editor-size);
   font-weight: 400;
   line-height: var(--editor-leading);
@@ -2573,10 +2608,25 @@
 }
 
 .ce-line {
+  font-family: var(--editor-font, var(--font-mono));
   font-size: var(--editor-size);
   line-height: var(--editor-leading);
   min-height: calc(var(--editor-size) * var(--editor-leading));
 }
+
+/* Per-line font (0.5.1): a line carrying its own face overrides the block's --editor-font.
+   Code-0 lines have no data-font and inherit the block face, so picking a font on one line
+   leaves every other line on its previous face. */
+.ce-line[data-font="plex-sans"] { --editor-font: var(--font-paper-sans); }
+.ce-line[data-font="plex-mono"] { --editor-font: var(--font-paper-mono); }
+.ce-line[data-font="inter"] { --editor-font: var(--font-inter); }
+.ce-line[data-font="roboto"] { --editor-font: var(--font-roboto); }
+.ce-line[data-font="open-sans"] { --editor-font: var(--font-open-sans); }
+.ce-line[data-font="lato"] { --editor-font: var(--font-lato); }
+.ce-line[data-font="montserrat"] { --editor-font: var(--font-montserrat); }
+.ce-line[data-font="poppins"] { --editor-font: var(--font-poppins); }
+.ce-line[data-font="jetbrains-mono"] { --editor-font: var(--font-jetbrains-mono); }
+.ce-line[data-font="fira-code"] { --editor-font: var(--font-fira-code); }
 
 /* Whole-sheet select (Ctrl+A): the renderer toggles .is-select-all; paint the selection
    across every line div (currentColor keeps it legible on light and dark skins). */

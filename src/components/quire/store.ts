@@ -109,6 +109,7 @@ export async function ensureLoaded(): Promise<Loaded> {
           const pending: [number, number[]][] = [];
           const pendingAligns: [number, number[]][] = [];
           const pendingStyles: [number, number[]][] = [];
+          const pendingFonts: [number, number[]][] = [];
           // Pre-0.4.0 files stored one block-level align; migrate it to per-line aligns so
           // the contenteditable renderer (which reads the core's per-line aligns) keeps it.
           const pendingBlockAlign: [number, number][] = [];
@@ -119,6 +120,7 @@ export async function ensureLoaded(): Promise<Loaded> {
               if (block.marks?.length) pending.push([blockId, block.marks]);
               if (block.aligns?.length) pendingAligns.push([blockId, block.aligns]);
               if (block.styles?.length) pendingStyles.push([blockId, block.styles]);
+              if (block.fonts?.length) pendingFonts.push([blockId, block.fonts]);
               // The look travels inside the block, so the id this restore just handed
               // out is the right key even when block ids were renumbered.
               const look = readLook(block);
@@ -137,6 +139,7 @@ export async function ensureLoaded(): Promise<Loaded> {
           for (const [blockId, marks] of pending) session.restore_marks(blockId, Uint32Array.from(marks));
           for (const [blockId, aligns] of pendingAligns) session.restore_aligns(blockId, Uint8Array.from(aligns));
           for (const [blockId, styles] of pendingStyles) session.restore_styles(blockId, Uint8Array.from(styles));
+          for (const [blockId, fonts] of pendingFonts) session.restore_fonts(blockId, Uint8Array.from(fonts));
           for (const [blockId, code] of pendingBlockAlign) {
             const n = session.text_of(blockId).split("\n").length;
             session.restore_aligns(blockId, new Uint8Array(n).fill(code));
@@ -199,6 +202,8 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
           const hasAligns = aligns.some((a) => a !== 0);
           const styles = session.line_styles(item.id);
           const hasStyles = styles.some((s) => s !== 0);
+          const fonts = session.line_fonts(item.id);
+          const hasFonts = fonts.some((f) => f !== 0);
           const look = meta.looks?.[String(item.id)] ?? {};
           return {
             kind: "text" as const,
@@ -209,6 +214,7 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
             ...(look.align ? { align: look.align } : {}),
             ...(hasAligns ? { aligns: [...aligns] } : {}),
             ...(hasStyles ? { styles: [...styles] } : {}),
+            ...(hasFonts ? { fonts: [...fonts] } : {}),
           };
         });
         return {
@@ -245,6 +251,8 @@ export function toPapel(session: Session, looks: Record<string, BlockLook> = {})
     const hasAligns = aligns.some((a) => a !== 0);
     const styles = session.line_styles(item.id);
     const hasStyles = styles.some((s) => s !== 0);
+    const fonts = session.line_fonts(item.id);
+    const hasFonts = fonts.some((f) => f !== 0);
     const look = looks[String(item.id)] ?? {};
     return {
       type: "text",
@@ -255,6 +263,7 @@ export function toPapel(session: Session, looks: Record<string, BlockLook> = {})
             ...(look.align ? { align: look.align } : {}),
       ...(hasAligns ? { aligns: [...aligns] } : {}),
       ...(hasStyles ? { styles: [...styles] } : {}),
+      ...(hasFonts ? { fonts: [...fonts] } : {}),
     };
   });
   return JSON.stringify({
@@ -281,6 +290,8 @@ type PapelFile = {
     aligns?: number[];
     /** Per-line paragraph-style codes (0 = body); absent = all body. */
     styles?: number[];
+    /** Per-line font codes (0 = inherit the block face); absent = no override. */
+    fonts?: number[];
     /** Optional per-block face and paragraph style. */
     font?: string;
     style?: string;
@@ -310,6 +321,7 @@ export function fromPapel(
   const pending: [number, number[]][] = [];
   const pendingAligns: [number, number[]][] = [];
   const pendingStyles: [number, number[]][] = [];
+  const pendingFonts: [number, number[]][] = [];
   // Pre-0.4.0 block-level align -> per-line aligns (mirrors the IndexedDB restore path).
   const pendingBlockAlign: [number, number][] = [];
   for (const block of parsed.blocks ?? []) {
@@ -324,6 +336,7 @@ export function fromPapel(
       if (Array.isArray(block.marks) && block.marks.length) pending.push([id, block.marks]);
       if (Array.isArray(block.aligns) && block.aligns.length) pendingAligns.push([id, block.aligns]);
       if (Array.isArray(block.styles) && block.styles.length) pendingStyles.push([id, block.styles]);
+      if (Array.isArray(block.fonts) && block.fonts.length) pendingFonts.push([id, block.fonts]);
       const look = readLook(block);
       if (outLooks && (look.font || look.style || look.align)) outLooks[String(id)] = look;
       if (look.align && !(Array.isArray(block.aligns) && block.aligns.length)) {
@@ -336,6 +349,7 @@ export function fromPapel(
   for (const [id, marks] of pending) session.restore_marks(id, Uint32Array.from(marks.map((n) => Number(n) >>> 0)));
   for (const [id, aligns] of pendingAligns) session.restore_aligns(id, Uint8Array.from(aligns.map((n) => Number(n) & 0xff)));
   for (const [id, styles] of pendingStyles) session.restore_styles(id, Uint8Array.from(styles.map((n) => Number(n) & 0xff)));
+  for (const [id, fonts] of pendingFonts) session.restore_fonts(id, Uint8Array.from(fonts.map((n) => Number(n) & 0xff)));
   for (const [id, code] of pendingBlockAlign) {
     const n = session.text_of(id).split("\n").length;
     session.restore_aligns(id, new Uint8Array(n).fill(code));

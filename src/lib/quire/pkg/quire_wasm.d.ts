@@ -39,6 +39,11 @@ export class Session {
     find(query: string, case_sensitive: boolean, from_id: number, from_pos: number, backwards: boolean): Caret | undefined;
     find_count(query: string, case_sensitive: boolean): number;
     first_text_id(): number;
+    /**
+     * Sets the font of every line touched by `start..end` (collapsed => caret line).
+     * Undoable; never touches the text.
+     */
+    font_lines(id: number, start: number, end: number, font: number): boolean;
     force_language(lang: string): void;
     format_all(): string;
     has_marks(): boolean;
@@ -65,6 +70,10 @@ export class Session {
      */
     line_aligns(id: number): Uint8Array;
     /**
+     * Per-line font codes for a text block (one per line; 0 = default font).
+     */
+    line_fonts(id: number): Uint8Array;
+    /**
      * Per-line paragraph-style codes for a text block (one per line; 0 = body).
      */
     line_styles(id: number): Uint8Array;
@@ -88,6 +97,10 @@ export class Session {
     restore_aligns(id: number, aligns: Uint8Array): void;
     restore_begin(): void;
     restore_end(language: string, eol: string, encoding: string): void;
+    /**
+     * Restores per-line fonts on load.
+     */
+    restore_fonts(id: number, fonts: Uint8Array): void;
     restore_image(mime: string, bytes: Uint8Array): number;
     restore_marks(id: number, flat: Uint32Array): void;
     /**
@@ -155,6 +168,7 @@ export interface InitOutput {
     readonly session_find: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly session_find_count: (a: number, b: number, c: number, d: number) => number;
     readonly session_first_text_id: (a: number) => number;
+    readonly session_font_lines: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_force_language: (a: number, b: number, c: number) => void;
     readonly session_format_all: (a: number) => [number, number];
     readonly session_has_marks: (a: number) => number;
@@ -167,6 +181,7 @@ export interface InitOutput {
     readonly session_is_dirty: (a: number) => number;
     readonly session_language: (a: number) => [number, number];
     readonly session_line_aligns: (a: number, b: number) => [number, number];
+    readonly session_line_fonts: (a: number, b: number) => [number, number];
     readonly session_line_styles: (a: number, b: number) => [number, number];
     readonly session_line_to_caret: (a: number, b: number) => number;
     readonly session_mark_clean: (a: number) => void;
@@ -182,6 +197,7 @@ export interface InitOutput {
     readonly session_restore_aligns: (a: number, b: number, c: number, d: number) => void;
     readonly session_restore_begin: (a: number) => void;
     readonly session_restore_end: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly session_restore_fonts: (a: number, b: number, c: number, d: number) => void;
     readonly session_restore_image: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_restore_marks: (a: number, b: number, c: number, d: number) => void;
     readonly session_restore_styles: (a: number, b: number, c: number, d: number) => void;
