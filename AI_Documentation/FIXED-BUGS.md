@@ -321,3 +321,13 @@ Guards live in `scripts/verify-bugs.mjs` unless a unit test is named. Build `dis
 - **Symptom:** The insert-table grid only offered up to 5 rows × 5 columns.
 - **Fix:** The picker grid is now 8×8 (64 cells). `src/components/quire/sheet.tsx`, `src/styles.css`.
 - **Guards:** manual; the picker grid CSS is `repeat(8, 1fr)`.
+
+## FB-33 — Toolbar jumped/reflowed when the font or style name changed
+
+- **Severity:** medium
+- **Fixed in:** 0.5.2
+- **Symptom:** Changing the font (or paragraph style) made the sheet toolbar "break" — buttons jumped to a different line and the editor shifted, because a menu label resizing ("Body" → "JetBrains Mono") moved the row's wrap point.
+- **Repro:** Open a sheet, pick a face with a long name; the toolbar reflows.
+- **Root cause:** The sheet title and the entire toolbar shared one flex row with `flex-wrap` (`.sheet-title-row`). The variable-width Font/Style labels changed the row's total width, so the wrap point — and every control after it — moved.
+- **Fix:** Split the header into two rows: `.sheet-title-row` (back + title + dirty) and a new `.sheet-tools-row` (toolbar + save + save-as + delete) that gets the full window width. The title row's box no longer changes when a font/style label grows. `src/components/quire/sheet.tsx`, `src/styles.css`.
+- **Guards:** `TB1-two-row-structure`, `TB2-title-row-stable-on-font-change` (qa-toolbar.mjs)

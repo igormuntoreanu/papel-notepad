@@ -45,13 +45,6 @@ export const SKINS = [
     pattern: "blank",
     blurb: "Phosphor green on charcoal. A CRT for your words.",
   },
-  {
-    id: "matrix",
-    name: "Matrix",
-    edge: "clean",
-    pattern: "blank",
-    blurb: "Digital rain: neon green code on pure black.",
-  },
 ] as const;
 
 export type SkinId = (typeof SKINS)[number]["id"];

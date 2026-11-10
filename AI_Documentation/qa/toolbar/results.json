@@ -1,0 +1,50 @@
+{
+  "suite": "qa-toolbar (two-row header)",
+  "results": [
+    {
+      "name": "TB1-two-row-structure",
+      "ok": true,
+      "detail": {
+        "titleRowHasTitle": true,
+        "titleRowHasTools": false,
+        "toolsRowHasTools": true,
+        "toolsRowHasDelete": true,
+        "toolsRowHasSave": true,
+        "titleRect": {
+          "top": 58,
+          "height": 30,
+          "left": 235
+        },
+        "toolsRect": {
+          "top": 93,
+          "height": 92,
+          "left": 235
+        }
+      }
+    },
+    {
+      "name": "TB2-title-row-stable-on-font-change",
+      "ok": true,
+      "detail": {
+        "titleBefore": {
+          "top": 58,
+          "height": 30,
+          "left": 235
+        },
+        "titleAfter": {
+          "top": 58,
+          "height": 30,
+          "left": 235
+        },
+        "toolsRow": {
+          "top": 93,
+          "height": 92,
+          "left": 235
+        }
+      }
+    }
+  ],
+  "pageErrors": [],
+  "pass": 2,
+  "fail": 0
+}

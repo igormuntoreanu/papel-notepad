@@ -282,53 +282,11 @@
     linear-gradient(180deg, #1a2120, #0c100f);
 }
 
-.desk[data-skin="matrix"] {
-  --paper: #000000;
-  --paper-2: #020a02;
-  --paper-edge: transparent;
-  --rule: #0a2a0a;
-  --syn-key: #00ff41;
-  --syn-str: #b6ffb6;
-  --syn-com: #1c6b1c;
-  --syn-type: #6dff94;
-  --selection: rgb(0 255 65 / 0.25);
-  --kraft: #000000;
-  --kraft-light: #061206;
-  --kraft-dark: #000000;
-  --ink: #00ff41;
-  --ink-soft: #4dff77;
-  --muted: #1fa83a;
-  --field: #031003;
-  --accent: #00ff41;
-  --accent-deep: #00b32d;
-  --status-paper: #020a02;
-  --shadow: rgb(0 0 0 / 0.85);
-  --shadow-soft: rgb(0 30 0 / 0.5);
-  --fibers: none;
-  --noise: none;
-  --mottle: none;
-  --grain: none;
-  --ink1: #ff9d8a;
-  --ink2: #8ad4ff;
-  --ink3: #6dff94;
-  --ink4: #b8f0b8;
-  --ink5: #ffb36a;
-  --ink6: #ff7a7a;
-  --ink7: #00ff41;
-  --ink8: #d6ffe0;
-  --ink9: #ffe066;
-  color-scheme: dark;
-  background:
-    radial-gradient(ellipse at 50% 25%, rgb(0 50 0 / 0.4) 0%, transparent 60%),
-    linear-gradient(180deg, #010801, #000000);
-}
-
 .desk[data-skin="ink"] .strip,
 .desk[data-skin="sulphite"] .strip,
 .desk[data-skin="carbon"] .strip,
 .desk[data-skin="blueprint"] .strip,
-.desk[data-skin="terminal"] .strip,
-.desk[data-skin="matrix"] .strip {
+.desk[data-skin="terminal"] .strip {
   filter: none;
 }
 
@@ -337,8 +295,7 @@
 .desk[data-skin="sulphite"] .strip-bg,
 .desk[data-skin="carbon"] .strip-bg,
 .desk[data-skin="blueprint"] .strip-bg,
-.desk[data-skin="terminal"] .strip-bg,
-.desk[data-skin="matrix"] .strip-bg {
+.desk[data-skin="terminal"] .strip-bg {
   display: none;
 }
 
@@ -415,38 +372,30 @@
   background: #163454;
 }
 
-/* Terminal & Matrix: dark header strip. The brand name and sheet-title dropdown use
-   hardcoded light-skin colours, so retint them from the skin vars (as blueprint does),
-   and pull the strip paper from --status-paper so it is dark, not the light default. */
-.desk[data-skin="terminal"] .strip-paper,
-.desk[data-skin="matrix"] .strip-paper {
+/* Terminal: dark header strip. The brand name and sheet-title dropdown use hardcoded
+   light-skin colours, so retint them from the skin vars (as blueprint does), and pull the
+   strip paper from --status-paper so it is dark, not the light default. */
+.desk[data-skin="terminal"] .strip-paper {
   background: var(--status-paper);
   border-bottom: 1px solid rgb(255 255 255 / 0.1);
 }
-.desk[data-skin="terminal"] .strip-status,
-.desk[data-skin="matrix"] .strip-status {
+.desk[data-skin="terminal"] .strip-status {
   border-left-color: rgb(255 255 255 / 0.12);
   border-right-color: rgb(255 255 255 / 0.12);
 }
 .desk[data-skin="terminal"] .sheet-frame,
-.desk[data-skin="terminal"] .card-bg,
-.desk[data-skin="matrix"] .sheet-frame,
-.desk[data-skin="matrix"] .card-bg {
+.desk[data-skin="terminal"] .card-bg {
   border: 1px solid rgb(255 255 255 / 0.12);
 }
-.desk[data-skin="terminal"] .brand-name,
-.desk[data-skin="matrix"] .brand-name {
+.desk[data-skin="terminal"] .brand-name {
   color: var(--muted);
   border-right-color: rgb(255 255 255 / 0.18);
 }
-.desk[data-skin="terminal"] .brand-ver,
-.desk[data-skin="matrix"] .brand-ver {
+.desk[data-skin="terminal"] .brand-ver {
   color: var(--ink-soft);
 }
 .desk[data-skin="terminal"] .variant,
-.desk[data-skin="terminal"] .variant-label,
-.desk[data-skin="matrix"] .variant,
-.desk[data-skin="matrix"] .variant-label {
+.desk[data-skin="terminal"] .variant-label {
   color: var(--ink);
 }
 
@@ -1229,13 +1178,6 @@
   box-shadow: 0 0 4px rgb(126 231 135 / 0.45);
 }
 
-.swatch[data-skin="matrix"] {
-  background: #000000;
-  border: 1px solid #00ff41;
-  border-radius: 2px;
-  box-shadow: 0 0 5px rgb(0 255 65 / 0.6);
-}
-
 /* ---------- Board & cards ---------- */
 
 .board {
@@ -1620,13 +1562,22 @@
 
 .sheet-title-row {
   display: flex;
-  /* Wrap, never clip: a narrow window must show every control on extra lines
-     instead of hiding the tail of the toolbar behind a scroll area with no
-     visible scrollbar. */
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Row 2 of the sheet header: the whole toolbar (tools + save + delete) on its own line,
+   so a variable-width Font/Style label can never shove the title around or move this
+   row's wrap point. Wrap, never clip: a narrow window shows every control on extra
+   lines instead of hiding the tail of the toolbar behind a scroll area. */
+.sheet-tools-row {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   row-gap: 4px;
+  margin-top: 5px;
 }
 
 .sheet-title {

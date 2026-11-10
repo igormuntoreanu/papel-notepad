@@ -351,6 +351,8 @@ export function Sheet({
               </h2>
             )}
             {session.is_dirty() && <span className="dirty" role="img" aria-label="Unsaved" title="Not saved to a file" />}
+          </div>
+          <div className="sheet-tools-row">
             {find.open ? (
               <FindBar find={find} />
             ) : (
