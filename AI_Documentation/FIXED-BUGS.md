@@ -325,9 +325,9 @@ Guards live in `scripts/verify-bugs.mjs` unless a unit test is named. Build `dis
 ## FB-33 — Toolbar jumped/reflowed when the font or style name changed
 
 - **Severity:** medium
-- **Fixed in:** 0.5.2
+- **Fixed in:** 0.5.2 (two-row header) + 0.5.3 (fixed-width menus)
 - **Symptom:** Changing the font (or paragraph style) made the sheet toolbar "break" — buttons jumped to a different line and the editor shifted, because a menu label resizing ("Body" → "JetBrains Mono") moved the row's wrap point.
 - **Repro:** Open a sheet, pick a face with a long name; the toolbar reflows.
 - **Root cause:** The sheet title and the entire toolbar shared one flex row with `flex-wrap` (`.sheet-title-row`). The variable-width Font/Style labels changed the row's total width, so the wrap point — and every control after it — moved.
-- **Fix:** Split the header into two rows: `.sheet-title-row` (back + title + dirty) and a new `.sheet-tools-row` (toolbar + save + save-as + delete) that gets the full window width. The title row's box no longer changes when a font/style label grows. `src/components/quire/sheet.tsx`, `src/styles.css`.
-- **Guards:** `TB1-two-row-structure`, `TB2-title-row-stable-on-font-change` (qa-toolbar.mjs)
+- **Fix:** Two parts. (0.5.2) Split the header into two rows: `.sheet-title-row` (back + title + dirty) and a new `.sheet-tools-row` (toolbar + save + save-as + delete) that gets the full window width, so the title row's box no longer changes when a label grows. (0.5.3) The Font and Style labels now sit in a fixed-width slot (`min-width` in `ch`, sized for the longest name), so the button never resizes and the toolbar row cannot re-wrap when the selection changes. `src/components/quire/sheet.tsx`, `src/styles.css`.
+- **Guards:** `TB1-two-row-structure`, `TB2-title-row-stable-on-font-change`, `TB3-font-menu-width-stable` (qa-toolbar.mjs)

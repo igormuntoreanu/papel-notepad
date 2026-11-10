@@ -364,7 +364,7 @@ export function Sheet({
                     title="Paragraph style for the selected lines (or the caret line)"
                     label={
                       <span>
-                        {styleName(caretStyle)} <ChevronDown size={13} aria-hidden="true" />
+                        <span className="menu-stylename">{styleName(caretStyle)}</span> <ChevronDown size={13} aria-hidden="true" />
                       </span>
                     }
                     items={TEXT_STYLES.map((style) => {
@@ -394,7 +394,7 @@ export function Sheet({
                     title="Font for the selected lines (or the caret line)"
                     label={
                       <span>
-                        {fontName(caretFont)} <ChevronDown size={13} aria-hidden="true" />
+                        <span className="menu-facename">{fontName(caretFont)}</span> <ChevronDown size={13} aria-hidden="true" />
                       </span>
                     }
                     items={FONTS.map((font) => {

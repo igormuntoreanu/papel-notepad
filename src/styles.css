@@ -839,6 +839,16 @@
   white-space: nowrap;
 }
 
+/* Fixed-width Font & Style menu labels (0.5.3): the name sits in a slot reserved for the
+   longest option, so picking a shorter or longer face/style never resizes the button and
+   re-wraps the toolbar. `ch` is exact here — the label is monospace, so N chars = N ch. */
+.tool.text-only .menu-facename {
+  min-width: 14ch; /* "JetBrains Mono", the longest face name */
+}
+.tool.text-only .menu-stylename {
+  min-width: 10ch; /* "Subsection" / "Subheading", the longest style name */
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

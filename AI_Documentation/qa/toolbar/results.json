@@ -42,9 +42,27 @@
           "left": 235
         }
       }
+    },
+    {
+      "name": "TB3-font-menu-width-stable",
+      "ok": true,
+      "detail": {
+        "inter": {
+          "btnW": 138,
+          "toolsH": 92
+        },
+        "jetbrainsMono": {
+          "btnW": 138,
+          "toolsH": 92
+        },
+        "lato": {
+          "btnW": 138,
+          "toolsH": 92
+        }
+      }
     }
   ],
   "pageErrors": [],
-  "pass": 2,
+  "pass": 3,
   "fail": 0
 }

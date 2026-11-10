@@ -113,6 +113,28 @@ check("TB2-title-row-stable-on-font-change",
   Math.abs(after.top - before.top) <= 1 && Math.abs(after.height - before.height) <= 1 && toolsGrewOrSame,
   { titleBefore: before, titleAfter: after, toolsRow: s.toolsRect });
 
+// TB3 — the Font menu button keeps a constant width across short/long face names, so the
+// toolbar row cannot re-wrap when the selection changes (the fixed-width label slot).
+async function fontBtnBox() {
+  return page.evaluate(() => {
+    const b = document.querySelector('button[aria-label^="Font:"]');
+    const tools = document.querySelector(".sheet-tools-row");
+    const br = b?.getBoundingClientRect();
+    return { btnW: br ? Math.round(br.width) : null, toolsH: tools ? Math.round(tools.getBoundingClientRect().height) : null };
+  });
+}
+await setSel(1, 2); await applyFont("Inter");          // short name
+const wInter = await fontBtnBox();
+await setSel(1, 2); await applyFont("JetBrains Mono"); // longest name
+const wJet = await fontBtnBox();
+await setSel(1, 2); await applyFont("Lato");           // short name
+const wLato = await fontBtnBox();
+await snap("TB3-font-menu-width");
+check("TB3-font-menu-width-stable",
+  wInter.btnW === wJet.btnW && wJet.btnW === wLato.btnW &&
+  wInter.toolsH === wJet.toolsH && wJet.toolsH === wLato.toolsH,
+  { inter: wInter, jetbrainsMono: wJet, lato: wLato });
+
 const summary = { suite: "qa-toolbar (two-row header)", results, pageErrors, pass: results.filter((r) => r.ok).length, fail: results.filter((r) => !r.ok).length };
 await writeFile(join(OUT, "results.json"), JSON.stringify(summary, null, 2));
 console.log(`\n[qa-toolbar] ${summary.pass} pass / ${summary.fail} fail -> ${join(OUT, "results.json")}`);
