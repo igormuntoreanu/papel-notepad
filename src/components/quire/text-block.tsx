@@ -7,7 +7,9 @@ import { parseDelimited } from "@/lib/quire/blocks";
 import { htmlHasEmphasis, parseHtmlClipboard, parseHtmlTable } from "@/lib/quire/html-paste";
 import { paint, readMarks } from "@/lib/quire/marks";
 import { diffText } from "@/lib/quire/text";
-import { openUrl, urlAt } from "@/lib/quire/urls";
+import { openUrl, urlAt, urlSpans } from "@/lib/quire/urls";
+import { paintLinkHover, useLinkHover } from "@/lib/quire/link-hover";
+import { stylizeLinks } from "@/lib/quire/links";
 import type { Place } from "./store";
 
 /** A rectangular selection: anchor and focus as line + character column. */
@@ -40,6 +42,7 @@ export function TextBlock({
   focusRef,
   autocorrect,
   findHit,
+  searchHits,
   look,
   onPasteTable,
   selectedAll,
@@ -59,6 +62,8 @@ export function TextBlock({
   autocorrect: boolean;
   /** Current Find match in this block — kept painted while Find stays focused. */
   findHit?: { start: number; end: number } | null;
+  /** Every match of the strip search in this block; painted yellow, never stored. */
+  searchHits?: Array<{ start: number; end: number }> | null;
   /** Face and paragraph style for this block; absent means the paper default. */
   look?: BlockLook;
   /** Grid-shaped clipboard text (Excel/CSV) becomes a table instead of a paste. */
@@ -87,6 +92,31 @@ export function TextBlock({
   /** Sheet wrap stays as the user set it; column select only unwraps this block. */
   const layoutWrap = wrap && box === null;
 
+  // Ctrl/Cmd-hover over a URL: hand pointer + the URL as a tooltip. A textarea has no
+  // sub-element to hover, so the hit test uses the same character grid Alt-drag uses.
+  const linkHover = useLinkHover(
+    (x, y) => {
+      const ta = taRef.current;
+      if (!ta) return null;
+      const point = pointAt(ta, x, y);
+      const lines = ta.value.split("\n");
+      const lineStart = lines.slice(0, point.line).reduce((n, l) => n + l.length + 1, 0);
+      return urlAt(ta.value, lineStart + point.col);
+    },
+    (url) => paintLinkHover(taRef.current, url),
+  );
+
+  /** The current Find match and the strip search matches, in one list `paint` understands. */
+  const hitsToPaint = () => {
+    const out: Array<{ start: number; end: number }> = [];
+    if (selectedAll) out.push({ start: 0, end: Number.MAX_SAFE_INTEGER });
+    if (findHit && findHit.end > findHit.start) out.push(findHit);
+    for (const hit of searchHits ?? []) out.push(hit);
+    return out;
+  };
+  /** Repaint signature: any change here means the highlight layer must be rebuilt. */
+  const paintSig = `${selectedAll ? "all" : ""}|${findHit?.start ?? ""}:${findHit?.end ?? ""}|${(searchHits ?? []).map((h) => `${h.start}:${h.end}`).join(",")}`;
+
   const paintExact = () => {
     const ta = taRef.current;
     const pre = preRef.current;
@@ -97,7 +127,7 @@ export function TextBlock({
       // requested from the engine even when a file arrived with a language hint.
       [],
       readMarks(session.marks(blockId)),
-      selectedAll ? { start: 0, end: Number.MAX_SAFE_INTEGER } : findHit && findHit.end > findHit.start ? findHit : null,
+      hitsToPaint(),
     );
     fit(ta, layoutWrap);
   };
@@ -195,11 +225,11 @@ export function TextBlock({
       revealCaret(ta);
       focusRef.current = null;
       onSelection(pos, end);
-    } else if (findHit && findHit.end > findHit.start) {
-      // Re-paint when the Find highlight moves without a focus handoff.
+    } else if ((findHit && findHit.end > findHit.start) || (searchHits && searchHits.length > 0)) {
+      // Re-paint when the highlight layer changes without a focus handoff.
       paintNow();
     }
-  }, [tick, wrap, blockId, findHit?.start, findHit?.end]);
+  }, [tick, wrap, blockId, paintSig]);
 
   function sync(coalesce: boolean, typed?: string | null) {
     const ta = taRef.current;
@@ -395,6 +425,33 @@ export function TextBlock({
             }
           }
 
+          // A plain paste carrying http(s) URLs becomes text plus the link look.
+          if (plain) {
+            const links = urlSpans(plain);
+            if (links.length > 0) {
+              e.preventDefault();
+              const ta = e.currentTarget;
+              const start = ta.selectionStart ?? 0;
+              const end = ta.selectionEnd ?? start;
+              session.begin_group(blockId, start, start);
+              try {
+                session.edit(blockId, start, end, plain, false);
+                stylizeLinks(session, blockId, start, links);
+              } finally {
+                session.end_group();
+              }
+              const next = session.text_of(blockId);
+              ta.value = next;
+              prev.current = next;
+              const caret = start + plain.length;
+              ta.setSelectionRange(caret, caret);
+              paintNow();
+              report();
+              onEdited();
+              return;
+            }
+          }
+
           const image = [...data.files].find((file) => file.type.startsWith("image/"));
           if (image) {
             e.preventDefault();
@@ -418,12 +475,15 @@ export function TextBlock({
           setBox(next);
         }}
         onMouseMove={(e) => {
+          if (drag.current) linkHover.leave();
+          else linkHover.move(e);
           if (!drag.current || (e.buttons & 1) === 0) return;
           const point = pointAt(e.currentTarget, e.clientX, e.clientY);
           const next = { ...drag.current, fLine: point.line, fCol: point.col };
           drag.current = next;
           setBox(next);
         }}
+        onMouseLeave={linkHover.leave}
         onMouseUp={() => {
           drag.current = null;
         }}

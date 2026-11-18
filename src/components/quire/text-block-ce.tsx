@@ -15,6 +15,9 @@ import { diffText } from "@/lib/quire/text";
 import { correctionAt } from "@/lib/quire/autocorrect";
 import { parseDelimited } from "@/lib/quire/blocks";
 import { htmlHasEmphasis, parseHtmlClipboard, parseHtmlTable } from "@/lib/quire/html-paste";
+import { paintLinkHover, useLinkHover } from "@/lib/quire/link-hover";
+import { stylizeLinks } from "@/lib/quire/links";
+import { openUrl, urlAt, urlSpans } from "@/lib/quire/urls";
 import { continueList, indentList, renumberLists } from "@/lib/quire/lists";
 import { CODE_FONTS, CODE_STYLES, type BlockLook } from "@/lib/quire/typefaces";
 import type { Place } from "./store";
@@ -128,6 +131,33 @@ function offsetOfDomPos(root: HTMLElement, node: Node | null, nodeOffset: number
   return acc;
 }
 
+/** Pointer position -> character offset in the joined text, via the browser's own hit
+ *  test (`caretRangeFromPoint`), so proportional faces stay exact. Null when the point is
+ *  outside this block. */
+function offsetAtPoint(root: HTMLElement, x: number, y: number): number | null {
+  const doc = document as Document & {
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+  };
+  let node: Node | null = null;
+  let offset = 0;
+  if (doc.caretRangeFromPoint) {
+    const range = doc.caretRangeFromPoint(x, y);
+    if (range) {
+      node = range.startContainer;
+      offset = range.startOffset;
+    }
+  } else if (doc.caretPositionFromPoint) {
+    const pos = doc.caretPositionFromPoint(x, y);
+    if (pos) {
+      node = pos.offsetNode;
+      offset = pos.offset;
+    }
+  }
+  if (!node || !root.contains(node)) return null;
+  return offsetOfDomPos(root, node, offset);
+}
+
 /** A rectangular (column) selection: anchor and focus as line + character column. */
 type Box = { aLine: number; aCol: number; fLine: number; fCol: number };
 
@@ -179,6 +209,7 @@ export function TextBlockCE({
   focusRef,
   autocorrect,
   findHit,
+  searchHits,
   look,
   onPasteTable,
   selectedAll,
@@ -196,6 +227,8 @@ export function TextBlockCE({
   focusRef: MutableRefObject<Place | null>;
   autocorrect: boolean;
   findHit?: { start: number; end: number } | null;
+  /** Every match of the strip search in this block; painted yellow, never stored. */
+  searchHits?: Array<{ start: number; end: number }> | null;
   look?: BlockLook;
   onPasteTable: (rows: string[][]) => void;
   selectedAll?: boolean;
@@ -219,6 +252,18 @@ export function TextBlockCE({
   const [box, setBox] = useState<Box | null>(null);
   const drag = useRef<Box | null>(null);
 
+  // Ctrl/Cmd-hover over a URL: hand pointer + the URL as a tooltip. `prev.current` is this
+  // block's text, kept current by every edit path, so the hit test never crosses into WASM.
+  const linkHover = useLinkHover(
+    (x, y) => {
+      const root = rootRef.current;
+      if (!root) return null;
+      const pos = offsetAtPoint(root, x, y);
+      return pos == null ? null : urlAt(prev.current, pos);
+    },
+    (url) => paintLinkHover(rootRef.current, url),
+  );
+
   function setSelection(root: HTMLElement, start: number, end: number) {
     const sel = window.getSelection();
     if (!sel) return;
@@ -237,6 +282,25 @@ export function TextBlockCE({
     sel.addRange(range);
   }
 
+  /** Highlight ranges that fall inside one line, rebased to the line's own offsets. */
+  function hitsOnLine(lineStart: number, lineEnd: number, lineLen: number) {
+    const out: Array<{ start: number; end: number }> = [];
+    if (findHit && findHit.end > findHit.start && findHit.start < lineEnd && findHit.end > lineStart) {
+      out.push({
+        start: Math.max(0, findHit.start - lineStart),
+        end: Math.min(lineLen, findHit.end - lineStart),
+      });
+    }
+    for (const hit of searchHits ?? []) {
+      if (hit.start >= lineEnd || hit.end <= lineStart) continue;
+      out.push({ start: Math.max(0, hit.start - lineStart), end: Math.min(lineLen, hit.end - lineStart) });
+    }
+    return out;
+  }
+
+  /** Repaint signature: any change here means the highlight layer must be rebuilt. */
+  const hitSig = `${findHit?.start ?? ""}:${findHit?.end ?? ""}|${(searchHits ?? []).map((h) => `${h.start}:${h.end}`).join(",")}`;
+
   /** Rebuild every line div from the core (text + marks + per-line align). */
   function renderLines(caretStart?: number | null, caretEnd?: number | null) {
     const root = rootRef.current;
@@ -246,7 +310,7 @@ export function TextBlockCE({
     const flatMarks = session.marks(blockId);
     const marks = readMarks(flatMarks);
     renderedMarks.current = flatMarks.join(",");
-    renderedFind.current = findHit && findHit.end > findHit.start ? `${findHit.start}:${findHit.end}` : "";
+    renderedFind.current = hitSig;
     const aligns = session.line_aligns(blockId);
     const styles = session.line_styles(blockId);
     const fonts = session.line_fonts(blockId);
@@ -265,11 +329,8 @@ export function TextBlockCE({
           end: Math.min(lt.length, m.end - lineStart),
         });
       }
-      let hit: { start: number; end: number } | null = null;
-      if (findHit && findHit.end > findHit.start && findHit.start < lineEnd && findHit.end > lineStart) {
-        hit = { start: Math.max(0, findHit.start - lineStart), end: Math.min(lt.length, findHit.end - lineStart) };
-      }
-      const inner = lt.length === 0 ? "<br>" : paint(lt, [], local, hit);
+      const lineHits = hitsOnLine(lineStart, lineEnd, lt.length);
+      const inner = lt.length === 0 ? "<br>" : paint(lt, [], local, lineHits);
       const align = ALIGN_ATTR[aligns[i] ?? 0] ?? "left";
       const styleId = CODE_STYLES[styles[i] ?? 0] ?? "body";
       const fontId = CODE_FONTS[fonts[i] ?? 0];
@@ -314,6 +375,21 @@ export function TextBlockCE({
     return { start: Math.min(a, b), end: Math.max(a, b) };
   }
 
+  /**
+   * The DOM selection clamped to the block's text.
+   *
+   * A caret parked on the root node — which the browser does after a plain `focus()` on an
+   * empty block — makes `currentSel` report one past the end, because the offset walks no
+   * line div and falls through to the total. Pasting on that selection used to land the
+   * inserted text at 0 while styling it from 1, so the first character of a link (or of a
+   * bold run) came out unstyled.
+   */
+  function editRange(): { start: number; end: number } {
+    const len = session.text_of(blockId).length;
+    const { start, end } = currentSel();
+    return { start: Math.min(start, len), end: Math.min(Math.max(end, start), len) };
+  }
+
   function report() {
     const { start, end } = currentSel();
     onSelection(start, end);
@@ -354,10 +430,15 @@ export function TextBlockCE({
       onSelection(focus.start, focus.end);
       return;
     }
+    // Repainting must not steal the caret. The strip search and the query edits that
+    // clear its highlights change this block while the user is typing in the search
+    // field; placing a selection inside this contenteditable would pull focus out of
+    // that field. When the block is not focused the repaint is paint-only.
+    const focused = document.activeElement === root;
     const coreText = session.text_of(blockId);
     if (readText(root) !== coreText) {
       // Text changed outside the DOM (undo/redo/programmatic): rebuild, keep the caret.
-      const { start, end } = currentSel();
+      const { start, end } = focused ? currentSel() : { start: null, end: null };
       renderLines(start, end);
       return;
     }
@@ -365,15 +446,14 @@ export function TextBlockCE({
     // text: repaint to show it (restoring the caret). Otherwise just refresh the per-line
     // paragraph props (align/style), which is caret-safe. Typing keeps the marks baseline
     // in sync, so it will not repaint.
-    const findSig = findHit && findHit.end > findHit.start ? `${findHit.start}:${findHit.end}` : "";
-    if (session.marks(blockId).join(",") !== renderedMarks.current || findSig !== renderedFind.current) {
-      const { start, end } = currentSel();
+    if (session.marks(blockId).join(",") !== renderedMarks.current || hitSig !== renderedFind.current) {
+      const { start, end } = focused ? currentSel() : { start: null, end: null };
       renderLines(start, end);
     } else {
       syncPara();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tick, blockId, findHit?.start, findHit?.end, selectedAll]);
+  }, [tick, blockId, hitSig, selectedAll]);
 
   function commit(inputType: string, data?: string | null) {
     const root = rootRef.current;
@@ -571,7 +651,7 @@ export function TextBlockCE({
       const parsed = parseHtmlClipboard(html);
       if (parsed.text.length > 0 && parsed.runs.some((r) => r.bold || r.italic || r.underline || r.strike)) {
         e.preventDefault();
-        const { start, end } = currentSel();
+        const { start, end } = editRange();
         session.edit(blockId, start, end, parsed.text, false);
         for (const run of parsed.runs) {
           const from = start + run.start;
@@ -591,6 +671,30 @@ export function TextBlockCE({
         return;
       }
     }
+    // A plain paste carrying http(s) URLs becomes text plus the link look. One undo step:
+    // the insert and the style runs sit in one group (see Document::begin_group).
+    if (plain) {
+      const links = urlSpans(plain);
+      if (links.length > 0) {
+        e.preventDefault();
+        const { start, end } = editRange();
+        session.begin_group(blockId, start, start);
+        try {
+          session.edit(blockId, start, end, plain, false);
+          stylizeLinks(session, blockId, start, links);
+        } finally {
+          session.end_group();
+        }
+        prev.current = session.text_of(blockId);
+        renderedMarks.current = session.marks(blockId).join(",");
+        const caret = start + plain.length;
+        renderLines(caret, caret);
+        report();
+        onEdited();
+        return;
+      }
+    }
+
     // An image file becomes an image block.
     const image = [...data.files].find((file) => file.type.startsWith("image/"));
     if (image) {
@@ -668,6 +772,9 @@ export function TextBlockCE({
   }
 
   function onMouseMove(e: MouseEvent<HTMLDivElement>) {
+    // A column drag is its own gesture: keep the I-beam while it lasts.
+    if (drag.current) linkHover.leave();
+    else linkHover.move(e);
     if (!drag.current || (e.buttons & 1) === 0) return;
     const root = rootRef.current;
     if (!root) return;
@@ -711,11 +818,22 @@ export function TextBlockCE({
         onFocus={report}
         onInput={onInput}
         onKeyUp={report}
-        onClick={report}
+        onClick={(e) => {
+          report();
+          if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+          const root = rootRef.current;
+          if (!root) return;
+          const pos = offsetAtPoint(root, e.clientX, e.clientY);
+          const url = urlAt(session.text_of(blockId), pos ?? currentSel().start);
+          if (!url) return;
+          e.preventDefault();
+          openUrl(url);
+        }}
         onKeyDown={onKeyDown}
         onPaste={onPaste}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
+        onMouseLeave={linkHover.leave}
         onMouseUp={onMouseUp}
         onCopy={onCopy}
         onCompositionStart={() => {

@@ -4,7 +4,6 @@ import {
   FolderOpen,
   FolderSync,
   LayoutGrid,
-  ListFilter,
   Maximize2,
   Minus,
   Search,
@@ -43,7 +42,6 @@ export function HeaderStrip({
   setQuery,
   onGo,
   searchRef,
-  hint,
   sort,
   setSort,
   onNew,
@@ -79,7 +77,6 @@ export function HeaderStrip({
   setQuery: (v: string) => void;
   onGo: () => void;
   searchRef: RefObject<HTMLInputElement | null>;
-  hint: string;
   sort: SortMode;
   setSort: (v: SortMode) => void;
   onNew: () => void;
@@ -107,13 +104,9 @@ export function HeaderStrip({
 }) {
   const bridge = desktopBridge();
   const isDesktop = bridge !== null;
-  const [fieldsOpen, setFieldsOpen] = useState(false);
+
   const [appVersion, setAppVersion] = useState(APP_VERSION);
   const [maximized, setMaximized] = useState(false);
-  const filterOn = sort !== "manual";
-  const filterLabel = filterOn
-    ? (sort === "recent" ? "Last edited" : sort === "title" ? "Title" : null) ?? "Filters"
-    : "Filters";
 
   useEffect(() => {
     if (!bridge) return;
@@ -129,10 +122,46 @@ export function HeaderStrip({
     };
   }, [bridge]);
 
+  /**
+   * The note search: one small field in the status row, its loupe doubling as the submit
+   * button. Enter and the loupe do the same thing — search every sheet and paint the
+   * matches (see `runNoteSearch` in the app).
+   */
+  const searchField = (
+    <form
+      className="strip-search strip-no-drag"
+      role="search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onGo();
+      }}
+    >
+      <span className="field-box">
+        <input
+          ref={searchRef}
+          type="search"
+          value={query}
+          placeholder="Search notes"
+          aria-label="Search notes"
+          title="Search every sheet (Enter)"
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && query) {
+              e.stopPropagation();
+              setQuery("");
+            }
+          }}
+        />
+        <button type="submit" className="strip-search-go" aria-label="Search notes" title="Search every sheet (Enter)">
+          <Search aria-hidden="true" />
+        </button>
+      </span>
+    </form>
+  );
+
   return (
     <header
       className="strip"
-      data-fields={fieldsOpen ? "open" : "closed"}
       data-view={view}
       data-desktop={isDesktop ? "on" : "off"}
       data-tauri-drag-region={isDesktop ? true : undefined}
@@ -230,6 +259,13 @@ export function HeaderStrip({
                   }
                 />
                 <span title="Zoom level">{Math.round((zoom / 16) * 100)}%</span>
+                <span className="strip-sep" aria-hidden="true">
+                  |
+                </span>
+                {searchField}
+                <span className="strip-sep" aria-hidden="true">
+                  |
+                </span>
               </>
             ) : (
               <>
@@ -243,14 +279,21 @@ export function HeaderStrip({
                 <span title={folderName ? `Sync folder: ${folderName}` : "Saved in this browser"}>
                   {folderName ? `Folder: ${folderName}` : "Autosaved on this device"}
                 </span>
+                <span className="strip-sep" aria-hidden="true">
+                  |
+                </span>
+                {searchField}
+                <span className="strip-sep" aria-hidden="true">
+                  |
+                </span>
               </>
             )}
-            {message && (
-              <span className="status-msg" role="status">
-                {message}
-              </span>
-            )}
           </div>
+          {message && (
+            <span className="status-msg" role="status">
+              {message}
+            </span>
+          )}
           <button
             type="button"
             className={`tool strip-no-drag${view === "board" ? " is-on" : ""}`}
@@ -261,19 +304,6 @@ export function HeaderStrip({
           >
             <LayoutGrid />
             <span className="tool-label">Board</span>
-          </button>
-          <button
-            type="button"
-            className="tool fields-toggle strip-no-drag"
-            aria-label="Search and filters"
-            title="Search and filters"
-            aria-expanded={fieldsOpen}
-            onClick={() => {
-              setFieldsOpen((v) => !v);
-              window.setTimeout(() => searchRef.current?.focus(), 0);
-            }}
-          >
-            <Search />
           </button>
           <button
             type="button"
@@ -328,6 +358,16 @@ export function HeaderStrip({
                   <span className="check" aria-hidden="true">{autocorrect ? "✓" : ""}</span>
                   Autocorrect English typos
                 </button>
+                <label className="menu-field">
+                  <span>Board order</span>
+                  <span className="field-box">
+                    <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)}>
+                      <option value="manual">My order</option>
+                      <option value="recent">Last edited</option>
+                      <option value="title">Title</option>
+                    </select>
+                  </span>
+                </label>
                 <div className="menu-sep" role="separator" />
                 <p className="menu-heading">Folder & backup</p>
                 {folderSupported ? (
@@ -399,71 +439,6 @@ export function HeaderStrip({
           )}
         </div>
 
-        <form
-          className="filters strip-no-drag"
-          role="search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            onGo();
-          }}
-        >
-          <label className="field field-search">
-            <span className="field-box">
-              <input
-                ref={searchRef}
-                type="search"
-                value={query}
-                placeholder="Search notes"
-                aria-label="Search notes"
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape" && query) {
-                    e.stopPropagation();
-                    setQuery("");
-                  }
-                }}
-              />
-              <Search aria-hidden="true" />
-            </span>
-          </label>
-          <DropMenu
-            className={filterOn ? "filter-chip is-on" : "filter-chip"}
-            ariaLabel="Sort order"
-            title={filterLabel}
-            label={
-              <>
-                <ListFilter aria-hidden="true" />
-                <span>{filterLabel}</span>
-              </>
-            }
-            items={
-              <div
-                className="filter-menu"
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                <label className="field">
-                  <span>Sort</span>
-                  <span className="field-box">
-                    <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)}>
-                      <option value="manual">My order</option>
-                      <option value="recent">Last edited</option>
-                      <option value="title">Title</option>
-                    </select>
-                  </span>
-                </label>
-              </div>
-            }
-          />
-          <div className="go-wrap">
-            <button type="submit" className="btn go" title="Search short words (Enter)">
-              Go
-            </button>
-            <span className="go-hint" aria-live="polite">
-              {hint}
-            </span>
-          </div>
-        </form>
       </div>
     </header>
   );

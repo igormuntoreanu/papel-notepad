@@ -107,7 +107,24 @@ describe("paint", () => {
   });
 
   it("paints a Find hit that stays visible without textarea focus", () => {
-    assert.equal(paint("abc", [], [], { start: 1, end: 2 }), 'a<span class="find-hit">b</span>c');
+    assert.equal(paint("abc", [], [], [{ start: 1, end: 2 }]), 'a<span class="find-hit">b</span>c');
+  });
+
+  it("paints every hit of a sheet search, not just one", () => {
+    const html = paint("ab ab ab", [], [], [
+      { start: 0, end: 2 },
+      { start: 3, end: 5 },
+      { start: 6, end: 8 },
+    ]);
+    assert.equal(
+      html,
+      '<span class="find-hit">ab</span> <span class="find-hit">ab</span> <span class="find-hit">ab</span>',
+    );
+  });
+
+  it("keeps style marks and highlights on the same run", () => {
+    const html = paint("ab", [], readMarks([0, 2, FLAG.underline, 2, 0]), [{ start: 0, end: 2 }]);
+    assert.equal(html, '<span class="su ink2 find-hit">ab</span>');
   });
 });
 
@@ -196,10 +213,10 @@ describe("ui strings stay valid UTF-8", () => {
       assert.equal(text.includes("Â·"), false, `${name} contains Â·`);
     }
     // Spot-check the strings that used to garble in the UI. The language chip that
-    // carried "Auto · ..." is gone, so the curly quotes and the em dash below are the
-    // samples that still ship.
+    // carried "Auto · ..." is gone, and so is the "No sheet fits" filter copy, so the
+    // search messages and the window title below are the samples that still ship.
     const app = await fs.readFile(path.join(root, "quire-app.tsx"), "utf8");
-    assert.match(app, /“\{applied\}”/);
+    assert.match(app, /“\$\{q\}”/);
     assert.match(app, /— Papel/);
     const sheet = await fs.readFile(path.join(root, "sheet.tsx"), "utf8");
     assert.match(sheet, /\d+ × \d+/);

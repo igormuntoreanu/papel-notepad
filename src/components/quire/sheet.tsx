@@ -204,6 +204,7 @@ export function Sheet({
   styles,
   find,
   findHit,
+  searchHits,
   looks,
   activeBlockId,
   activeKind,
@@ -236,6 +237,8 @@ export function Sheet({
   find: FindState;
   /** Active Find match to keep highlighted while Find stays focused. */
   findHit: { blockId: number; start: number; end: number } | null;
+  /** Strip-search matches per block id: painted yellow, never written to the sheet. */
+  searchHits: Map<number, Array<{ start: number; end: number }>> | null;
   /** Face and paragraph style per text block, keyed by block id. */
   looks: Record<string, BlockLook>;
   /** The block that holds the caret: where a style or font choice applies. */
@@ -642,6 +645,7 @@ export function Sheet({
                       ? { start: findHit.start, end: findHit.end }
                       : null
                   }
+                  searchHits={searchHits?.get(item.id) ?? null}
                   onSelection={(start, end) => {
                     setSelectedImage(null);
                     onSelection(item.id, start, end);

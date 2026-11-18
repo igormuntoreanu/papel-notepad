@@ -352,17 +352,18 @@ const find = await page.evaluate(() => {
 });
 await page.keyboard.press("Escape");
 await page.waitForTimeout(250);
-await page.getByRole("button", { name: "Search and filters" }).click();
+// The note search lives in the status strip now (it used to open from a magnifier band).
+await page.locator('.strip-search input[aria-label="Search notes"]').click();
 await page.waitForTimeout(300);
 const header = await page.evaluate(() => {
-  const input = document.querySelector('.filters input[type="search"]');
+  const input = document.querySelector('.strip-search input[type="search"]');
   if (!input) return { input: false, visible: false };
   const style = getComputedStyle(input);
   return { input: true, visible: style.display !== "none" && input.getBoundingClientRect().width > 0, focused: document.activeElement === input };
 });
 check(
   "search-yellow-and-open",
-  find.background === "rgb(240, 212, 74)" && header.input && header.visible,
+  find.background === "rgb(240, 212, 74)" && header.input && header.visible && header.focused,
   JSON.stringify({ find, header }),
 );
 

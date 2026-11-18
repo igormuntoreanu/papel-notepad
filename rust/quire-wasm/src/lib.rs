@@ -148,6 +148,17 @@ impl Session {
         self.doc.undo().map(Caret::from)
     }
 
+    /// Opens one undo step spanning several calls (see `Document::begin_group`).
+    /// `block_id`/`start`/`end` is where the caret is now: one undo returns it there.
+    pub fn begin_group(&mut self, block_id: u32, start: u32, end: u32) {
+        self.doc.begin_group(CoreCaret { block_id, start, end });
+    }
+
+    /// Closes the step opened by `begin_group`; `true` when a step was recorded.
+    pub fn end_group(&mut self) -> bool {
+        self.doc.end_group()
+    }
+
     pub fn redo(&mut self) -> Option<Caret> {
         self.doc.redo().map(Caret::from)
     }

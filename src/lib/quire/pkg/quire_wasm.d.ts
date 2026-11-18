@@ -21,6 +21,11 @@ export class Session {
      * `kind`: bold | italic | underline | strike (value 0/1), ink | hl (palette index, 0 = none), clear.
      */
     apply_style(id: number, start: number, end: number, kind: string, value: number): boolean;
+    /**
+     * Opens one undo step spanning several calls (see `Document::begin_group`).
+     * `block_id`/`start`/`end` is where the caret is now: one undo returns it there.
+     */
+    begin_group(block_id: number, start: number, end: number): void;
     can_redo(): boolean;
     can_undo(): boolean;
     delete_image(image_id: number): Caret | undefined;
@@ -32,6 +37,10 @@ export class Session {
     effective_language(id: number): string;
     encoding(): string;
     encoding_label(): string;
+    /**
+     * Closes the step opened by `begin_group`; `true` when a step was recorded.
+     */
+    end_group(): boolean;
     eol(): string;
     eol_label(): string;
     export_bytes(): Uint8Array;
@@ -153,6 +162,7 @@ export interface InitOutput {
     readonly __wbg_set_caret_start: (a: number, b: number) => void;
     readonly session_align_lines: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_apply_style: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+    readonly session_begin_group: (a: number, b: number, c: number, d: number) => void;
     readonly session_can_redo: (a: number) => number;
     readonly session_can_undo: (a: number) => number;
     readonly session_delete_image: (a: number, b: number) => number;
@@ -161,6 +171,7 @@ export interface InitOutput {
     readonly session_effective_language: (a: number, b: number) => [number, number];
     readonly session_encoding: (a: number) => [number, number];
     readonly session_encoding_label: (a: number) => [number, number];
+    readonly session_end_group: (a: number) => number;
     readonly session_eol: (a: number) => [number, number];
     readonly session_eol_label: (a: number) => [number, number];
     readonly session_export_bytes: (a: number) => [number, number, number, number];

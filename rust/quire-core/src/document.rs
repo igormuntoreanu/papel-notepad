@@ -129,6 +129,24 @@ struct Step {
     rev_after: u64,
 }
 
+/// What `begin_group` has to remember: the document before the composite action, where
+/// the caret stood when it started, the revision it stood at, and how deep the undo stack
+/// was.
+///
+/// `end_group` folds every step recorded since into one structural step (the same shape
+/// `delete_table` uses), so a composite action — pasting a spreadsheet grid, clearing a
+/// sheet — undoes in a single press rather than one press per cell or block.
+///
+/// The caret is passed in rather than read off the first folded step: primitives record
+/// the caret of *the range they edited* (`edit` reports its own `start`), which for a paste
+/// is offset 0, not the place the user was working. Undo has to return to the user's caret.
+struct GroupMark {
+    blocks: Vec<Block>,
+    caret_before: Caret,
+    revision: u64,
+    undo_len: usize,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Caret {
     pub block_id: u32,
@@ -153,6 +171,10 @@ pub struct Document {
     eol: Eol,
     encoding: Encoding,
     lang: LangMode,
+    /// Set between the outermost `begin_group` and `end_group`; see [`GroupMark`].
+    group: Option<GroupMark>,
+    /// How many `begin_group` calls are open; only the outermost one records a step.
+    group_depth: u32,
 }
 
 impl Default for Document {
@@ -173,6 +195,8 @@ impl Document {
             eol: Eol::Lf,
             encoding: Encoding::Utf8,
             lang: LangMode::Auto,
+            group: None,
+            group_depth: 0,
         }
     }
 
@@ -264,6 +288,7 @@ impl Document {
         self.lang = LangMode::Auto;
         self.undo.clear();
         self.redo.clear();
+        self.cancel_group();
         self.revision = 0;
         self.saved = 0;
     }
@@ -272,6 +297,7 @@ impl Document {
         self.blocks.clear();
         self.undo.clear();
         self.redo.clear();
+        self.cancel_group();
         self.revision = 0;
         self.saved = 0;
     }
@@ -306,8 +332,75 @@ impl Document {
         self.encoding = Encoding::parse(encoding_name).unwrap_or(Encoding::Utf8);
         self.undo.clear();
         self.redo.clear();
+        self.cancel_group();
         self.revision = 0;
         self.saved = 0;
+    }
+
+    /// Drops an open group without recording it: the steps it already pushed stand on
+    /// their own, which is the behaviour that existed before groups.
+    fn cancel_group(&mut self) {
+        self.group = None;
+        self.group_depth = 0;
+    }
+
+    /// Opens one undo step that spans several core calls.
+    ///
+    /// Composite actions are built from primitives — `pasteTable` splits the block, then
+    /// writes one cell at a time — and each primitive records its own step. Wrapping them
+    /// between `begin_group` and `end_group` keeps the last `N` presses off the user: the
+    /// whole action becomes a single structural step, so one undo reverts all of it.
+    ///
+    /// Groups may nest: only the outermost `begin_group` takes the snapshot, and only the
+    /// outermost `end_group` records the step, so a helper that wraps its own group can be
+    /// called from inside another. Nothing is recorded if no edit happened in between.
+    ///
+    /// `caret_before` is where the caret is before the action; a single undo puts it back
+    /// exactly there.
+    pub fn begin_group(&mut self, caret_before: Caret) {
+        self.group_depth = self.group_depth.saturating_add(1);
+        if self.group_depth > 1 {
+            return;
+        }
+        self.group = Some(GroupMark {
+            blocks: self.blocks.clone(),
+            caret_before,
+            revision: self.revision,
+            undo_len: self.undo.len(),
+        });
+    }
+
+    /// Closes the step opened by [`Self::begin_group`]; `true` when a step was recorded.
+    ///
+    /// The revision bumps made inside the group collapse into one, so the document still
+    /// reads as "changed once" to the dirty check.
+    pub fn end_group(&mut self) -> bool {
+        if self.group_depth == 0 {
+            return false;
+        }
+        self.group_depth -= 1;
+        if self.group_depth > 0 {
+            return false;
+        }
+        let Some(mark) = self.group.take() else { return false };
+        // History was reset inside the group (open/restore, or an undo): the snapshot no
+        // longer describes this document, so leave the steps to stand on their own.
+        if self.undo.len() <= mark.undo_len {
+            return false;
+        }
+        let steps = self.undo.split_off(mark.undo_len);
+        let caret_before = mark.caret_before;
+        let caret_after = steps.last().map_or(caret_before, |s| s.caret_after);
+        let rev_before = mark.revision;
+        self.revision = mark.revision.saturating_add(1);
+        self.undo.push(Step {
+            kind: StepKind::Structure { before: mark.blocks, after: self.blocks.clone() },
+            caret_before,
+            caret_after,
+            rev_before,
+            rev_after: self.revision,
+        });
+        true
     }
 
     pub fn edit(&mut self, id: u32, mut start: u32, mut end: u32, text: &str, coalesce: bool) {
@@ -810,6 +903,7 @@ impl Document {
     }
 
     pub fn undo(&mut self) -> Option<Caret> {
+        self.cancel_group();
         let step = self.undo.pop()?;
         let caret = caret_before_of(&step);
         self.invert(&step);
@@ -819,6 +913,7 @@ impl Document {
     }
 
     pub fn redo(&mut self) -> Option<Caret> {
+        self.cancel_group();
         let step = self.redo.pop()?;
         let caret = step.caret_after;
         self.reapply(&step);
@@ -2188,6 +2283,85 @@ mod tests {
         doc.delete_table(table).expect("the table deletes again");
         assert!(doc.outline().iter().any(|item| item.id == below), "typed text survives");
         assert!(doc.export_text().contains("keep me"));
+    }
+
+    #[test]
+    fn a_pasted_grid_undoes_in_one_press() {
+        let mut doc = Document::new();
+        let text = doc.first_text_id();
+        doc.edit(text, 0, 0, "helloWORLD", false);
+        let before_undo = doc.outline().len();
+
+        // What `pasteTable` does: split the block, insert the grid, then write one cell
+        // at a time. Each cell used to be its own undo step, so clearing a 3x2 paste took
+        // seven presses; the group makes the whole paste one press.
+        let rows = [["Name", "Qty"], ["Apple", "3"], ["Pear", "2"]];
+        let caret_in = Caret { block_id: text, start: 5, end: 5 };
+        doc.begin_group(caret_in);
+        let caret = doc.insert_table_at(text, 5, 2, rows.len()).expect("split insert");
+        let table = doc.outline().iter().find(|i| i.kind == "table").expect("table").id;
+        for (r, row) in rows.iter().enumerate() {
+            for (c, value) in row.iter().enumerate() {
+                assert!(doc.table_set_text(table, r as u32, c as u32, value));
+            }
+        }
+        assert!(doc.end_group(), "the paste records one step");
+        assert!(doc.table_json(table).contains("Apple"));
+
+        let undone = doc.undo().expect("one step");
+        assert!(!doc.outline().iter().any(|i| i.id == table), "one undo removes the table");
+        assert_eq!(doc.text_of(text), "helloWORLD", "the split reverts with it");
+        assert_eq!(doc.outline().len(), before_undo);
+        assert_eq!(undone, caret_in, "and the caret returns to where the paste started");
+
+        // And one redo puts every cell back.
+        doc.redo();
+        assert!(doc.table_json(table).contains("Pear"));
+        assert_eq!(doc.text_of(caret.block_id), "WORLD");
+    }
+
+    #[test]
+    fn a_group_without_edits_records_nothing() {
+        let mut doc = Document::new();
+        let text = doc.first_text_id();
+        doc.begin_group(Caret { block_id: text, start: 0, end: 0 });
+        assert!(!doc.end_group(), "an empty group is not a step");
+        assert!(!doc.can_undo());
+
+        // A group holding one edit is still exactly one step.
+        doc.begin_group(Caret { block_id: text, start: 0, end: 0 });
+        doc.edit(text, 0, 0, "a", false);
+        assert!(doc.end_group());
+        doc.undo();
+        assert_eq!(doc.text_of(text), "");
+        assert!(!doc.can_undo());
+    }
+
+    #[test]
+    fn groups_nest_to_one_step() {
+        let mut doc = Document::new();
+        let text = doc.first_text_id();
+        doc.begin_group(Caret { block_id: text, start: 0, end: 0 });
+        doc.edit(text, 0, 0, "a", false);
+        doc.begin_group(Caret { block_id: text, start: 0, end: 0 }); // nested: joins the outer group
+        doc.edit(text, 1, 1, "b", false);
+        assert!(!doc.end_group(), "the inner end_group owns nothing");
+        assert!(doc.end_group(), "the outer end_group records the step");
+        assert_eq!(doc.text_of(text), "ab");
+        doc.undo();
+        assert_eq!(doc.text_of(text), "", "both edits leave in one press");
+        assert!(!doc.can_undo());
+    }
+
+    #[test]
+    fn a_group_survives_an_undo_currently_in_flight() {
+        let mut doc = Document::new();
+        let text = doc.first_text_id();
+        doc.begin_group(Caret { block_id: text, start: 0, end: 0 });
+        doc.edit(text, 0, 0, "a", false);
+        doc.undo(); // cancels the group rather than folding a stale snapshot
+        assert!(!doc.end_group(), "nothing left to fold");
+        assert_eq!(doc.text_of(text), "");
     }
 
     #[test]

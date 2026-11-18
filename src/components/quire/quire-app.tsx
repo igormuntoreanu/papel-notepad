@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createSession, type Session } from "@/lib/quire/engine";
 import { toggleBullets } from "@/lib/quire/blocks";
-import { MIN_QUERY, searchNotes } from "@/lib/quire/fuzzy";
+import { findInNote, type NoteHits } from "@/lib/quire/note-search";
 import { FLAG, rangeHas, readMarks, type FlagName } from "@/lib/quire/marks";
 import { savePersisted, type Prefs, type SortMode } from "@/lib/quire/persist";
 import { ARCHIVE_EXT, archiveFileName, formatLastBackup, mergeArchive, parseArchive, zipBackupFileName } from "@/lib/quire/backup";
@@ -113,7 +113,9 @@ export function QuireApp() {
   const [cellTarget, setCellTarget] = useState<CellTarget | null>(null);
   const [cellRange, setCellRange] = useState<CellRange | null>(null);
   const [query, setQuery] = useState("");
-  const [committed, setCommitted] = useState("");
+  /** Result of the last "search notes" run: per-sheet matches, painted while the query
+   *  still matches what was searched. Nothing here is written to a document. */
+  const [noteSearch, setNoteSearch] = useState<{ query: string; byNote: Map<string, NoteHits> } | null>(null);
   /** Ctrl+A selects every text block in the sheet, not just the focused one. */
   const [selectAll, setSelectAll] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -792,23 +794,33 @@ export function QuireApp() {
     touch(activeId);
     bump({ block_id: id, start: pos, end: pos });
   }
+  /** One Ctrl+Z has to take a pasted grid away, not one press per cell. */
   function pasteTable(blockId: number, rows: string[][]) {
     if (!session || !activeId) return;
     const cols = rows[0]?.length ?? 0;
     if (cols < 2 || rows.length === 0) return;
     const caret = liveCaret();
     const at = caret.blockId === blockId ? Math.min(caret.start, caret.end) : session.text_of(blockId).length;
-    const placed = splitInsertTable(blockId, at, cols, rows.length);
-    if (!placed) return;
-    rows.forEach((row, r) => {
-      row.forEach((value, c) => {
-        if (value) session.table_set_text(placed.tableId, r, c, value);
+    // The split and every cell write are separate core calls, so each one used to record
+    // its own undo step: a 3×3 paste needed ten presses to clear. Grouping them makes the
+    // whole paste one structural step, and the caret we hand the group is where that one
+    // undo has to put the cursor back.
+    session.begin_group(blockId, at, at);
+    try {
+      const placed = splitInsertTable(blockId, at, cols, rows.length);
+      if (!placed) return;
+      rows.forEach((row, r) => {
+        row.forEach((value, c) => {
+          if (value) session.table_set_text(placed.tableId, r, c, value);
+        });
       });
-    });
-    setSel({ blockId: placed.belowId, start: 0, end: 0 });
-    setMessage(`Pasted ${rows.length} × ${cols} as a table`);
-    touch(activeId);
-    bump({ block_id: placed.belowId, start: 0, end: 0 });
+      setSel({ blockId: placed.belowId, start: 0, end: 0 });
+      setMessage(`Pasted ${rows.length} × ${cols} as a table`);
+      touch(activeId);
+      bump({ block_id: placed.belowId, start: 0, end: 0 });
+    } finally {
+      session.end_group();
+    }
   }
 
   function selectWholeSheet() {
@@ -820,15 +832,23 @@ export function QuireApp() {
   /** Clears the whole sheet: text, tables and images, as one visible action. */
   function clearWholeSheet() {
     if (!session || !activeId) return;
-    for (const item of outlineOf(session)) {
-      if (item.kind === "text") {
-        const text = session.text_of(item.id);
-        if (text.length) session.edit(item.id, 0, text.length, "", false);
-      } else if (item.kind === "table") {
-        session.delete_table(item.id);
-      } else if (item.kind === "image") {
-        session.delete_image(item.id);
+    // Same reason as `pasteTable`: clearing a sheet touches every block, and each call
+    // records a step on its own. One group keeps "clear the sheet" to one undo.
+    const { blockId: caretBlock, start: caretStart, end: caretEnd } = selRef.current;
+    session.begin_group(caretBlock || session.first_text_id(), caretStart, caretEnd);
+    try {
+      for (const item of outlineOf(session)) {
+        if (item.kind === "text") {
+          const text = session.text_of(item.id);
+          if (text.length) session.edit(item.id, 0, text.length, "", false);
+        } else if (item.kind === "table") {
+          session.delete_table(item.id);
+        } else if (item.kind === "image") {
+          session.delete_image(item.id);
+        }
       }
+    } finally {
+      session.end_group();
     }
     setSelectAll(false);
     touch(activeId);
@@ -1368,28 +1388,65 @@ export function QuireApp() {
     );
   }
 
+  /** Searches every sheet for the strip query; highlights are painted, never stored. */
+  function runNoteSearch() {
+    const q = query.trim();
+    if (!q) {
+      setNoteSearch(null);
+      return;
+    }
+    const byNote = new Map<string, NoteHits>();
+    let total = 0;
+    for (const id of orderRef.current) {
+      const sheet = sessions.get(id);
+      if (!sheet) continue;
+      const textIds = outlineOf(sheet)
+        .filter((item) => item.kind === "text")
+        .map((item) => item.id);
+      const hits = findInNote(sheet, textIds, q);
+      if (hits.total > 0) {
+        byNote.set(id, hits);
+        total += hits.total;
+      }
+    }
+    setNoteSearch({ query: q, byNote });
+    if (total === 0) {
+      setMessage(`No matches for “${q}”`);
+      return;
+    }
+    const sheets = byNote.size;
+    // Nothing to look at here — the board shows no sheet, and this sheet has no match —
+    // so open the first sheet that does have one.
+    const here = activeRef.current;
+    if (view === "board" || !here || !byNote.has(here)) {
+      const first = orderRef.current.find((id) => byNote.has(id));
+      if (first) {
+        activate(first);
+        // Opening the sheet must not pull the caret out of the search field: drop the
+        // focus handoff `activate` queued for the editor.
+        focusRef.current = null;
+        const title = notesRef.current.find((n) => n.id === first)?.title ?? "";
+        setMessage(`${total} ${total === 1 ? "match" : "matches"} in ${sheets} ${sheets === 1 ? "sheet" : "sheets"} · opened ${title}`);
+        return;
+      }
+    }
+    setMessage(`${total} ${total === 1 ? "match" : "matches"} in ${sheets} ${sheets === 1 ? "sheet" : "sheets"}`);
+  }
+
   const metaById = new Map(notes.map((n) => [n.id, n]));
   const infoFor = (id: string) => cardInfo(id, id === activeId ? `a:${cardTick}` : `s:${metaById.get(id)?.edited ?? 0}`);
-  const trimmed = query.trim();
-  const applied = trimmed.length >= MIN_QUERY ? trimmed : committed;
-  const hits = applied
-    ? searchNotes(
-        applied,
-        order.map((id) => ({ id, title: metaById.get(id)?.title ?? "", text: infoFor(id)?.text ?? "" })),
-      )
-    : null;
-  const snippets = new Map(hits?.filter((h) => h.snippet).map((h) => [h.id, h.snippet]) ?? []);
-  let visible = hits ? hits.map((h) => h.id) : order.slice();
-  if (!hits && sort === "recent") visible.sort((a, b) => (metaById.get(b)?.edited ?? 0) - (metaById.get(a)?.edited ?? 0));
-  if (!hits && sort === "title") visible.sort((a, b) => (metaById.get(a)?.title ?? "").localeCompare(metaById.get(b)?.title ?? ""));
-  const canReorder = sort === "manual" && !hits;
+  // A search only paints while the field still holds the text that was searched: editing
+  // or clearing the query takes the yellow away without touching the sheet.
+  const search = noteSearch && noteSearch.query === query.trim() ? noteSearch : null;
+  const searchHits = new Map<number, Array<{ start: number; end: number }>>();
+  if (search && activeId) {
+    for (const block of search.byNote.get(activeId)?.blocks ?? []) searchHits.set(block.blockId, block.ranges);
+  }
+  const visible = order.slice();
+  if (sort === "recent") visible.sort((a, b) => (metaById.get(b)?.edited ?? 0) - (metaById.get(a)?.edited ?? 0));
+  if (sort === "title") visible.sort((a, b) => (metaById.get(a)?.title ?? "").localeCompare(metaById.get(b)?.title ?? ""));
+  const canReorder = sort === "manual";
   const unsaved = order.filter((id) => sessions.get(id)?.is_dirty()).length;
-  const hint =
-    trimmed && trimmed.length < MIN_QUERY && !committed
-      ? `Type ${MIN_QUERY}+ letters, or Enter`
-      : hits
-        ? `${visible.length} ${visible.length === 1 ? "match" : "matches"}`
-        : "";
 
   const cardActions: CardActions = {
     open: (id) => activate(id),
@@ -1564,7 +1621,6 @@ export function QuireApp() {
     canReorder,
     now,
     notes.map((n) => `${n.title}:${n.edited}`).join("|"),
-    [...snippets.values()].join("|"),
     unsaved,
   ].join("?");
 
@@ -1574,7 +1630,6 @@ export function QuireApp() {
       ids={visible}
       notes={metaById}
       info={infoFor}
-      snippets={snippets}
       activeId={view === "focus" ? activeId : null}
       compact={compact}
       edge={skinMeta.edge}
@@ -1608,15 +1663,9 @@ export function QuireApp() {
         onBoard={toBoard}
         onSwitch={(id) => activate(id)}
         query={query}
-        setQuery={(v) => {
-          setQuery(v);
-          setCommitted("");
-        }}
-        onGo={() => {
-          setCommitted(trimmed);
-        }}
+        setQuery={setQuery}
+        onGo={runNoteSearch}
         searchRef={searchRef}
-        hint={hint}
         sort={sort}
         setSort={setSort}
         onNew={createNote}
@@ -1676,24 +1725,6 @@ export function QuireApp() {
                 New sheet
               </button>
             </div>
-          ) : visible.length === 0 ? (
-            <div className="empty-sheet">
-              <h2>Nothing matches.</h2>
-              <p>
-                No sheet fits {applied ? <>“{applied}”</> : "this filter"}. Try fewer letters, or clear the
-                filters.
-              </p>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  setQuery("");
-                  setCommitted("");
-                }}
-              >
-                Clear filters
-              </button>
-            </div>
           ) : (
             board(false)
           )
@@ -1732,6 +1763,7 @@ export function QuireApp() {
                     ? { blockId: sel.blockId, start: sel.start, end: sel.end }
                     : null
                 }
+                searchHits={searchHits}
                 saveExt={saveExt}
                 saveExts={saveExts}
                 looks={note.looks ?? {}}

@@ -62,8 +62,11 @@ export function paint(
   text: string,
   spans: ArrayLike<number>,
   marks: Mark[] = [],
-  /** Current Find match — painted even when the textarea is not focused. */
-  findHit?: { start: number; end: number } | null,
+  /**
+   * Temporary highlights: the current Find match and/or every match of the strip search.
+   * They are painted, never stored — clearing the query repaints the plain text.
+   */
+  hits?: ArrayLike<{ start: number; end: number }> | null,
 ): string {
   const len = text.length;
   const points = new Set<number>([0, len]);
@@ -85,19 +88,22 @@ export function paint(
     points.add(m.start);
     points.add(m.end);
   }
-  const hit =
-    findHit && findHit.end > findHit.start
-      ? { start: Math.min(findHit.start, len), end: Math.min(findHit.end, len) }
-      : null;
-  if (hit && hit.end > hit.start) {
-    points.add(hit.start);
-    points.add(hit.end);
+  const found = hits
+    ? Array.from({ length: hits.length }, (_, i) => hits[i]!)
+        .map((h) => ({ start: Math.min(h.start, len), end: Math.min(h.end, len) }))
+        .filter((h) => h.end > h.start)
+        .sort((a, b) => a.start - b.start)
+    : [];
+  for (const h of found) {
+    points.add(h.start);
+    points.add(h.end);
   }
-  if (syn.length === 0 && styled.length === 0 && !hit) return esc(text);
+  if (syn.length === 0 && styled.length === 0 && found.length === 0) return esc(text);
   const cuts = [...points].sort((a, b) => a - b);
   let html = "";
   let si = 0;
   let mi = 0;
+  let fi = 0;
   for (let i = 0; i + 1 < cuts.length; i += 1) {
     const a = cuts[i]!;
     const b = cuts[i + 1]!;
@@ -116,7 +122,8 @@ export function paint(
       if (mk.ink) classes.push(`ink${mk.ink}`);
       if (mk.hl) classes.push(`hl${mk.hl}`);
     }
-    if (hit && hit.start <= a && hit.end > a) classes.push("find-hit");
+    while (fi < found.length && found[fi]!.end <= a) fi += 1;
+    if (found[fi] && found[fi]!.start <= a) classes.push("find-hit");
     html += classes.length ? `<span class="${classes.join(" ")}">${body}</span>` : body;
   }
   return html;

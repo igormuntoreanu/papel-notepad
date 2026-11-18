@@ -23,7 +23,8 @@ type Props = {
   ids: string[];
   notes: Map<string, NoteMeta>;
   info: (id: string) => CardInfo | null;
-  snippets: Map<string, string>;
+  /** Match snippet for a card while a board search is active (unused by the strip search). */
+  snippets?: Map<string, string>;
   activeId: string | null;
   compact: boolean;
   edge: string;
@@ -95,7 +96,7 @@ function BoardView({ ids, notes, info, snippets, activeId, compact, edge, canReo
             key={id}
             meta={meta}
             info={data}
-            snippet={snippets.get(id)}
+            snippet={snippets?.get(id)}
             active={id === activeId}
             compact={compact}
             edge={edge}

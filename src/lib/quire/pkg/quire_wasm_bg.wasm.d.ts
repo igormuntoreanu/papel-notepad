@@ -11,6 +11,7 @@ export const __wbg_set_caret_end: (a: number, b: number) => void;
 export const __wbg_set_caret_start: (a: number, b: number) => void;
 export const session_align_lines: (a: number, b: number, c: number, d: number, e: number) => number;
 export const session_apply_style: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+export const session_begin_group: (a: number, b: number, c: number, d: number) => void;
 export const session_can_redo: (a: number) => number;
 export const session_can_undo: (a: number) => number;
 export const session_delete_image: (a: number, b: number) => number;
@@ -19,6 +20,7 @@ export const session_edit: (a: number, b: number, c: number, d: number, e: numbe
 export const session_effective_language: (a: number, b: number) => [number, number];
 export const session_encoding: (a: number) => [number, number];
 export const session_encoding_label: (a: number) => [number, number];
+export const session_end_group: (a: number) => number;
 export const session_eol: (a: number) => [number, number];
 export const session_eol_label: (a: number) => [number, number];
 export const session_export_bytes: (a: number) => [number, number, number, number];

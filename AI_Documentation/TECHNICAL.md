@@ -205,6 +205,8 @@ Flat array, 5 numbers per run: `[start, end, flags, ink, hl]`.
 - `hl`: 0 none, 1 yellow, 2 pink, 3 green, 4 blue.
 - Runs are sorted, non-overlapping, merged when adjacent and equal.
 
+A **link is not a mark**: pasting http(s) text writes `ink 2` (Blue) + `underline` (flag 4) over each URL, exactly what the toolbar writes (`src/lib/quire/links.ts`). Links therefore inherit undo, save/load and both renderers for free, and they stop being links when the characters underneath them change. The hover affordance lives in `src/lib/quire/link-hover.ts`: it hit-tests on `mousemove` only while `ctrlKey`/`metaKey` is down, and it also tracks `keydown`/`keyup`/`blur` because neither a press nor a release of the modifier is guaranteed to be followed by a mouse event.
+
 ### 6.3 IndexedDB (`papel` → store `kv`)
 
 | Key | Shape |
@@ -238,13 +240,30 @@ Version 1 (no `marks`) and `.quire` files load with the same reader.
 | --- | --- |
 | Ctrl+N / Ctrl+O | New sheet / open file |
 | Ctrl+S | Save (focus view) |
-| Ctrl+F | Find in sheet (focus) or focus the search field (board) |
+| Ctrl+F | Find in sheet (focus) or focus the note search in the strip (board) |
 | Ctrl+H, Ctrl+G | Open find / go to line |
 | Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z | Undo / redo |
 | Ctrl+B, Ctrl+I, Ctrl+U, Ctrl+Shift+X | Bold, italic, underline, strikethrough |
 | F5 | Insert date and time |
 | Ctrl+= / Ctrl+- / Ctrl+0 | Zoom in / out / reset |
+| Ctrl+click / Ctrl+Enter | Open the http(s) URL under the pointer / caret |
+| Ctrl+hover | Over a URL the pointer becomes a hand and the URL shows as a tooltip; over anything else it stays an I-beam |
 | Esc | Close dialog or find bar; otherwise back to board |
+
+### 6.6 Two searches, on purpose
+
+| | Find in sheet (Ctrl+F) | Note search (status strip) |
+| --- | --- | --- |
+| Scope | the open sheet | every sheet |
+| Highlight | the current match | every match, all at once |
+| Writes | nothing until Replace | nothing, ever |
+| Opens a sheet | no | yes, the first one that matches when this one has none |
+
+Both paint through the same code: `paint()` takes a list of ranges and emits `find-hit`
+spans (`.find-hit` is the yellow), so the highlight layer has one look and one rule — it is
+display only, and the next repaint drops it. Matching is `Session::find` for both, so
+"what the strip search found" and "what Ctrl+F finds" cannot drift apart
+(`src/lib/quire/note-search.ts`).
 
 ## 7. Key Design Decisions & Trade-offs
 

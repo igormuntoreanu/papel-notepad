@@ -98,6 +98,16 @@ export class Session {
         return ret !== 0;
     }
     /**
+     * Opens one undo step spanning several calls (see `Document::begin_group`).
+     * `block_id`/`start`/`end` is where the caret is now: one undo returns it there.
+     * @param {number} block_id
+     * @param {number} start
+     * @param {number} end
+     */
+    begin_group(block_id, start, end) {
+        wasm.session_begin_group(this.__wbg_ptr, block_id, start, end);
+    }
+    /**
      * @returns {boolean}
      */
     can_redo() {
@@ -185,6 +195,14 @@ export class Session {
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
+    }
+    /**
+     * Closes the step opened by `begin_group`; `true` when a step was recorded.
+     * @returns {boolean}
+     */
+    end_group() {
+        const ret = wasm.session_end_group(this.__wbg_ptr);
+        return ret !== 0;
     }
     /**
      * @returns {string}
