@@ -14,7 +14,8 @@ export type ArchiveNote = {
   edited?: number;
   dirty?: boolean;
   sourceExt?: string;
-  language: string;
+  /** Retired: every sheet is plain text. Kept optional for old archives. */
+  language?: string;
   eol: string;
   encoding: string;
   blocks: ArchiveBlock[];

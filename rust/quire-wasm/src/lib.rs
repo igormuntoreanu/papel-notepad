@@ -1,5 +1,5 @@
 use quire_core::marks::unflatten;
-use quire_core::{Cell, Caret as CoreCaret, Document, Encoding, Eol, LangMode, StyleChange};
+use quire_core::{Cell, Caret as CoreCaret, Document, Encoding, Eol, StyleChange};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -49,8 +49,8 @@ impl Session {
         self.doc.restore_image(mime, bytes.to_vec())
     }
 
-    pub fn restore_end(&mut self, language: &str, eol: &str, encoding: &str) {
-        self.doc.restore_end(language, eol, encoding);
+    pub fn restore_end(&mut self, eol: &str, encoding: &str) {
+        self.doc.restore_end(eol, encoding);
     }
 
     pub fn restore_marks(&mut self, id: u32, flat: &[u32]) {
@@ -199,17 +199,6 @@ impl Session {
         self.doc.mime_of(id)
     }
 
-    pub fn highlight(&self, id: u32) -> Vec<u32> {
-        self.doc.highlight(id)
-    }
-
-    pub fn format_all(&mut self) -> String {
-        match self.doc.format_all() {
-            Ok(msg) => format!("ok:{msg}"),
-            Err(msg) => format!("err:{msg}"),
-        }
-    }
-
     pub fn find(
         &self,
         query: &str,
@@ -237,22 +226,6 @@ impl Session {
 
     pub fn line_to_caret(&self, line: u32) -> Caret {
         self.doc.line_to_caret(line).into()
-    }
-
-    pub fn force_language(&mut self, lang: &str) {
-        self.doc.force_language(LangMode::parse(lang));
-    }
-
-    pub fn set_language(&mut self, lang: &str) {
-        self.doc.set_language(LangMode::parse(lang));
-    }
-
-    pub fn language(&self) -> String {
-        self.doc.language_setting().as_str().to_string()
-    }
-
-    pub fn effective_language(&self, id: u32) -> String {
-        self.doc.effective_lang(id).as_str().to_string()
     }
 
     pub fn set_eol(&mut self, eol: &str) -> bool {

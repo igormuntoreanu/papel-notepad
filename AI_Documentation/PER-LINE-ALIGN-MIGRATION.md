@@ -1,9 +1,10 @@
 # Per-line alignment migration (Word-style paragraph alignment)
 
 Goal: align each line independently — the selected lines, or the caret line when nothing is
-selected — like Word/`.docx`, including inside table cells. Replaces today's behaviour where
-`text-align` is one CSS property on a whole multi-line `<textarea>` block, so every line moves
-together.
+selected — like Word/`.docx`, including inside table cells. It replaced the earlier behaviour
+where `text-align` was one CSS property on a whole multi-line `<textarea>` block, so every line
+moved together. That textarea renderer has since been removed; the per-line contenteditable
+renderer is the only editor.
 
 ## Design decision: alignment is a CORE paragraph property
 
@@ -71,21 +72,20 @@ Persistence (Phase 2b): per-line aligns ride along in both the `.papel` format (
 `fromPapel`) and the IndexedDB snapshot (`snapshot`/`loadPersisted`), stored only when non-default
 so old files stay byte-identical; `restore_aligns` reloads them.
 
-### Verified (`scripts/qa-align.mjs`, CE flag on, real Chromium)
+### Verified (`scripts/qa-align.mjs`, real Chromium)
 9/9: renderer active · caret-line-only align · every-touched-line · caret follows alignment
 (`caretRight == lineRight` on a right line) · Enter inherits · undo reverts align with text intact ·
 typing syncs to core · toolbar bold repaints · **aligns persist across a full reload**.
-No regressions: `qa-fixes` 8/8 (textarea path), unit tests 123/123, `npm run typecheck` clean.
+No regressions: `qa-fixes` 8/8, unit tests green, `npm run typecheck` clean.
 
-### Preview it
-Default is OFF (the textarea renderer still ships). To try per-line alignment: devtools →
-`localStorage.setItem("papel-ce","1")` → reload, or open with `?ce=1`. Phase 3 features (box
-select, rich paste, lists, autocorrect, PageUp/Down, find live-highlight) are not yet ported, so
-keep the flag off for normal use until Phase 6 flips the default.
+### Status
+The migration is complete: the contenteditable renderer is the only editor, the `?ce=0` /
+`localStorage["papel-ce"]` escape hatch is gone, and `scripts/qa-ce-parity.mjs` was removed with
+the second renderer. Historical notes below describe the phases as they happened.
 
 ## Phase 3 — interaction parity: IN PROGRESS
 
-Ported to the CE renderer and verified (`scripts/qa-ce-parity.mjs`, 5/5 + `qa-align.mjs` 9/9 still
+Ported to the CE renderer and verified (`qa-align.mjs` 9/9 still
 green, `qa-fixes` 8/8, unit 123/123, verify-bugs all pass):
 - **Paste variants** — plain multi-line, Excel/TSV grid → table (`onPasteTable`), HTML with
   emphasis → text + marks, image files → image block.

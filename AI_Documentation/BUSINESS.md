@@ -18,16 +18,16 @@
 
 Papel is a light notepad that looks and feels like paper. It runs in a web browser today. A native version is planned for later.
 
-It is a Notepad-style editor for quick notes and small code snippets:
+It is a Notepad-style editor for quick notes:
 
 - Notes appear as torn paper cards on a kraft-cardboard desk (the **board**).
 - Opening a card turns it into a large sheet for writing (the **focus** view).
-- Code gets syntax color and one-click Autoformat. Plain prose is left alone.
+- Every sheet is plain text: no code languages, no syntax colouring, no Autoformat.
 - Text can be styled (bold, italic, underline, strikethrough, ink colors, highlighters).
-- Screenshots and images can be pasted onto a sheet.
+- Screenshots and images, lists and tables can be put on a sheet.
 - Work is autosaved in the browser and recovered after a reload.
 
-**Problem it solves (as stated by the owner):** a fast notepad for small notes, with the comfort of paper, that also handles code without getting in the way.
+**Problem it solves (as stated by the owner):** a fast notepad for small notes, with the comfort of paper, that stays out of the way.
 
 **History:** the product was called Quire. It is now Papel. `.quire` files still open.
 
@@ -38,7 +38,7 @@ It is a Notepad-style editor for quick notes and small code snippets:
 | Persona (assumed) | Why they would use Papel |
 | --- | --- |
 | Quick note-taker | Wants a fast, pleasant place for lists, letters and drafts without accounts or setup. |
-| Developer / consultant | Pastes JSON, SQL, XML, code snippets, including ABAP; wants color and Autoformat without opening an IDE. |
+| Developer / consultant | Pastes JSON, SQL, XML or code snippets as plain words when a quick look is enough, without opening an IDE. |
 | Screenshot collector | Pastes screenshots next to notes and keeps them together in one sheet. |
 
 The UI is in English. The autocorrect works for English only.
@@ -62,24 +62,25 @@ Candidate metrics (proposals only, not agreed): typing latency per keystroke, se
 
 - Browser notepad with board and focus views; phone layout.
 - Multiple open notes ("sheets"), reorderable.
-- Typo-tolerant search across all notes, language filter, sort.
+- Typo-tolerant search across all notes, with board order (my order / last edit / title).
 - Plain text editing with undo/redo (200 steps).
-- Syntax color and Autoformat for: JSON, XML, HTML, CSS, JavaScript/TypeScript, SQL, Markdown, Rust, Java, C, C++, Python, ABAP. Detection is conservative so ordinary prose is not treated as code.
-- Inline styles: bold, italic, underline, strikethrough, 5 ink colors, 4 highlighters.
+- Inline styles: bold, italic, underline, strikethrough, ink colors (5 on light paper, all 10 on the dark skins), 4 highlighters.
+- Lists (bullet, numbered, lettered, nested) and tables, including per-cell alignment and face.
+- Per-line paragraph styles (Title to Body), per-line faces (four) and alignment.
 - English autocorrect of common typos on prose sheets.
 - Pasting and inserting images (up to about 12 MB each).
 - Find, replace, go to line; insert date/time; word wrap; zoom.
-- Three paper skins: Paper, Ink, Carbon.
+- Six paper skins: Sulphite (default), Paper, Ink, Carbon, Blueprint, Terminal.
 - Autosave to the browser and recovery on reload.
-- Open `.txt` and code files, `.papel`, `.quire`; save `.txt` or `.papel`.
+- Open `.txt` and other text files as plain words, `.papel`, `.quire`; save `.txt` or `.papel`.
 - Encoding (UTF-8, UTF-8 BOM, UTF-16 LE, Windows-1252) and line ending (LF, CRLF) control.
 
 ### Out of scope (now)
 
 - **Native app**: planned, not started.
 - **Night / dark mode**: removed on purpose; "only day for now".
-- **Accounts, sign-in, cloud sync, sharing, collaboration**: not part of the notepad. Auth code exists in the repository as unused workspace scaffolding.
-- **Rich formatting beyond inline styles** (headings, lists, tables, fonts, sizes per word).
+- **Accounts, sign-in, cloud sync, sharing, collaboration**: not part of the notepad. The unused auth/multiplayer/database scaffolding was removed from the repository.
+- **Code awareness** (syntax colouring, language detection, Autoformat): removed; every sheet is plain text.
 - **Spell-check suggestions UI** and non-English autocorrect.
 - **Logo lockup**: the brand mark is the word "Papel"; no logo yet.
 
@@ -87,15 +88,15 @@ Candidate metrics (proposals only, not agreed): typing latency per keystroke, se
 
 | Feature | User value |
 | --- | --- |
-| Paper look (torn cards, kraft desk, three skins) | A calm, tactile place to write; less "software", more desk. |
-| Board of cards | See all notes at a glance: preview, language, word count, last edit, unsaved marker, image thumbnail. |
+| Paper look (torn cards, kraft desk, six skins) | A calm, tactile place to write; less "software", more desk. |
+| Board of cards | See all notes at a glance: preview, word count, last edit, unsaved marker, image thumbnail. |
 | Focus sheet + side cards | Write with room, jump between notes without losing context. |
 | Typo-tolerant search | Find a note even when the word is misspelled. |
-| Code awareness | Color and Autoformat for 13 languages, without turning letters into code. |
 | Text styles and highlighters | Mark what matters, like a pen and highlighter on paper. |
 | Paste screenshots | Keep images with the words they belong to. |
 | Autocorrect | Fewer typos in quick notes; one undo to revert. |
 | Autosave and recovery | Work survives a reload or a closed tab on the same device. |
+| Backup | One "Export zip" keeps every sheet in a single file; "Import backup" restores it. |
 | Open file formats | `.txt` stays plain text; `.papel` is documented JSON. |
 
 ## 6. Functional Requirements
@@ -113,8 +114,8 @@ User stories describe current behavior.
 
 **Search and filter**
 
-7. As a user, I type at least 3 letters to filter notes, or press Go for shorter terms; small typos still match.
-8. As a user, I filter notes by language and sort by my order, last edited, or title.
+7. As a user, I search every sheet from the field in the status strip; small typos still match, and matches are painted yellow.
+8. As a user, I sort the board by my order, last edited, or title (in Settings).
 
 **Writing**
 
@@ -123,13 +124,12 @@ User stories describe current behavior.
 11. As a user, common English typos are fixed when I finish a word; Ctrl+Z reverts the fix. I can turn this off.
 12. As a user, I paste a screenshot and it appears where my caret was.
 13. As a user, I find, replace, and go to a line inside the open note (Ctrl+F).
-14. As a user, code in my note is colored, and Autoformat tidies it; prose is left unchanged.
 
 **Files and safety**
 
 15. As a user, a note without images or styles saves as `.txt` with my chosen encoding and line ending.
 16. As a user, a note with images or styles saves as `.papel`; I can also save "text only" after a warning.
-17. As a user, I open `.txt`, code files, `.papel` and old `.quire` files, by picker or drag-and-drop.
+17. As a user, I open `.txt` and other text files as plain words, plus `.papel` and old `.quire` files, by picker or drag-and-drop.
 18. As a user, my notes and settings are autosaved in this browser and restored after reload.
 
 ## 7. Non-Functional Requirements
@@ -143,7 +143,7 @@ User stories describe current behavior.
 | Accessibility | Usable with assistive tech. | Buttons and regions are labelled; formal audit **not done**. |
 | Language | English UI. | Implemented. |
 | Compatibility | Modern browsers. | Tested in a Chromium-based browser only. Other browsers **not verified**. |
-| Limits | Images ≤ about 12 MB; undo 200 steps; zoom 12–28 px. | Implemented. |
+| Limits | Images ≤ about 12 MB; undo 200 steps; zoom 10–40 px. | Implemented. |
 
 ## 8. Assumptions, Constraints, and Open Questions
 

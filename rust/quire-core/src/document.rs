@@ -1,8 +1,4 @@
-use crate::detect::detect;
 use crate::encoding::{self, decode, encode, Encoding, Eol};
-use crate::format::format_source;
-use crate::highlight::highlight_text;
-use crate::lang::{Lang, LangMode};
 use crate::marks::{self, Run, StyleChange};
 use crate::textutil::{count_lines, line_col, offset_of_line, slice_utf16, splice_utf16, utf16_len};
 
@@ -84,7 +80,6 @@ impl Block {
 struct Meta {
     eol: Eol,
     encoding: Encoding,
-    lang: LangMode,
 }
 
 #[derive(Clone, Debug)]
@@ -170,7 +165,6 @@ pub struct Document {
     saved: u64,
     eol: Eol,
     encoding: Encoding,
-    lang: LangMode,
     /// Set between the outermost `begin_group` and `end_group`; see [`GroupMark`].
     group: Option<GroupMark>,
     /// How many `begin_group` calls are open; only the outermost one records a step.
@@ -194,7 +188,6 @@ impl Document {
             saved: 0,
             eol: Eol::Lf,
             encoding: Encoding::Utf8,
-            lang: LangMode::Auto,
             group: None,
             group_depth: 0,
         }
@@ -207,7 +200,7 @@ impl Document {
     }
 
     fn meta(&self) -> Meta {
-        Meta { eol: self.eol, encoding: self.encoding, lang: self.lang }
+        Meta { eol: self.eol, encoding: self.encoding }
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -241,22 +234,6 @@ impl Document {
         self.encoding
     }
 
-    pub fn language_setting(&self) -> LangMode {
-        self.lang
-    }
-
-    pub fn force_language(&mut self, mode: LangMode) {
-        self.lang = mode;
-    }
-
-    pub fn set_language(&mut self, mode: LangMode) {
-        if self.lang == mode {
-            return;
-        }
-        let before = self.meta();
-        self.lang = mode;
-        self.push_meta(before);
-    }
 
     pub fn set_eol(&mut self, eol: Eol) {
         if self.eol == eol {
@@ -285,7 +262,6 @@ impl Document {
         self.blocks.push(text_block(id, text));
         self.encoding = enc;
         self.eol = eol;
-        self.lang = LangMode::Auto;
         self.undo.clear();
         self.redo.clear();
         self.cancel_group();
@@ -322,12 +298,11 @@ impl Document {
         id
     }
 
-    pub fn restore_end(&mut self, lang: &str, eol: &str, encoding_name: &str) {
+    pub fn restore_end(&mut self, eol: &str, encoding_name: &str) {
         if self.blocks.is_empty() || !self.blocks.iter().any(|b| matches!(b, Block::Text { .. })) {
             let id = self.alloc_id();
             self.blocks.push(text_block(id, String::new()));
         }
-        self.lang = LangMode::parse(lang);
         self.eol = Eol::parse(eol).unwrap_or(Eol::Lf);
         self.encoding = Encoding::parse(encoding_name).unwrap_or(Encoding::Utf8);
         self.undo.clear();
@@ -979,67 +954,6 @@ impl Document {
     fn apply_meta(&mut self, meta: &Meta) {
         self.eol = meta.eol;
         self.encoding = meta.encoding;
-        self.lang = meta.lang;
-    }
-
-    pub fn format_all(&mut self) -> Result<String, String> {
-        let before = self.blocks.clone();
-        let mut names: Vec<&'static str> = Vec::new();
-        let mut changed = false;
-        let mut first_err: Option<String> = None;
-        for block in &mut self.blocks {
-            let Block::Text { id, body, marks: m, aligns, styles, fonts } = block else { continue };
-            if body.trim().is_empty() {
-                continue;
-            }
-            let lang = match self.lang {
-                LangMode::Fixed(lang) => lang,
-                LangMode::Auto => match detect(body) {
-                    Some(lang) => lang,
-                    None => continue,
-                },
-            };
-            if lang == Lang::Plain {
-                continue;
-            }
-            match format_source(body, lang) {
-                Ok(next) => {
-                    if next != *body {
-                        let n = line_count(&next);
-                        *body = next;
-                        m.clear();
-                        *aligns = vec![0u8; n];
-                        *styles = vec![0u8; n];
-                        *fonts = vec![0u8; n];
-                        changed = true;
-                    }
-                    if !names.contains(&lang.label()) {
-                        names.push(lang.label());
-                    }
-                    let _ = id;
-                }
-                Err(err) => {
-                    first_err = Some(err);
-                    break;
-                }
-            }
-        }
-        if let Some(err) = first_err {
-            self.blocks = before;
-            return Err(err);
-        }
-        if !changed {
-            self.blocks = before;
-            return if names.is_empty() {
-                Err("Doesn't look like code, so nothing was changed.".into())
-            } else {
-                Ok("Already formatted.".into())
-            };
-        }
-        let caret = self.fallback_caret();
-        self.push_structure(before, caret, caret);
-        let list = names.join(" and ");
-        Ok(format!("Formatted as {list}."))
     }
 
     pub fn find(
@@ -1135,26 +1049,6 @@ impl Document {
         let caret = self.fallback_caret();
         self.push_structure(before, caret, caret);
         total as u32
-    }
-
-    pub fn highlight(&self, id: u32) -> Vec<u32> {
-        let text = self.text_of(id);
-        let lang = self.effective_lang(id);
-        let spans = highlight_text(&text, lang);
-        let mut out = Vec::with_capacity(spans.len() * 3);
-        for (a, b, k) in spans {
-            out.push(a);
-            out.push(b);
-            out.push(k as u32);
-        }
-        out
-    }
-
-    pub fn effective_lang(&self, id: u32) -> Lang {
-        match self.lang {
-            LangMode::Fixed(lang) => lang,
-            LangMode::Auto => detect(&self.text_of(id)).unwrap_or(Lang::Plain),
-        }
     }
 
     pub fn metrics(&self, id: u32, pos: u32) -> [u32; 4] {
@@ -1994,51 +1888,6 @@ mod tests {
     }
 
     #[test]
-    fn format_json_and_refuse_prose() {
-        let mut doc = Document::new();
-        let id = id_of(&doc);
-        doc.edit(id, 0, 0, r#"{"a":1,"b":[2,3]}"#, false);
-        let msg = doc.format_all().unwrap();
-        assert!(msg.contains("JSON"), "{msg}");
-        assert!(doc.text_of(id).contains("\n"));
-        doc.undo();
-        assert_eq!(doc.text_of(id), r#"{"a":1,"b":[2,3]}"#);
-
-        let mut letter = Document::new();
-        let id = id_of(&letter);
-        letter.edit(id, 0, 0, "Hello, this is a letter about the house.", false);
-        assert!(letter.format_all().is_err());
-        assert_eq!(letter.text_of(id), "Hello, this is a letter about the house.");
-    }
-
-    #[test]
-    fn format_java_c_abap() {
-        let java = format_source(
-            "public class A{public static void main(String[] args){System.out.println(\"hi\");}}",
-            Lang::Java,
-        ).unwrap();
-        assert!(java.contains("public class A {"), "{java}");
-        assert!(java.contains("System.out.println(\"hi\");"), "{java}");
-
-        let c = format_source(
-            "int main(){for(int i=0;i<3;i++){printf(\"%d\",i);}return 0;}",
-            Lang::C,
-        ).unwrap();
-        let for_line = c.lines().find(|l| l.contains("for")).unwrap_or("");
-        assert_eq!(for_line.matches(';').count(), 2, "{c}");
-        assert!(c.contains("printf(\"%d\""), "{c}");
-        assert!(c.contains("return 0;"), "{c}");
-
-        let abap = format_source(
-            "report zdemo.\nif sy-subrc = 0.\nwrite 'ok'.\nelse.\nwrite 'no'.\nendif.",
-            Lang::Abap,
-        ).unwrap();
-        assert!(abap.contains("REPORT zdemo."), "{abap}");
-        assert!(abap.contains("    WRITE 'ok'."), "{abap}");
-        assert!(abap.contains("ENDIF."), "{abap}");
-    }
-
-    #[test]
     fn encoding_and_eol() {
         let (text, enc, eol) = decode(b"a\r\nb\r\n");
         assert_eq!(text, "a\nb\n");
@@ -2078,21 +1927,6 @@ mod tests {
         doc.edit(id, 0, 0, "x", false);
         doc.undo();
         assert!(!doc.is_dirty());
-    }
-
-    #[test]
-    fn detects_languages() {
-        assert_eq!(detect(r#"{"a":1}"#), Some(Lang::Json));
-        assert_eq!(detect("public class A {\n  void main() {}\n}"), Some(Lang::Java));
-        assert_eq!(detect("REPORT zdemo.\nWRITE 'x'.\n"), Some(Lang::Abap));
-        assert_eq!(detect("#include <stdio.h>\nint main(){return 0;}\n"), Some(Lang::C));
-        assert_eq!(detect("fn main() {\n    let mut x = 1;\n}\n"), Some(Lang::Rust));
-        assert_eq!(detect("def greet():\n    return 1\n"), Some(Lang::Python));
-        assert_eq!(detect("SELECT id FROM users WHERE id = 1"), Some(Lang::Sql));
-        assert_eq!(detect("Hello, this is a letter about the house."), None);
-        assert!(detect("fn main() {}").is_some());
-        let spans = highlight_text("fn main() {}", Lang::Rust);
-        assert!(spans.iter().any(|(_, _, k)| *k == crate::highlight::K_KEYWORD));
     }
 
     #[test]
@@ -2460,17 +2294,11 @@ mod tests {
         let read = started.elapsed() / 10;
 
         let started = std::time::Instant::now();
-        for _ in 0..10 {
-            let _ = doc.highlight(id);
-        }
-        let highlight = started.elapsed() / 10;
-
-        let started = std::time::Instant::now();
         let replaced = doc.replace_all("the", "a", true);
         let replace = started.elapsed();
 
         eprintln!(
-            "size={size}B edit={edit:?} text_of={read:?} highlight={highlight:?} replace_all({replaced})={replace:?}"
+            "size={size}B edit={edit:?} text_of={read:?} replace_all({replaced})={replace:?}"
         );
     }
 

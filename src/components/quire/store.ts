@@ -32,8 +32,6 @@ export type CardInfo = {
   preview: string;
   words: number;
   lines: number;
-  lang: string;
-  code: boolean;
   image: string | null;
   images: number;
   dirty: boolean;
@@ -135,7 +133,7 @@ export async function ensureLoaded(): Promise<Loaded> {
               if (look.font || look.style || look.align) looks[String(blockId)] = look;
             } else session.restore_image(block.mime, new Uint8Array(block.bytes));
           }
-          session.restore_end(stored.language, stored.eol, stored.encoding);
+          session.restore_end(stored.eol, stored.encoding);
           for (const [blockId, marks] of pending) session.restore_marks(blockId, Uint32Array.from(marks));
           for (const [blockId, aligns] of pendingAligns) session.restore_aligns(blockId, Uint8Array.from(aligns));
           for (const [blockId, styles] of pendingStyles) session.restore_styles(blockId, Uint8Array.from(styles));
@@ -225,7 +223,6 @@ export function snapshot(notes: NoteMeta[], order: string[], activeId: string | 
           dirty: session.is_dirty(),
           sourceExt: meta.sourceExt,
           diskName: meta.diskName,
-          language: session.language(),
           eol: session.eol(),
           encoding: session.encoding(),
           blocks,
@@ -269,7 +266,6 @@ export function toPapel(session: Session, looks: Record<string, BlockLook> = {})
   return JSON.stringify({
     format: "papel",
     version: 3,
-    language: session.language(),
     eol: session.eol(),
     encoding: session.encoding(),
     blocks,
@@ -345,7 +341,7 @@ export function fromPapel(
       }
     }
   }
-  session.restore_end(parsed.language || "auto", parsed.eol || "lf", parsed.encoding || "utf-8");
+  session.restore_end(parsed.eol || "lf", parsed.encoding || "utf-8");
   for (const [id, marks] of pending) session.restore_marks(id, Uint32Array.from(marks.map((n) => Number(n) >>> 0)));
   for (const [id, aligns] of pendingAligns) session.restore_aligns(id, Uint8Array.from(aligns.map((n) => Number(n) & 0xff)));
   for (const [id, styles] of pendingStyles) session.restore_styles(id, Uint8Array.from(styles.map((n) => Number(n) & 0xff)));
@@ -374,9 +370,6 @@ export function cardInfo(id: string, stamp: string): CardInfo | null {
     preview: trimmed.split("\n").slice(0, 8).join("\n").slice(0, 420),
     words: (text.match(/\S+/g) ?? []).length,
     lines: text.length ? text.split("\n").length : 0,
-    // One language only: cards never advertise a code language or a mono preview.
-    lang: "Plain text",
-    code: false,
     image: images[0] ? imageUrl(id, images[0].id, session) : null,
     images: images.length,
     dirty: session.is_dirty(),
@@ -437,7 +430,6 @@ export function buildArchive(
       edited: meta.edited,
       dirty: session.is_dirty(),
       sourceExt: meta.sourceExt,
-      language: session.language(),
       eol: session.eol(),
       encoding: session.encoding(),
       blocks: blocksToArchive(session, meta.looks ?? {}),
@@ -461,7 +453,6 @@ export function sessionFromArchiveNote(note: ArchiveNote): {
   const papel = {
     format: "papel",
     version: 3,
-    language: note.language,
     eol: note.eol,
     encoding: note.encoding,
     blocks: note.blocks.map((block) => {
@@ -482,7 +473,7 @@ export function sessionFromArchiveNote(note: ArchiveNote): {
   if (!ok) {
     session.restore_begin();
     session.restore_text("");
-    session.restore_end(note.language || "auto", note.eol || "lf", note.encoding || "utf-8");
+    session.restore_end(note.eol || "lf", note.encoding || "utf-8");
   }
   if (note.dirty) session.mark_dirty();
   else session.mark_clean();

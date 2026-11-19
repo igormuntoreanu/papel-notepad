@@ -1,10 +1,10 @@
 # Papel
 
-A light notepad on paper. Notes are torn-paper cards on a kraft desk; open one and it becomes the big sheet, with the other cards in a column beside it. Five paper skins (Sulphite by default, plus Paper, Ink, Carbon, Blueprint). Every sheet is plain text: no code languages, no syntax colouring.
+A light notepad on paper. Notes are torn-paper cards on a kraft desk; open one and it becomes the big sheet, with the other cards in a column beside it. Six paper skins (Sulphite by default, plus Paper, Ink, Carbon, Blueprint, Terminal). Every sheet is plain text: no code languages, no syntax colouring.
 
 - **Board**: every sheet is a card with a preview, word and line counts, last edit, and a dot when it is not saved to a file. Drag cards to reorder (in *My order*), or use the card's `…` menu.
 - **Search**: the field in the status strip (after the zoom level) searches every sheet. Enter or the loupe finds the text and paints the matches yellow so you can see where they are, opening the first sheet that has one; nothing is written to the sheet and clearing the field takes the yellow away. Board order (my order / last edit / title) lives under Settings.
-- **Styles**: select text, then use the strip on the sheet: bold, italic, underline, strikethrough, ink colors, and highlighters (Ctrl+B / Ctrl+I / Ctrl+U / Ctrl+Shift+X). A block also carries a face (nine of them), a paragraph style (Title to Body) and, with Word Wrap off, left/centre/right alignment.
+- **Styles**: select text, then use the strip on the sheet: bold, italic, underline, strikethrough, ink colors, and highlighters (Ctrl+B / Ctrl+I / Ctrl+U / Ctrl+Shift+X). A block also carries a face (four: Plex Sans, Inter, Plex Mono, Fira Code), a paragraph style (Title to Body) and, with Word Wrap off, left/centre/right alignment. Ink colors are Black, Wax red, Blue, Green and Pencil on light paper; the five brighter inks are offered on the dark Blueprint and Terminal skins only.
 - **Lists**: bullet, `1.`, `1)` and `a.` lists, nesting three levels deep with automatic numbering (`1.`, `1.1.`, `1.1.1.`); Enter continues the list, Tab and Shift+Tab nest and lift.
 - **Box selection**: hold Alt and drag to select a rectangle of columns across lines; Ctrl+C copies just those columns and Delete removes them.
 - **Word Wrap and zoom**: wrap long lines or scroll them sideways; tables keep their own horizontal scroller. Zoom from the toolbar or with Ctrl and the mouse wheel, 10-40 px.

@@ -151,22 +151,6 @@ export class Session {
         wasm.session_edit(this.__wbg_ptr, id, start, end, ptr0, len0, coalesce);
     }
     /**
-     * @param {number} id
-     * @returns {string}
-     */
-    effective_language(id) {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.session_effective_language(this.__wbg_ptr, id);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
      * @returns {string}
      */
     encoding() {
@@ -307,44 +291,11 @@ export class Session {
         return ret !== 0;
     }
     /**
-     * @param {string} lang
-     */
-    force_language(lang) {
-        const ptr0 = passStringToWasm0(lang, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.session_force_language(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @returns {string}
-     */
-    format_all() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.session_format_all(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
      * @returns {boolean}
      */
     has_marks() {
         const ret = wasm.session_has_marks(this.__wbg_ptr);
         return ret !== 0;
-    }
-    /**
-     * @param {number} id
-     * @returns {Uint32Array}
-     */
-    highlight(id) {
-        const ret = wasm.session_highlight(this.__wbg_ptr, id);
-        var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v1;
     }
     /**
      * @param {number} id
@@ -417,21 +368,6 @@ export class Session {
     is_dirty() {
         const ret = wasm.session_is_dirty(this.__wbg_ptr);
         return ret !== 0;
-    }
-    /**
-     * @returns {string}
-     */
-    language() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.session_language(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
     }
     /**
      * Per-line align ids for a text block (one per line: 0 left, 1 centre, 2 right).
@@ -592,18 +528,15 @@ export class Session {
         wasm.session_restore_begin(this.__wbg_ptr);
     }
     /**
-     * @param {string} language
      * @param {string} eol
      * @param {string} encoding
      */
-    restore_end(language, eol, encoding) {
-        const ptr0 = passStringToWasm0(language, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    restore_end(eol, encoding) {
+        const ptr0 = passStringToWasm0(eol, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(eol, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr1 = passStringToWasm0(encoding, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(encoding, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len2 = WASM_VECTOR_LEN;
-        wasm.session_restore_end(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        wasm.session_restore_end(this.__wbg_ptr, ptr0, len0, ptr1, len1);
     }
     /**
      * Restores per-line fonts on load.
@@ -695,14 +628,6 @@ export class Session {
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.session_set_eol(this.__wbg_ptr, ptr0, len0);
         return ret !== 0;
-    }
-    /**
-     * @param {string} lang
-     */
-    set_language(lang) {
-        const ptr0 = passStringToWasm0(lang, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.session_set_language(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * Sets the paragraph style of every line touched by `start..end` (collapsed => caret

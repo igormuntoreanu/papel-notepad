@@ -24,7 +24,6 @@ import {
   download,
   FILE_ACCEPT,
   fileStamp,
-  langFromFilename,
   mimeForExtension,
   safeName,
   SKINS,
@@ -37,8 +36,7 @@ import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
 import { Sheet, type FindState, type SheetActions, type StyleState } from "./sheet";
 import type { CellRange, CellTarget } from "./table-block";
-import { FONT_CODES, STYLE_CODES, type AlignId, type BlockLook, type FontId, type StyleId } from "@/lib/quire/typefaces";
-import { ceRendererOn } from "@/lib/quire/ce-renderer";
+import { FONT_CODES, STYLE_CODES, type BlockLook } from "@/lib/quire/typefaces";
 import { applyListStyle } from "@/lib/quire/lists";
 import type { ListKind } from "@/lib/quire/lists";
 import {
@@ -199,8 +197,6 @@ export function QuireApp() {
 
   const session = activeId ? (sessions.get(activeId) ?? null) : null;
   const note = notes.find((n) => n.id === activeId) ?? null;
-  /** Phase 2 preview: render text blocks with the per-line contenteditable engine. */
-  const ceRenderer = ceRendererOn();
   const skinMeta = SKINS.find((s) => s.id === skin) ?? SKINS[0];
   // Cards refresh once typing pauses, so the side column does not repaint on every keystroke.
   const [cardTick, setCardTick] = useState(0);
@@ -707,7 +703,7 @@ export function QuireApp() {
       const lower = file.name.toLowerCase();
       const sourceExt = extFromFilename(file.name) ?? undefined;
       const plainExt = sourceExt === "papel" || sourceExt === "quire" ? undefined : sourceExt;
-      let importedLooks: Record<string, BlockLook> = {};
+      const importedLooks: Record<string, BlockLook> = {};
       if (lower.endsWith(".papel") || lower.endsWith(".quire")) {
         if (!fromPapel(s, bytes, importedLooks)) {
           showAlert(`${file.name} is not a Papel file.`);
@@ -715,8 +711,6 @@ export function QuireApp() {
         }
       } else {
         s.open_bytes(bytes);
-        const hinted = langFromFilename(file.name);
-        if (hinted && hinted !== "plain") s.force_language(hinted);
       }
       s.mark_clean();
       sessions.set(id, s);
@@ -1565,31 +1559,23 @@ export function QuireApp() {
         setTick((t) => t + 1);
         return;
       }
-      if (ceRenderer) {
-        // Per-line align is a core paragraph property: align every line the selection
-        // touches (collapsed => the caret line), then let the block re-render from core.
-        const s = selRef.current;
-        const start = s.blockId === blockId ? s.start : 0;
-        const end = s.blockId === blockId ? s.end : 0;
-        session.align_lines(blockId, start, end, code);
-        setTick((t) => t + 1);
-      } else {
-        setBlockLook(blockId, { align: alignId });
-      }
+      // Per-line align is a core paragraph property: align every line the selection
+      // touches (collapsed => the caret line), then let the block re-render from core.
+      const s = selRef.current;
+      const start = s.blockId === blockId ? s.start : 0;
+      const end = s.blockId === blockId ? s.end : 0;
+      session.align_lines(blockId, start, end, code);
+      setTick((t) => t + 1);
     },
     style: (blockId, styleId) => {
       if (!session) return;
-      if (ceRenderer) {
-        // Per-line paragraph style is a core property: style every line the selection
-        // touches (collapsed => the caret line), then re-render from core.
-        const s = selRef.current;
-        const start = s.blockId === blockId ? s.start : 0;
-        const end = s.blockId === blockId ? s.end : 0;
-        session.style_lines(blockId, start, end, STYLE_CODES[styleId]);
-        setTick((t) => t + 1);
-      } else {
-        setBlockLook(blockId, { style: styleId });
-      }
+      // Per-line paragraph style is a core property: style every line the selection
+      // touches (collapsed => the caret line), then re-render from core.
+      const s = selRef.current;
+      const start = s.blockId === blockId ? s.start : 0;
+      const end = s.blockId === blockId ? s.end : 0;
+      session.style_lines(blockId, start, end, STYLE_CODES[styleId]);
+      setTick((t) => t + 1);
     },
     font: (blockId, fontId) => {
       if (!session) return;
@@ -1599,17 +1585,13 @@ export function QuireApp() {
         setBlockLook(cell.tableId, { font: fontId });
         return;
       }
-      if (ceRenderer) {
-        // Per-line font is a core property: set the face on every line the selection
-        // touches (collapsed => the caret line); every other line keeps its own face.
-        const s = selRef.current;
-        const start = s.blockId === blockId ? s.start : 0;
-        const end = s.blockId === blockId ? s.end : 0;
-        session.font_lines(blockId, start, end, FONT_CODES[fontId]);
-        setTick((t) => t + 1);
-      } else {
-        setBlockLook(blockId, { font: fontId });
-      }
+      // Per-line font is a core property: set the face on every line the selection
+      // touches (collapsed => the caret line); every other line keeps its own face.
+      const s = selRef.current;
+      const start = s.blockId === blockId ? s.start : 0;
+      const end = s.blockId === blockId ? s.end : 0;
+      session.font_lines(blockId, start, end, FONT_CODES[fontId]);
+      setTick((t) => t + 1);
     },
   };
 
@@ -1675,14 +1657,6 @@ export function QuireApp() {
         autocorrect={autocorrect}
         setAutocorrect={setAutocorrect}
         lastBackup={formatLastBackup(lastBackup)}
-        onExportAll={() => {
-          const archive = buildArchive(notesRef.current, orderRef.current);
-          const name = archiveFileName();
-          download(name, JSON.stringify(archive), "application/json");
-          const iso = archive.exportedAt;
-          setLastBackup(iso);
-          setMessage(`Exported ${archive.notes.length} sheets`);
-        }}
         onExportZip={() => {
           const archive = buildArchive(notesRef.current, orderRef.current);
           const json = JSON.stringify(archive);
@@ -1768,7 +1742,7 @@ export function QuireApp() {
                 saveExts={saveExts}
                 looks={note.looks ?? {}}
                 activeBlockId={sel.blockId ?? null}
-                ceRenderer={ceRenderer}
+                skin={skin}
                 sel={sel}
                 activeKind={activeBlock ? activeBlock.kind : null}
                 cellTarget={cellTarget}

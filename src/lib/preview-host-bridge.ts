@@ -6,7 +6,8 @@
  */
 
 import { z } from "zod";
-import { CONNECTOR_TOKEN_READY_EVENT } from "./app-data/types";
+/** Re-dispatched on the guest window when the host hands over a connector token. */
+const CONNECTOR_TOKEN_READY_EVENT = "grok:connector-token-ready";
 import { resolveParentEmbedderOrigin } from "./preview-embedder-origin";
 
 export {

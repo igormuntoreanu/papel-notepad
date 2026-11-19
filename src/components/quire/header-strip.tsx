@@ -51,7 +51,6 @@ export function HeaderStrip({
   autocorrect,
   setAutocorrect,
   lastBackup,
-  onExportAll,
   onExportZip,
   onImportBackup,
   folderSupported,
@@ -86,7 +85,6 @@ export function HeaderStrip({
   autocorrect: boolean;
   setAutocorrect: (v: boolean) => void;
   lastBackup: string | null;
-  onExportAll: () => void;
   onExportZip: () => void;
   onImportBackup: () => void;
   folderSupported: boolean;
@@ -206,8 +204,6 @@ export function HeaderStrip({
                   Ln {metrics[0]}, Col {metrics[1]}
                 </span>
                 <span title="Character count in this sheet">{metrics[3]} chars</span>
-                {/* One language only: every sheet is plain text, so there is nothing to pick. */}
-                <span title="Every sheet is plain text">Plain text</span>
                 <DropMenu
                   className="tool status-chip strip-no-drag"
                   label={session.encoding_label()}
@@ -390,9 +386,6 @@ export function HeaderStrip({
                 )}
                 <button type="button" className="menu-item" onClick={onExportZip}>
                   Export zip…
-                </button>
-                <button type="button" className="menu-item" onClick={onExportAll}>
-                  Export archive…
                 </button>
                 <button type="button" className="menu-item" onClick={onImportBackup}>
                   Import backup…

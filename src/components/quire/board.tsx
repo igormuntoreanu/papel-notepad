@@ -157,7 +157,6 @@ const NoteCard = memo(NoteCardView, (a, b) => {
     x.preview === y.preview &&
     x.words === y.words &&
     x.lines === y.lines &&
-    x.lang === y.lang &&
     x.image === y.image &&
     x.images === y.images &&
     x.dirty === y.dirty &&
@@ -316,7 +315,7 @@ function NoteCardView({
           ) : empty ? (
             <p className="card-empty">A blank sheet.</p>
           ) : (
-            <pre className="card-preview" data-code={info.code ? "on" : "off"}>
+            <pre className="card-preview">
               {compact ? info.preview.split("\n").slice(0, 2).join("\n") : info.preview}
             </pre>
           )}

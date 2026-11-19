@@ -97,7 +97,7 @@ export function TableBlock({
   function paintCell(ta: HTMLTextAreaElement, marks: number[] | undefined) {
     const pre = ta.previousElementSibling as HTMLElement | null;
     if (!pre) return;
-    pre.innerHTML = paint(ta.value, [], readMarks(marks ?? []));
+    pre.innerHTML = paint(ta.value, readMarks(marks ?? []));
   }
 
   const flush = () => {
