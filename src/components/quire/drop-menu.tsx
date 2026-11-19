@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 const GAP = 6;
 const MARGIN = 8;
 /** Rough height used only to decide whether to flip above the trigger. */
-const ESTIMATE = 280;
+const ESTIMATE = 480;
 
 /**
  * A trigger plus a popover.

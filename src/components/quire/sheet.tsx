@@ -4,7 +4,6 @@ import {
   AlignRight,
   ArrowLeft,
   Bold,
-  Clock,
   Eraser,
   ImagePlus,
   Italic,
@@ -12,6 +11,7 @@ import {
   Redo2,
   Save,
   Search,
+  SlidersHorizontal,
   Strikethrough,
   Table2,
   Trash2,
@@ -43,7 +43,7 @@ import {
   type FontId,
   type StyleId,
 } from "@/lib/quire/typefaces";
-import type { DateStampStyle, SkinId } from "@/lib/quire/text";
+import { ENCODINGS, type DateStampStyle, type SkinId } from "@/lib/quire/text";
 import { tornClip } from "@/lib/quire/torn";
 import { TextBlockCE } from "./text-block-ce";
 import { TableBlock, type CellRange, type CellTarget } from "./table-block";
@@ -130,6 +130,10 @@ export type SheetActions = {
   zoomIn: () => void;
   zoomOut: () => void;
   save: (ext?: string) => void;
+  /** Changes the open sheet's file encoding (UTF-8, Windows-1252, …). */
+  encoding: (id: string) => void;
+  /** Changes the open sheet's line endings. */
+  eol: (mode: "lf" | "crlf") => void;
   close: () => void;
   deleteImage: (id: number) => void;
   /** Removes a table block; one undo brings it back. */
@@ -216,6 +220,7 @@ export function Sheet({
   actions,
   sel,
   skin,
+  zoom,
 }: {
   note: NoteMeta;
   session: Session;
@@ -256,6 +261,8 @@ export function Sheet({
   saveExts: string[];
   /** Skin in use: the bright inks are only offered on the dark skins. */
   skin: SkinId;
+  /** Editor zoom in px; the Format menu shows it as a percentage. */
+  zoom: number;
   /** Current selection; the caret line drives the per-line align indicator. */
   sel: { blockId: number; start: number; end: number };
   actions: SheetActions;
@@ -447,24 +454,6 @@ export function Sheet({
                     </Keep>
                   ))}
                 </div>
-                <div className="tool-group swatches" role="group" aria-label="Highlighter">
-                  {HIGHLIGHTERS.map((hl) => (
-                    <Keep
-                      key={hl.id}
-                      label={hl.id === 0 ? `No highlight${selHint}` : `${hl.name} highlighter${selHint}`}
-                      title={hl.id === 0 ? `No highlight${selHint}` : `${hl.name} highlighter${selHint}`}
-                      className={hl.id === 0 ? "swatch-btn hl none" : "swatch-btn hl"}
-                      pressed={styles.hasSelection && styles.hl === hl.id}
-                      disabled={noSel}
-                      onPress={() => styles.setHl(hl.id)}
-                    >
-                      <span style={{ background: hl.color }} />
-                    </Keep>
-                  ))}
-                  <Keep label={`Clear styles${selHint}`} title={`Clear styles${selHint}`} disabled={noSel} onPress={styles.clear}>
-                    <Eraser />
-                  </Keep>
-                </div>
                 <div className="tool-group" role="group" aria-label="Edit">
                   <Keep label="Undo" title="Undo (Ctrl+Z)" disabled={!session.can_undo()} onPress={actions.undo}>
                     <Undo2 />
@@ -475,26 +464,6 @@ export function Sheet({
                   <Keep label="Find, replace, go to line" title="Find (Ctrl+F)" pressed={find.open} onPress={actions.find}>
                     <Search />
                   </Keep>
-                  <DropMenu
-                    className="tool"
-                    align="end"
-                    ariaLabel="Insert date and time"
-                    title="Insert date and time (F5 uses local format)"
-                    label={<Clock />}
-                    items={
-                      <>
-                        <button type="button" className="menu-item" onClick={() => actions.date("local")}>
-                          Local format
-                        </button>
-                        <button type="button" className="menu-item" onClick={() => actions.date("eu")}>
-                          European (DD/MM/YYYY)
-                        </button>
-                        <button type="button" className="menu-item" onClick={() => actions.date("iso")}>
-                          ISO (YYYY-MM-DD)
-                        </button>
-                      </>
-                    }
-                  />
                   <DropMenu
                     className="tool"
                     ariaLabel="Lists"
@@ -539,39 +508,100 @@ export function Sheet({
                       <Trash2 />
                     </Keep>
                   )}
-                  <Keep label="Word wrap" title="Toggle word wrap" pressed={note.wrap} onPress={actions.wrap}>
-                    <WrapText />
-                  </Keep>
-                  {activeBlockId !== null && (
-                    <>
-                      {ALIGNMENTS.map((align) => {
-                        const Icon =
-                          align.id === "left" ? AlignLeft : align.id === "center" ? AlignCenter : AlignRight;
-                        const on = caretAlign === align.id;
-                        // Alignment needs Word Wrap on: with wrap off the textarea scrolls
-                        // sideways, so centring/right-aligning has no stable meaning.
-                        const wrapOff = !note.wrap;
-                        return (
-                          <Keep
-                            key={align.id}
-                            label={align.name}
-                            title={wrapOff ? `${align.name} (turn Word Wrap on first)` : align.name}
-                            pressed={on}
-                            disabled={activeBlockId === null || (activeKind !== "table" && wrapOff)}
-                            onPress={() => actions.align(activeBlockId, align.id)}
-                          >
-                            <Icon />
-                          </Keep>
-                        );
-                      })}
-                    </>
-                  )}
-                  <Keep label="Zoom out" title="Zoom out (Ctrl+-)" onPress={actions.zoomOut}>
-                    <ZoomOut />
-                  </Keep>
-                  <Keep label="Zoom in" title="Zoom in (Ctrl++)" onPress={actions.zoomIn}>
-                    <ZoomIn />
-                  </Keep>
+                </div>
+                <div className="tool-group" role="group" aria-label="Format">
+                  <DropMenu
+                    className="tool"
+                    align="end"
+                    ariaLabel="Format"
+                    title="Highlight, alignment, word wrap, zoom and date"
+                    label={
+                      <span className="format-button-label">
+                        <SlidersHorizontal size={15} aria-hidden="true" />
+                        <span className="format-label">Format</span>
+                        <ChevronDown size={13} aria-hidden="true" />
+                      </span>
+                    }
+                    items={
+                      <>
+                        <p className="menu-heading">Alignment</p>
+                        {ALIGNMENTS.map((align) => {
+                          const Icon =
+                            align.id === "left" ? AlignLeft : align.id === "center" ? AlignCenter : AlignRight;
+                          const on = caretAlign === align.id;
+                          const wrapOff = !note.wrap;
+                          return (
+                            <button
+                              key={align.id}
+                              type="button"
+                              className="menu-item"
+                              role="menuitemradio"
+                              aria-checked={on}
+                              disabled={activeBlockId === null || (activeKind !== "table" && wrapOff)}
+                              title={wrapOff ? `${align.name} (turn Word wrap on first)` : align.name}
+                              onClick={() => activeBlockId !== null && actions.align(activeBlockId, align.id)}
+                            >
+                              <Icon size={15} aria-hidden="true" /> {align.name}
+                              {on ? " ✓" : ""}
+                            </button>
+                          );
+                        })}
+                        <div className="menu-sep" role="separator" />
+                        <p className="menu-heading">Highlighter</p>
+                        <div className="menu-swatch-row">
+                          {HIGHLIGHTERS.map((hl) => (
+                            <button
+                              key={hl.id}
+                              type="button"
+                              className={hl.id === 0 ? "menu-swatch none" : "menu-swatch"}
+                              aria-label={hl.id === 0 ? `No highlight${selHint}` : `${hl.name} highlighter${selHint}`}
+                              title={hl.id === 0 ? `No highlight${selHint}` : `${hl.name} highlighter${selHint}`}
+                              aria-pressed={styles.hasSelection && styles.hl === hl.id}
+                              disabled={noSel}
+                              onClick={() => styles.setHl(hl.id)}
+                            >
+                              <span style={{ background: hl.color }} />
+                            </button>
+                          ))}
+                        </div>
+                        <button type="button" className="menu-item" disabled={noSel} onClick={styles.clear}>
+                          <Eraser size={15} aria-hidden="true" /> Clear styles
+                        </button>
+                        <div className="menu-sep" role="separator" />
+                        <button
+                          type="button"
+                          className="menu-item"
+                          role="menuitemcheckbox"
+                          aria-checked={note.wrap}
+                          onClick={actions.wrap}
+                        >
+                          <WrapText size={15} aria-hidden="true" /> Word wrap{note.wrap ? " ✓" : ""}
+                        </button>
+                        <div className="menu-sep" role="separator" />
+                        <p className="menu-heading">Zoom</p>
+                        <div className="menu-zoom">
+                          <button type="button" className="menu-item" title="Zoom out (Ctrl+-)" onClick={actions.zoomOut}>
+                            <ZoomOut size={15} aria-hidden="true" /> Smaller
+                          </button>
+                          <span className="menu-zoom-value">{Math.round((zoom / 16) * 100)}%</span>
+                          <button type="button" className="menu-item" title="Zoom in (Ctrl++)" onClick={actions.zoomIn}>
+                            <ZoomIn size={15} aria-hidden="true" /> Larger
+                          </button>
+                        </div>
+                        <div className="menu-sep" role="separator" />
+                        <p className="menu-heading">Insert date</p>
+                        <button type="button" className="menu-item" onClick={() => actions.date("local")}>
+                          Local format
+                        </button>
+                        <button type="button" className="menu-item" onClick={() => actions.date("eu")}>
+                          European (DD/MM/YYYY)
+                        </button>
+                        <button type="button" className="menu-item" onClick={() => actions.date("iso")}>
+                          ISO (YYYY-MM-DD)
+                        </button>
+                      </>
+                    }
+                  />
                 </div>
               </div>
             )}
@@ -579,20 +609,61 @@ export function Sheet({
               <Save />
             </Keep>
             <DropMenu
-              className="tool text-only"
+              className="tool save-caret"
               align="end"
-              ariaLabel={`Save as .${saveExt}`}
-              title={`Choose save format (.${saveExt})`}
-              label={<span>.{saveExt}</span>}
-              items={saveExts.map((ext) => (
-                <button key={ext} type="button" className="menu-item" onClick={() => actions.save(ext)}>
-                  Save as .{ext}
-                </button>
-              ))}
+              ariaLabel="Save options"
+              title="Save as, encoding, line endings and delete"
+              label={<ChevronDown size={14} aria-hidden="true" />}
+              items={
+                <>
+                  {saveExts.map((ext) => (
+                    <button key={ext} type="button" className="menu-item" onClick={() => actions.save(ext)}>
+                      Save as .{ext}
+                    </button>
+                  ))}
+                  <div className="menu-sep" role="separator" />
+                  <p className="menu-heading">Encoding</p>
+                  {ENCODINGS.map(([id, label]) => {
+                    const on = session.encoding() === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        className="menu-item"
+                        role="menuitemradio"
+                        aria-checked={on}
+                        onClick={() => actions.encoding(id)}
+                      >
+                        {label}
+                        {on ? " ✓" : ""}
+                      </button>
+                    );
+                  })}
+                  <div className="menu-sep" role="separator" />
+                  <p className="menu-heading">Line endings</p>
+                  {(["lf", "crlf"] as const).map((id) => {
+                    const on = session.eol() === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        className="menu-item"
+                        role="menuitemradio"
+                        aria-checked={on}
+                        onClick={() => actions.eol(id)}
+                      >
+                        {id === "lf" ? "Unix (LF)" : "Windows (CRLF)"}
+                        {on ? " ✓" : ""}
+                      </button>
+                    );
+                  })}
+                  <div className="menu-sep" role="separator" />
+                  <button type="button" className="menu-item danger" onClick={actions.close}>
+                    Delete sheet…
+                  </button>
+                </>
+              }
             />
-            <Keep label="Delete sheet" title="Delete sheet — removes it from the board and deletes the file" onPress={actions.close}>
-              <X />
-            </Keep>
           </div>
         </div>
 

@@ -136,6 +136,14 @@ export const OPENABLE_EXTENSIONS: string[] = [
 
 export const FILE_ACCEPT = OPENABLE_EXTENSIONS.join(",");
 
+/** File encodings a sheet can be saved as. Ids match the core's `set_encoding`. */
+export const ENCODINGS = [
+  ["utf-8", "UTF-8"],
+  ["utf-8-bom", "UTF-8 BOM"],
+  ["utf-16le", "UTF-16 LE"],
+  ["windows-1252", "Windows-1252"],
+] as const;
+
 /** True for the note formats Papel can actually open. */
 export function canOpenFile(name: string): boolean {
   const lower = name.toLowerCase();

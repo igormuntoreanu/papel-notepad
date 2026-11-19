@@ -22,6 +22,7 @@ import { installTextures } from "@/lib/quire/textures";
 import {
   canOpenFile,
   download,
+  ENCODINGS,
   FILE_ACCEPT,
   fileStamp,
   mimeForExtension,
@@ -1525,6 +1526,23 @@ export function QuireApp() {
     image: () => imageRef.current?.click(),
     wrap: toggleWrap,
     save: (ext) => saveNote(activeId, ext),
+    encoding: (id) => {
+      if (!session) return;
+      const result = session.set_encoding(id);
+      if (result.startsWith("err:")) {
+        showAlert(result.slice(4));
+        return;
+      }
+      const label = ENCODINGS.find(([code]) => code === id)?.[1] ?? id;
+      setMessage(`Encoding: ${label}`);
+      edited();
+    },
+    eol: (mode) => {
+      if (!session) return;
+      session.set_eol(mode);
+      setMessage(mode === "lf" ? "Line endings: Unix (LF)" : "Line endings: Windows (CRLF)");
+      edited();
+    },
     table: insertTable,
     bullets: toggleBulletList,
     close: () => activeId && closeNote(activeId),
@@ -1682,11 +1700,9 @@ export function QuireApp() {
         }}
         session={session}
         metrics={metrics}
-        zoom={zoom}
         message={message}
         total={order.length}
         unsaved={unsaved}
-        shown={visible.length}
         onChanged={() => bump()}
         onMessage={setMessage}
       />
@@ -1746,6 +1762,7 @@ export function QuireApp() {
                 activeBlockId={sel.blockId ?? null}
                 skin={skin}
                 sel={sel}
+                zoom={zoom}
                 activeKind={activeBlock ? activeBlock.kind : null}
                 cellTarget={cellTarget}
                 selectAll={selectAll}
