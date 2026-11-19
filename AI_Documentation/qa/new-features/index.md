@@ -102,6 +102,21 @@ Unit tests cover append, identical-version skip and the 20-copy cap.
 | Playwright: save ×2 → carbon list → restore | pass |
 | Console / page errors during all runs | none |
 
+## Follow-up fix: card menus no longer clip off the left edge
+
+![Side-column card menu clamped inside the viewport](./06-side-menu-clamped.png)
+
+`DropMenu` right-aligned a popover against its trigger without checking the
+popover's own width. A card in the left column (or a narrow window, or a
+browser with a vertical sidebar) is narrower than the card menu, so the menu
+started at `x = -40` and the left part was unreachable.
+
+`place()` now measures the open popover and clamps `left` between the 8px
+viewport margin and `vw - width - 8`, and clamps the vertical edge the same
+way. Measured in the focus view's side column: before `left = -40`; after
+`left = 8` at 1280/1000/820px wide, and the menu stays fully inside at 600px
+(board card). No console errors.
+
 ## Notes / limits
 
 - The bin keeps the note in browser storage until purged; if a sync folder is
