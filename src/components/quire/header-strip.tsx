@@ -15,19 +15,12 @@ import { useEffect, useState, type RefObject } from "react";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import type { Session } from "@/lib/quire/engine";
 import { tornClip } from "@/lib/quire/torn";
-import { SKINS, type SkinId } from "@/lib/quire/text";
+import { ENCODINGS, SKINS, type SkinId } from "@/lib/quire/text";
 import type { SortMode } from "@/lib/quire/persist";
 import { APP_VERSION } from "@/lib/version";
 import { DropMenu } from "./drop-menu";
 
 const HEADER_CLIP = tornClip("papel-header", 5, { bottom: true }, 40);
-
-const ENCODINGS = [
-  ["utf-8", "UTF-8"],
-  ["utf-8-bom", "UTF-8 BOM"],
-  ["utf-16le", "UTF-16 LE"],
-  ["windows-1252", "Windows-1252"],
-] as const;
 
 export type SwitchItem = { id: string; title: string; dirty: boolean };
 
@@ -58,11 +51,9 @@ export function HeaderStrip({
   onPickFolder,
   session,
   metrics,
-  zoom,
   message,
   total,
   unsaved,
-  shown,
   onChanged,
   onMessage,
 }: {
@@ -92,11 +83,9 @@ export function HeaderStrip({
   onPickFolder: () => void;
   session: Session | null;
   metrics: ArrayLike<number>;
-  zoom: number;
   message: string;
   total: number;
   unsaved: number;
-  shown: number;
   onChanged: () => void;
   onMessage: (m: string) => void;
 }) {
@@ -204,84 +193,23 @@ export function HeaderStrip({
                   Ln {metrics[0]}, Col {metrics[1]}
                 </span>
                 <span title="Character count in this sheet">{metrics[3]} chars</span>
-                <DropMenu
-                  className="tool status-chip strip-no-drag"
-                  label={session.encoding_label()}
-                  title="File encoding"
-                  align="end"
-                  items={ENCODINGS.map(([id, label]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      className="menu-item"
-                      onClick={() => {
-                        const result = session.set_encoding(id);
-                        onMessage(result.startsWith("err:") ? result.slice(4) : label);
-                        onChanged();
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                />
-                <DropMenu
-                  className="tool status-chip strip-no-drag"
-                  label={session.eol_label()}
-                  title="Line endings"
-                  align="end"
-                  items={
-                    <>
-                      <button
-                        type="button"
-                        className="menu-item"
-                        onClick={() => {
-                          session.set_eol("lf");
-                          onChanged();
-                        }}
-                      >
-                        Unix (LF)
-                      </button>
-                      <button
-                        type="button"
-                        className="menu-item"
-                        onClick={() => {
-                          session.set_eol("crlf");
-                          onChanged();
-                        }}
-                      >
-                        Windows (CRLF)
-                      </button>
-                    </>
-                  }
-                />
-                <span title="Zoom level">{Math.round((zoom / 16) * 100)}%</span>
                 <span className="strip-sep" aria-hidden="true">
                   |
                 </span>
                 {searchField}
-                <span className="strip-sep" aria-hidden="true">
-                  |
-                </span>
               </>
             ) : (
               <>
                 <span title="Sheets on the board">
                   {total} {total === 1 ? "sheet" : "sheets"}
                 </span>
-                {shown !== total && <span title="Sheets matching filters">{shown} shown</span>}
-                <span title="Sheets not yet saved to a downloaded file">
-                  {unsaved ? `${unsaved} not saved to a file` : "No unsaved changes"}
-                </span>
-                <span title={folderName ? `Sync folder: ${folderName}` : "Saved in this browser"}>
-                  {folderName ? `Folder: ${folderName}` : "Autosaved on this device"}
-                </span>
+                {unsaved > 0 && (
+                  <span title="Sheets not yet saved to a downloaded file">{unsaved} unsaved</span>
+                )}
                 <span className="strip-sep" aria-hidden="true">
                   |
                 </span>
                 {searchField}
-                <span className="strip-sep" aria-hidden="true">
-                  |
-                </span>
               </>
             )}
           </div>
@@ -364,6 +292,50 @@ export function HeaderStrip({
                     <ChevronDown aria-hidden="true" />
                   </span>
                 </label>
+                {session && (
+                  <>
+                    <div className="menu-sep" role="separator" />
+                    <p className="menu-heading">This sheet's file</p>
+                    <label className="menu-field">
+                      <span>Encoding</span>
+                      <span className="field-box select-box">
+                        <select
+                          value={session.encoding()}
+                          onChange={(e) => {
+                            const id = e.target.value;
+                            const result = session.set_encoding(id);
+                            const label = e.target.selectedOptions[0]?.textContent ?? id;
+                            onMessage(result.startsWith("err:") ? result.slice(4) : `Encoding: ${label}`);
+                            onChanged();
+                          }}
+                        >
+                          {ENCODINGS.map(([id, label]) => (
+                            <option key={id} value={id}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown aria-hidden="true" />
+                      </span>
+                    </label>
+                    <label className="menu-field">
+                      <span>Line endings</span>
+                      <span className="field-box select-box">
+                        <select
+                          value={session.eol()}
+                          onChange={(e) => {
+                            session.set_eol(e.target.value);
+                            onChanged();
+                          }}
+                        >
+                          <option value="lf">Unix (LF)</option>
+                          <option value="crlf">Windows (CRLF)</option>
+                        </select>
+                        <ChevronDown aria-hidden="true" />
+                      </span>
+                    </label>
+                  </>
+                )}
                 <div className="menu-sep" role="separator" />
                 <p className="menu-heading">Folder & backup</p>
                 {folderSupported ? (

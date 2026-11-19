@@ -174,4 +174,4 @@ User stories describe current behavior.
 7. **Browser support**: which browsers and versions must be supported?
 8. **Accessibility target**: is a standard (for example WCAG 2.2 AA) required?
 9. **Autocorrect**: other languages? user-defined replacements?
-10. **Branding**: logo, final favicon (currently a cream sheet on walnut while the desk is kraft).
+10. **Branding**: logo. The favicon is now a bound notepad (cream sheet, wax-red spine, folded corner) that matches the Sulphite skin.

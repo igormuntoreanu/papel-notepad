@@ -26,7 +26,7 @@ Papel is a **client-side single-page app** with a **Rust document core compiled 
 │   ├─ Board         torn-paper cards (board + side column)       │
 │   ├─ Sheet         style strip · find bar · page of blocks      │
 │   │    └─ TextBlockCE  per-line contenteditable (styles/align)  │
-│   └─ (status line lives in HeaderStrip: caret, encoding, zoom)  │
+│   └─ (status line lives in HeaderStrip: caret, counts, search)  │
 │                    │                                            │
 │        store.ts ───┼── sessions: Map<noteId, Session (WASM)>    │
 │                    │                                            │
@@ -48,9 +48,9 @@ Papel is a **client-side single-page app** with a **Rust document core compiled 
 | --- | --- | --- |
 | `QuireApp` | `src/components/quire/quire-app.tsx` | App state, view switching (board/focus), commands, keyboard shortcuts, autosave, search/filter/sort, styles, find/replace. |
 | `store` | `src/components/quire/store.ts` | Session registry, load/snapshot to IndexedDB, `.papel` read/write, card data cache, image object URLs. |
-| `HeaderStrip` | `src/components/quire/header-strip.tsx` | Torn header: brand, sheet switcher, note search, encoding/EOL/zoom status, new/open, settings (skin, autocorrect, board order, folder & backup). |
+| `HeaderStrip` | `src/components/quire/header-strip.tsx` | Torn header: brand, sheet switcher, caret/character counts, note search, new/open, settings (skin, autocorrect, board order, this sheet's encoding/EOL, folder & backup). |
 | `Board` / `NoteCard` | `src/components/quire/board.tsx` | Card grid (measured columns) and compact side column; drag reorder; card menu. |
-| `Sheet` / `FindBar` | `src/components/quire/sheet.tsx` | Focused page: title/rename, style strip, edit tools, find/replace/go-to-line, image and text blocks. |
+| `Sheet` / `FindBar` | `src/components/quire/sheet.tsx` | Focused page: title/rename, toolbar (style, face, flags, short ink set, edit, Format menu, split Save), find/replace/go-to-line, image and text blocks. The Format menu holds alignment, highlighters, wrap, zoom and date; the Save menu holds save-as, encoding, line endings and delete. |
 | `TextBlockCE` | `src/components/quire/text-block-ce.tsx` | One editable text block: per-line `contenteditable`, diffs into the core, autocorrect, image paste, mark painting. |
 | `TableBlock` | `src/components/quire/table-block.tsx` | Table block: cells, fills, per-cell align/font, row/column edits. |
 | `DropMenu` | `src/components/quire/drop-menu.tsx` | Small popover menu. |
@@ -107,7 +107,7 @@ Papel is a **client-side single-page app** with a **Rust document core compiled 
 
 ```
 AI_Documentation/            This documentation.
-public/                      favicon.svg, og.jpg
+public/                      favicon.svg (bound-notepad mark), og.jpg
 rust/
   quire-core/src/
     document.rs              Document model, edits, undo/redo, images, tables, find/replace, styles
@@ -285,6 +285,13 @@ display only, and the next repaint drops it. Matching is `Session::find` for bot
 | `node scripts/qa-visual.mjs` | Screenshots into `AI_Documentation/qa/<version>/` |
 | `cargo test -p quire-core` | Core tests (editing, undo, emoji offsets, images, tables, encodings, styles) |
 | `npx vite build` | Production build to `.vercel/output` |
+
+### Icons
+
+`public/favicon.svg` is the source mark (a bound notepad: cream sheet, wax-red spine,
+folded corner, torn bottom edge). `shells/tauri/src-tauri/icons/make_icon.py` is the only
+rasteriser: it draws a full-detail master for 24px and up, a simplified 16px master for the
+small icon, and writes `icon.png`, one `icon-<n>.png` per size, and `icon.ico`.
 
 ### Visual QA
 
