@@ -240,6 +240,241 @@
     linear-gradient(180deg, #1a2120, #0c100f);
 }
 
+/* ---------- Paper-shop skins ----------
+   Body ink on every skin below is at least 11:1 against its own paper (measured
+   with the WCAG relative-luminance formula). The light skins keep the dark ink
+   palette; Chalkboard flips to chalk text and lightens the ink palette the same
+   way Blueprint and Terminal do. */
+
+.desk[data-skin="legal-pad"] {
+  --paper: #f3e4a6;
+  --paper-2: #ecd995;
+  --paper-edge: #f3e4a6;
+  --rule: #cdbb85;
+  --selection: rgb(156 59 46 / 0.18);
+  --kraft: #5c6b52;
+  --kraft-light: #6f7f63;
+  --kraft-dark: #3a3a24;
+  --field: #fbf3c8;
+  --status-paper: #efe1a3;
+  --strip-line: rgb(70 60 20 / 0.18);
+  --ink: #1f1c12;
+  --ink-soft: #3b3826;
+  --muted: #4a4630;
+  --accent: #9c3b2e;
+  --accent-deep: #7d2d22;
+  --shadow: rgb(30 34 14 / 0.3);
+  --shadow-soft: rgb(30 34 14 / 0.16);
+}
+
+.desk[data-skin="manila"] {
+  --paper: #f0d9a8;
+  --paper-2: #e7cd97;
+  --paper-edge: #f0d9a8;
+  --rule: transparent;
+  --selection: rgb(107 74 47 / 0.16);
+  --kraft: #c4a36a;
+  --kraft-light: #d4b57e;
+  --kraft-dark: #4a3620;
+  --field: #f7e7c4;
+  --status-paper: #ecd7ab;
+  --strip-line: rgb(70 50 20 / 0.18);
+  --ink: #241d12;
+  --ink-soft: #3a2f1e;
+  --muted: #4f4128;
+  --accent: #6b4a2f;
+  --accent-deep: #523620;
+  --shadow: rgb(50 34 12 / 0.28);
+  --shadow-soft: rgb(50 34 12 / 0.14);
+}
+
+.desk[data-skin="newsprint"] {
+  --paper: #e4e0d4;
+  --paper-2: #dad5c7;
+  --paper-edge: #e4e0d4;
+  --rule: transparent;
+  --selection: rgb(20 19 16 / 0.12);
+  --kraft: #8e8a82;
+  --kraft-light: #a09c93;
+  --kraft-dark: #2a2925;
+  --field: #efebe0;
+  --status-paper: #dcd8cc;
+  --strip-line: rgb(20 20 18 / 0.16);
+  --ink: #171613;
+  --ink-soft: #2e2c27;
+  --muted: #4a4842;
+  --accent: #8c1f1f;
+  --accent-deep: #6e1616;
+  --shadow: rgb(20 20 18 / 0.35);
+  --shadow-soft: rgb(20 20 18 / 0.18);
+}
+
+.desk[data-skin="washi"] {
+  --paper: #f7f1e4;
+  --paper-2: #efe7d6;
+  --paper-edge: #f7f1e4;
+  --rule: transparent;
+  --selection: rgb(179 58 31 / 0.14);
+  --kraft: #d9d0c2;
+  --kraft-light: #e5ddd1;
+  --kraft-dark: #4a4034;
+  --field: #fbf7ee;
+  --status-paper: #efe8db;
+  --strip-line: rgb(70 58 42 / 0.16);
+  --ink: #221c14;
+  --ink-soft: #3a3226;
+  --muted: #5a4f40;
+  --accent: #b33a1f;
+  --accent-deep: #8f2c15;
+  --shadow: rgb(60 50 36 / 0.22);
+  --shadow-soft: rgb(60 50 36 / 0.12);
+  /* The desk keeps the shared --fibers texture: this is the skin that is
+     explicitly made of fibres. */
+}
+
+.desk[data-skin="index-card"] {
+  --paper: #fffdf6;
+  --paper-2: #f7f3e6;
+  --paper-edge: #fffdf6;
+  --rule: #b9d0e8;
+  --selection: rgb(31 78 140 / 0.14);
+  --kraft: #b88958;
+  --kraft-light: #c99a69;
+  --kraft-dark: #4a2f16;
+  --field: #ffffff;
+  --status-paper: #f2ece0;
+  --strip-line: rgb(60 40 20 / 0.16);
+  --ink: #1a1a1a;
+  --ink-soft: #33322e;
+  --muted: #4f4a42;
+  --accent: #1f4e8c;
+  --accent-deep: #163a6b;
+  --shadow: rgb(60 38 16 / 0.28);
+  --shadow-soft: rgb(60 38 16 / 0.14);
+  /* Cork desk keeps its texture; the card itself is flat and crisp. */
+  --grain: none;
+  --mottle: none;
+}
+
+.desk[data-skin="chalkboard"] {
+  --paper: #243028;
+  --paper-2: #1e2922;
+  --paper-edge: #1f2a23;
+  --rule: transparent;
+  --selection: rgb(244 237 216 / 0.2);
+  /* Oak frame around the slate. */
+  --kraft: #7a5230;
+  --kraft-light: #8d6239;
+  --kraft-dark: #f4edd8;
+  --field: #2f3d34;
+  --status-paper: #1e2922;
+  --strip-line: rgb(244 237 216 / 0.14);
+  --ink: #f4edd8;
+  --ink-soft: #d8d2c0;
+  --muted: #a9b3a5;
+  --accent: #f2c94c;
+  --accent-deep: #d4a92f;
+  --shadow: rgb(0 0 0 / 0.55);
+  --shadow-soft: rgb(0 0 0 / 0.35);
+  --fibers: none;
+  --noise: none;
+  --mottle: none;
+  --grain: none;
+  --ink1: #f0a090;
+  --ink2: #9ec8f0;
+  --ink3: #a8d8a0;
+  --ink4: #c5d4e4;
+  --ink5: #f0a86a;
+  --ink6: #ff8a8a;
+  --ink7: #6dff94;
+  --ink8: #e2e8f0;
+  --ink9: #f0cf7a;
+  color-scheme: dark;
+  background:
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.07) 0 2px, transparent 2px 11px),
+    radial-gradient(ellipse at 50% 35%, transparent 45%, rgb(0 0 0 / 0.45) 100%),
+    linear-gradient(180deg, #8d6239, #6b4626);
+}
+
+/* Flat chrome for the paper-shop skins: no kraft tear, the strip takes the
+   skin's own status-paper colour. */
+.desk[data-skin="legal-pad"] .strip,
+.desk[data-skin="manila"] .strip,
+.desk[data-skin="newsprint"] .strip,
+.desk[data-skin="washi"] .strip,
+.desk[data-skin="index-card"] .strip,
+.desk[data-skin="chalkboard"] .strip {
+  filter: none;
+}
+
+.desk[data-skin="legal-pad"] .strip-bg,
+.desk[data-skin="manila"] .strip-bg,
+.desk[data-skin="newsprint"] .strip-bg,
+.desk[data-skin="washi"] .strip-bg,
+.desk[data-skin="index-card"] .strip-bg,
+.desk[data-skin="chalkboard"] .strip-bg {
+  display: none;
+}
+
+.desk[data-skin="legal-pad"] .strip-paper,
+.desk[data-skin="manila"] .strip-paper,
+.desk[data-skin="newsprint"] .strip-paper,
+.desk[data-skin="washi"] .strip-paper,
+.desk[data-skin="index-card"] .strip-paper,
+.desk[data-skin="chalkboard"] .strip-paper {
+  background: var(--status-paper);
+  border-bottom: 1px solid var(--strip-line);
+}
+
+.desk[data-skin="legal-pad"] .strip-status,
+.desk[data-skin="manila"] .strip-status,
+.desk[data-skin="newsprint"] .strip-status,
+.desk[data-skin="washi"] .strip-status,
+.desk[data-skin="index-card"] .strip-status,
+.desk[data-skin="chalkboard"] .strip-status {
+  border-left-color: var(--strip-line);
+  border-right-color: var(--strip-line);
+}
+
+.desk[data-skin="legal-pad"] .sheet-frame,
+.desk[data-skin="legal-pad"] .card-bg,
+.desk[data-skin="manila"] .sheet-frame,
+.desk[data-skin="manila"] .card-bg,
+.desk[data-skin="newsprint"] .sheet-frame,
+.desk[data-skin="newsprint"] .card-bg,
+.desk[data-skin="washi"] .sheet-frame,
+.desk[data-skin="washi"] .card-bg,
+.desk[data-skin="index-card"] .sheet-frame,
+.desk[data-skin="index-card"] .card-bg,
+.desk[data-skin="chalkboard"] .sheet-frame,
+.desk[data-skin="chalkboard"] .card-bg {
+  border: 1px solid var(--strip-line);
+}
+
+.desk[data-skin="legal-pad"] .sheet-strip,
+.desk[data-skin="manila"] .sheet-strip,
+.desk[data-skin="newsprint"] .sheet-strip,
+.desk[data-skin="washi"] .sheet-strip,
+.desk[data-skin="index-card"] .sheet-strip,
+.desk[data-skin="chalkboard"] .sheet-strip {
+  border-bottom-color: var(--strip-line);
+}
+
+/* Chalkboard chrome is dark: the sheet switcher and buttons need chalk text. */
+.desk[data-skin="chalkboard"] .variant,
+.desk[data-skin="chalkboard"] .variant-label {
+  color: var(--ink);
+}
+
+.desk[data-skin="chalkboard"] .btn:hover {
+  background: var(--field);
+}
+
+.desk[data-skin="chalkboard"] .btn.primary,
+.desk[data-skin="chalkboard"] .btn.go {
+  color: #243028;
+}
+
 .desk[data-skin="ink"] .strip,
 .desk[data-skin="sulphite"] .strip,
 .desk[data-skin="carbon"] .strip,
@@ -842,7 +1077,7 @@
 
 .btn.primary:hover,
 .btn.go:hover {
-  background: linear-gradient(180deg, #a04034, var(--accent-deep));
+  background: linear-gradient(180deg, var(--accent), var(--accent-deep));
 }
 
 
@@ -1131,6 +1366,48 @@
   border: 1px solid #7ee787;
   border-radius: 2px;
   box-shadow: 0 0 4px rgb(126 231 135 / 0.45);
+}
+
+.swatch[data-skin="legal-pad"] {
+  background:
+    linear-gradient(90deg, transparent 0 5px, #9c3b2e 5px 6px, transparent 6px),
+    repeating-linear-gradient(180deg, #f3e4a6 0 7px, #cdbb85 7px 8px);
+  border-radius: 2px;
+}
+
+.swatch[data-skin="manila"] {
+  background: linear-gradient(180deg, #f0d9a8, #e7cd97);
+  border: 1px solid rgb(74 54 32 / 0.22);
+  border-radius: 2px;
+}
+
+.swatch[data-skin="newsprint"] {
+  background:
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.05) 0 1px, transparent 1px 5px),
+    #e4e0d4;
+  border-radius: 2px;
+}
+
+.swatch[data-skin="washi"] {
+  background:
+    repeating-linear-gradient(115deg, rgb(120 100 70 / 0.14) 0 1px, transparent 1px 4px),
+    #f7f1e4;
+  clip-path: polygon(0 3%, 18% 0, 40% 4%, 62% 0, 84% 3%, 100% 0, 98% 50%, 100% 97%, 76% 100%, 52% 96%, 28% 100%, 4% 97%, 0 50%);
+}
+
+.swatch[data-skin="index-card"] {
+  background: repeating-linear-gradient(180deg, #fffdf6 0 7px, #b9d0e8 7px 8px);
+  border: 1px solid rgb(0 0 0 / 0.12);
+  border-radius: 2px;
+}
+
+.swatch[data-skin="chalkboard"] {
+  background: #243028;
+  border: 3px solid #7a5230;
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 0 1px rgb(244 237 216 / 0.35),
+    0 0 0 1px rgb(242 201 76 / 0.5);
 }
 
 /* ---------- Board & cards ---------- */
