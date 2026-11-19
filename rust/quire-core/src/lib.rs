@@ -1,20 +1,15 @@
 //! Quire document core.
 //!
 //! This crate is the boundary a future native shell should link against.
-//! It owns the buffer, undo, encoding, language sniff, syntax spans, and
-//! pretty-printers. It does not know about windows, WASM, or the DOM.
+//! It owns the buffer, undo, encoding, marks, and per-line paragraph properties.
+//! It does not know about windows, WASM, or the DOM.
 
-mod detect;
 mod document;
 mod encoding;
-mod format;
-pub mod highlight;
-mod lang;
 pub mod marks;
 mod textutil;
 
 pub use document::{Caret, Cell, Document, OutlineItem};
 pub use encoding::{Encoding, Eol};
-pub use lang::{Lang, LangMode};
 pub use marks::{Run, Style, StyleChange};
 

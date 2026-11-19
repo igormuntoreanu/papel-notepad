@@ -34,7 +34,6 @@ export class Session {
      */
     delete_table(table_id: number): Caret | undefined;
     edit(id: number, start: number, end: number, text: string, coalesce: boolean): void;
-    effective_language(id: number): string;
     encoding(): string;
     encoding_label(): string;
     /**
@@ -53,10 +52,7 @@ export class Session {
      * Undoable; never touches the text.
      */
     font_lines(id: number, start: number, end: number, font: number): boolean;
-    force_language(lang: string): void;
-    format_all(): string;
     has_marks(): boolean;
-    highlight(id: number): Uint32Array;
     image_of(id: number): Uint8Array;
     insert_image(id: number, at: number, mime: string, bytes: Uint8Array): number;
     /**
@@ -73,7 +69,6 @@ export class Session {
      */
     insert_table_at(id: number, at: number, cols: number, rows: number): Caret | undefined;
     is_dirty(): boolean;
-    language(): string;
     /**
      * Per-line align ids for a text block (one per line: 0 left, 1 centre, 2 right).
      */
@@ -105,7 +100,7 @@ export class Session {
      */
     restore_aligns(id: number, aligns: Uint8Array): void;
     restore_begin(): void;
-    restore_end(language: string, eol: string, encoding: string): void;
+    restore_end(eol: string, encoding: string): void;
     /**
      * Restores per-line fonts on load.
      */
@@ -123,7 +118,6 @@ export class Session {
     restore_text(text: string): number;
     set_encoding(enc: string): string;
     set_eol(eol: string): boolean;
-    set_language(lang: string): void;
     /**
      * Sets the paragraph style of every line touched by `start..end` (collapsed => caret
      * line). Undoable; never touches the text.
@@ -168,7 +162,6 @@ export interface InitOutput {
     readonly session_delete_image: (a: number, b: number) => number;
     readonly session_delete_table: (a: number, b: number) => number;
     readonly session_edit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
-    readonly session_effective_language: (a: number, b: number) => [number, number];
     readonly session_encoding: (a: number) => [number, number];
     readonly session_encoding_label: (a: number) => [number, number];
     readonly session_end_group: (a: number) => number;
@@ -180,17 +173,13 @@ export interface InitOutput {
     readonly session_find_count: (a: number, b: number, c: number, d: number) => number;
     readonly session_first_text_id: (a: number) => number;
     readonly session_font_lines: (a: number, b: number, c: number, d: number, e: number) => number;
-    readonly session_force_language: (a: number, b: number, c: number) => void;
-    readonly session_format_all: (a: number) => [number, number];
     readonly session_has_marks: (a: number) => number;
-    readonly session_highlight: (a: number, b: number) => [number, number];
     readonly session_image_of: (a: number, b: number) => [number, number];
     readonly session_insert_image: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly session_insert_image_caret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly session_insert_table: (a: number, b: number, c: number, d: number) => number;
     readonly session_insert_table_at: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_is_dirty: (a: number) => number;
-    readonly session_language: (a: number) => [number, number];
     readonly session_line_aligns: (a: number, b: number) => [number, number];
     readonly session_line_fonts: (a: number, b: number) => [number, number];
     readonly session_line_styles: (a: number, b: number) => [number, number];
@@ -207,7 +196,7 @@ export interface InitOutput {
     readonly session_replace_all: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly session_restore_aligns: (a: number, b: number, c: number, d: number) => void;
     readonly session_restore_begin: (a: number) => void;
-    readonly session_restore_end: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly session_restore_end: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly session_restore_fonts: (a: number, b: number, c: number, d: number) => void;
     readonly session_restore_image: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_restore_marks: (a: number, b: number, c: number, d: number) => void;
@@ -216,7 +205,6 @@ export interface InitOutput {
     readonly session_restore_text: (a: number, b: number, c: number) => number;
     readonly session_set_encoding: (a: number, b: number, c: number) => [number, number];
     readonly session_set_eol: (a: number, b: number, c: number) => number;
-    readonly session_set_language: (a: number, b: number, c: number) => void;
     readonly session_style_lines: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly session_table_align: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly session_table_delete_col: (a: number, b: number, c: number) => number;

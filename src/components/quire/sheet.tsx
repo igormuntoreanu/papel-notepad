@@ -43,9 +43,8 @@ import {
   type FontId,
   type StyleId,
 } from "@/lib/quire/typefaces";
-import type { DateStampStyle } from "@/lib/quire/text";
+import type { DateStampStyle, SkinId } from "@/lib/quire/text";
 import { tornClip } from "@/lib/quire/torn";
-import { TextBlock } from "./text-block";
 import { TextBlockCE } from "./text-block-ce";
 import { TableBlock, type CellRange, type CellTarget } from "./table-block";
 import { DropMenu } from "./drop-menu";
@@ -215,8 +214,8 @@ export function Sheet({
   saveExt,
   saveExts,
   actions,
-  ceRenderer,
   sel,
+  skin,
 }: {
   note: NoteMeta;
   session: Session;
@@ -255,8 +254,8 @@ export function Sheet({
   saveExt: string;
   /** Every extension this note can be written as, default first. */
   saveExts: string[];
-  /** Phase 2 preview: use the per-line contenteditable renderer for text blocks. */
-  ceRenderer: boolean;
+  /** Skin in use: the bright inks are only offered on the dark skins. */
+  skin: SkinId;
   /** Current selection; the caret line drives the per-line align indicator. */
   sel: { blockId: number; start: number; end: number };
   actions: SheetActions;
@@ -271,8 +270,7 @@ export function Sheet({
   // not the text block `sel.blockId` happens to point at (cell focus does not move `sel`).
   const lookBlockId = cellTarget ? cellTarget.tableId : activeBlockId;
   const currentLook: BlockLook = lookBlockId === null ? {} : (looks[String(lookBlockId)] ?? {});
-  // Per-line align indicator (Phase 2 contenteditable renderer): reflect the caret line's
-  // core align. The textarea renderer keeps the per-block look.align.
+  // Per-line align indicator: reflect the caret line's core align.
   const caretAlign: AlignId = (() => {
     if (cellTarget) {
       // A table cell is focused: reflect that cell's own align (BUG-2).
@@ -284,7 +282,7 @@ export function Sheet({
         return "left";
       }
     }
-    if (!ceRenderer || activeBlockId === null) return currentLook.align ?? "left";
+    if (activeBlockId === null) return currentLook.align ?? "left";
     const aligns = session.line_aligns(activeBlockId);
     if (!aligns.length) return "left";
     const text = session.text_of(activeBlockId);
@@ -292,10 +290,9 @@ export function Sheet({
     const line = text.slice(0, start).split("\n").length - 1;
     return ALIGNMENTS[aligns[line] ?? 0]?.id ?? "left";
   })();
-  // Per-line paragraph-style indicator: reflect the caret line's core style. The textarea
-  // renderer keeps the per-block look.style.
+  // Per-line paragraph-style indicator: reflect the caret line's core style.
   const caretStyle: StyleId = (() => {
-    if (!ceRenderer || activeBlockId === null) return currentLook.style ?? DEFAULT_STYLE;
+    if (activeBlockId === null) return currentLook.style ?? DEFAULT_STYLE;
     const styles = session.line_styles(activeBlockId);
     if (!styles.length) return DEFAULT_STYLE;
     const text = session.text_of(activeBlockId);
@@ -305,7 +302,7 @@ export function Sheet({
   })();
   // Per-line font indicator: reflect the caret line's core font (0 => the block face).
   const caretFont: FontId = (() => {
-    if (!ceRenderer || activeBlockId === null) return currentLook.font ?? DEFAULT_FONT;
+    if (activeBlockId === null) return currentLook.font ?? DEFAULT_FONT;
     const fonts = session.line_fonts(activeBlockId);
     if (!fonts.length) return currentLook.font ?? DEFAULT_FONT;
     const text = session.text_of(activeBlockId);
@@ -313,8 +310,10 @@ export function Sheet({
     const line = text.slice(0, start).split("\n").length - 1;
     return CODE_FONTS[fonts[line] ?? 0] ?? currentLook.font ?? DEFAULT_FONT;
   })();
-  // Swap the text-block renderer without duplicating the (large) prop list.
-  const TextBlockOrCE = (ceRenderer ? TextBlockCE : TextBlock) as typeof TextBlock;
+  // Bright inks fail contrast on the light skins, so they are only offered on the two
+  // dark ones. Stored marks keep whatever ink they already carry (see paint()).
+  const darkSkin = skin === "blueprint" || skin === "terminal";
+  const inks = darkSkin ? INKS : INKS.filter((ink) => !ink.bright);
 
   return (
     <section className="sheet-wrap" data-edge={edge} aria-label={note.title}>
@@ -434,7 +433,7 @@ export function Sheet({
                   </Keep>
                 </div>
                 <div className="tool-group swatches" role="group" aria-label="Ink color">
-                  {INKS.map((ink) => (
+                  {inks.map((ink) => (
                     <Keep
                       key={ink.id}
                       label={`${ink.name} ink${selHint}`}
@@ -630,7 +629,7 @@ export function Sheet({
                   look={looks[String(item.id)]}
                 />
               ) : (
-                <TextBlockOrCE
+                <TextBlockCE
                   key={item.id}
                   noteId={note.id}
                   blockId={item.id}

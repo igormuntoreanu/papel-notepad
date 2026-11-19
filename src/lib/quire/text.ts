@@ -49,66 +49,47 @@ export const SKINS = [
 
 export type SkinId = (typeof SKINS)[number]["id"];
 
-export const LANGUAGES: { id: string; label: string }[] = [
-  { id: "auto", label: "Auto" },
-  { id: "plain", label: "Plain text" },
-  { id: "json", label: "JSON" },
-  { id: "xml", label: "XML" },
-  { id: "html", label: "HTML" },
-  { id: "css", label: "CSS" },
-  { id: "javascript", label: "JavaScript" },
-  { id: "sql", label: "SQL" },
-  { id: "markdown", label: "Markdown" },
-  { id: "rust", label: "Rust" },
-  { id: "java", label: "Java" },
-  { id: "c", label: "C" },
-  { id: "cpp", label: "C++" },
-  { id: "python", label: "Python" },
-  { id: "abap", label: "ABAP" },
-];
-
-const EXT: Record<string, string> = {
-  json: "json",
-  xml: "xml",
-  html: "html",
-  htm: "html",
-  css: "css",
-  js: "javascript",
-  mjs: "javascript",
-  cjs: "javascript",
-  jsx: "javascript",
-  ts: "javascript",
-  tsx: "javascript",
-  sql: "sql",
-  md: "markdown",
-  markdown: "markdown",
-  rs: "rust",
-  java: "java",
-  c: "c",
-  h: "c",
-  cpp: "cpp",
-  cc: "cpp",
-  cxx: "cpp",
-  hpp: "cpp",
-  hh: "cpp",
-  py: "python",
-  abap: "abap",
-  txt: "plain",
-};
-
-export function langFromFilename(name: string): string | null {
-  const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  return EXT[ext] ?? null;
-}
+/**
+ * Extensions Papel will open as plain text. There is no language picker: every sheet
+ * is plain text, so a `.js` or `.md` file simply opens as words. `.papel`/`.quire`
+ * are the note formats and keep their rich blocks.
+ */
+export const TEXT_EXTENSIONS = [
+  "txt",
+  "md",
+  "markdown",
+  "json",
+  "xml",
+  "html",
+  "htm",
+  "css",
+  "js",
+  "mjs",
+  "cjs",
+  "jsx",
+  "ts",
+  "tsx",
+  "sql",
+  "rs",
+  "java",
+  "c",
+  "h",
+  "cpp",
+  "cc",
+  "cxx",
+  "hpp",
+  "hh",
+  "py",
+  "abap",
+] as const;
 
 /**
- * What the Open picker offers. Derived from the same table that hints a
- * language, so the two cannot drift apart.
+ * What the Open picker offers.
  */
 export const OPENABLE_EXTENSIONS: string[] = [
   ".papel",
   ".quire",
-  ...[...new Set(Object.keys(EXT))].map((ext) => `.${ext}`),
+  ...TEXT_EXTENSIONS.map((ext) => `.${ext}`),
 ];
 
 export const FILE_ACCEPT = OPENABLE_EXTENSIONS.join(",");
@@ -116,36 +97,15 @@ export const FILE_ACCEPT = OPENABLE_EXTENSIONS.join(",");
 /** True for the note formats Papel can actually open. */
 export function canOpenFile(name: string): boolean {
   const lower = name.toLowerCase();
-  return lower.endsWith(".papel") || lower.endsWith(".quire") || langFromFilename(name) !== null;
-}
-
-/**
- * Language id → the extension a saved file should carry. The reverse of `EXT`,
- * with the canonical extension chosen for each language (`.js`, not `.mjs`).
- */
-const LANG_EXT: Record<string, string> = {
-  json: "json",
-  xml: "xml",
-  html: "html",
-  css: "css",
-  javascript: "js",
-  sql: "sql",
-  markdown: "md",
-  rust: "rs",
-  java: "java",
-  c: "c",
-  cpp: "cpp",
-  python: "py",
-  abap: "abap",
-};
-
-export function extForLanguage(lang: string): string {
-  return LANG_EXT[lang] ?? "txt";
+  if (lower.endsWith(".papel") || lower.endsWith(".quire")) return true;
+  const ext = lower.split(".").pop() ?? "";
+  return (TEXT_EXTENSIONS as readonly string[]).includes(ext);
 }
 
 export function mimeForExtension(ext: string): string {
   switch (ext) {
     case "papel":
+      return "application/json";
     case "json":
       return "application/json";
     case "xml":
@@ -163,10 +123,6 @@ export function mimeForExtension(ext: string): string {
     default:
       return "text/plain";
   }
-}
-
-export function langLabel(id: string): string {
-  return LANGUAGES.find((l) => l.id === id)?.label ?? id;
 }
 
 export function diffText(prev: string, next: string): { start: number; end: number; inserted: string } {

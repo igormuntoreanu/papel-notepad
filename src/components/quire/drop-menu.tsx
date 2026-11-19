@@ -137,7 +137,14 @@ export function DropMenu({
             className="popover"
             style={style}
             role="menu"
-            onClick={() => setOpen(false)}
+            onClick={(event) => {
+              // Menu buttons close the menu by design, but a native form control in a
+              // menu (the board-order select) must stay open while it is used: the
+              // click that opens the option list or picks one is not a dismissal.
+              const target = event.target as HTMLElement;
+              if (target.closest("select, input, textarea, label, option")) return;
+              setOpen(false);
+            }}
           >
             {items}
           </div>,

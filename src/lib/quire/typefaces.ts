@@ -3,18 +3,17 @@
  *
  * Ids are the only thing written to disk (`font`, `style` on a text block), so they
  * must stay stable forever: renaming a label is fine, changing an id breaks old files.
+ *
+ * The list is deliberately short. Six near-identical sans faces and three monos only
+ * made the face menu hard to scan, so the palette is Plex Sans, one other sans (Inter)
+ * and two monos (Plex Mono, Fira Code). Faces that old files still reference keep their
+ * stored code below and fall back to a kept face.
  */
 
 export const FONTS = [
   { id: "plex-sans", name: "IBM Plex Sans", css: "var(--font-paper-sans)", mono: false },
-  { id: "plex-mono", name: "IBM Plex Mono", css: "var(--font-paper-mono)", mono: true },
   { id: "inter", name: "Inter", css: "var(--font-inter)", mono: false },
-  { id: "roboto", name: "Roboto", css: "var(--font-roboto)", mono: false },
-  { id: "open-sans", name: "Open Sans", css: "var(--font-open-sans)", mono: false },
-  { id: "lato", name: "Lato", css: "var(--font-lato)", mono: false },
-  { id: "montserrat", name: "Montserrat", css: "var(--font-montserrat)", mono: false },
-  { id: "poppins", name: "Poppins", css: "var(--font-poppins)", mono: false },
-  { id: "jetbrains-mono", name: "JetBrains Mono", css: "var(--font-jetbrains-mono)", mono: true },
+  { id: "plex-mono", name: "IBM Plex Mono", css: "var(--font-paper-mono)", mono: true },
   { id: "fira-code", name: "Fira Code", css: "var(--font-fira-code)", mono: true },
 ] as const;
 
@@ -28,8 +27,6 @@ export const TEXT_STYLES = [
   { id: "subtitle", name: "Subtitle" },
   { id: "heading", name: "Heading" },
   { id: "subheading", name: "Subheading" },
-  { id: "section", name: "Section" },
-  { id: "subsection", name: "Subsection" },
   { id: "body", name: "Body" },
 ] as const;
 
@@ -41,41 +38,58 @@ export const STYLE_SIZES: Record<StyleId, number> = {
   subtitle: 26,
   heading: 22.5,
   subheading: 20,
-  section: 18,
-  subsection: 17,
   body: 16,
 };
 
 /** Per-line paragraph-style codes stored in the core. 0 = body (the default), so an
- *  all-zero array means "no per-line styling". Ids are stable; do not renumber. */
+ *  all-zero array means "no per-line styling". Ids are stable; do not renumber.
+ *  Codes 5 and 6 were Section and Subsection; they are gone from the menu, so old
+ *  files that still carry them render as Body (see CODE_STYLES). */
 export const STYLE_CODES: Record<StyleId, number> = {
   body: 0,
   title: 1,
   subtitle: 2,
   heading: 3,
   subheading: 4,
-  section: 5,
-  subsection: 6,
 };
-/** Reverse of STYLE_CODES: core code -> StyleId. */
+/** Reverse of STYLE_CODES: core code -> StyleId. Length and order are fixed by the
+ *  stored codes; retired Section/Subsection (5, 6) map to Body instead of vanishing. */
 export const CODE_STYLES: StyleId[] = [
   "body",
   "title",
   "subtitle",
   "heading",
   "subheading",
-  "section",
-  "subsection",
+  "body",
+  "body",
 ];
 
 /** Per-line font codes stored in the core. 0 = inherit the block's default font, so an
- *  all-zero array means "no per-line font override". Codes 1..N index FONTS (code = i + 1).
- *  Ids are stable; do not renumber. */
-export const FONT_CODES: Record<FontId, number> = Object.fromEntries(
-  FONTS.map((font, i) => [font.id, i + 1]),
-) as Record<FontId, number>;
-/** Reverse of FONT_CODES: core code -> FontId. Index 0 is null (0 = inherit block font). */
-export const CODE_FONTS: (FontId | null)[] = [null, ...FONTS.map((font) => font.id)];
+ *  all-zero array means "no per-line font override". Ids are stable; do not renumber.
+ *  These are the codes the original nine-face list used, kept so old files open with
+ *  the same face wherever that face still exists. */
+export const FONT_CODES: Record<FontId, number> = {
+  "plex-sans": 1,
+  "plex-mono": 2,
+  inter: 3,
+  "fira-code": 10,
+};
+/** Reverse of FONT_CODES: core code -> FontId. Index 0 is null (0 = inherit block font).
+ *  Retired faces map to the closest kept face instead of dropping the styling:
+ *  Roboto/Open Sans/Lato/Montserrat/Poppins -> Plex Sans, JetBrains Mono -> Plex Mono. */
+export const CODE_FONTS: (FontId | null)[] = [
+  null,
+  "plex-sans",
+  "plex-mono",
+  "inter",
+  "plex-sans",
+  "plex-sans",
+  "plex-sans",
+  "plex-sans",
+  "plex-sans",
+  "plex-mono",
+  "fira-code",
+];
 
 /** Paragraph alignment, offered while Word Wrap is on. */
 export const ALIGNMENTS = [

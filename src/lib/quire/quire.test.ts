@@ -93,25 +93,25 @@ describe("continueBullet", () => {
 
 describe("paint", () => {
   it("escapes markup in plain text", () => {
-    assert.equal(paint("<b>&</b>", []), "&lt;b&gt;&amp;&lt;/b&gt;");
+    assert.equal(paint("<b>&</b>"), "&lt;b&gt;&amp;&lt;/b&gt;");
   });
 
-  it("layers syntax spans and style marks", () => {
-    // "let x" with a keyword span on "let" and bold+ink on "et x".
-    const html = paint("let x", [0, 3, 1], readMarks([1, 5, FLAG.bold, 1, 0]));
-    assert.equal(html, '<span class="k">l</span><span class="k sb ink1">et</span><span class="sb ink1"> x</span>');
+  it("layers style marks over plain text", () => {
+    // Bold and ink on "et x": there is no syntax colouring, only style marks.
+    const html = paint("let x", readMarks([1, 5, FLAG.bold, 1, 0]));
+    assert.equal(html, 'l<span class="sb ink1">et x</span>');
   });
 
   it("emits highlighter classes", () => {
-    assert.equal(paint("ab", [], readMarks([0, 1, 0, 0, 2])), '<span class="hl2">a</span>b');
+    assert.equal(paint("ab", readMarks([0, 1, 0, 0, 2])), '<span class="hl2">a</span>b');
   });
 
   it("paints a Find hit that stays visible without textarea focus", () => {
-    assert.equal(paint("abc", [], [], [{ start: 1, end: 2 }]), 'a<span class="find-hit">b</span>c');
+    assert.equal(paint("abc", [], [{ start: 1, end: 2 }]), 'a<span class="find-hit">b</span>c');
   });
 
   it("paints every hit of a sheet search, not just one", () => {
-    const html = paint("ab ab ab", [], [], [
+    const html = paint("ab ab ab", [], [
       { start: 0, end: 2 },
       { start: 3, end: 5 },
       { start: 6, end: 8 },
@@ -123,7 +123,7 @@ describe("paint", () => {
   });
 
   it("keeps style marks and highlights on the same run", () => {
-    const html = paint("ab", [], readMarks([0, 2, FLAG.underline, 2, 0]), [{ start: 0, end: 2 }]);
+    const html = paint("ab", readMarks([0, 2, FLAG.underline, 2, 0]), [{ start: 0, end: 2 }]);
     assert.equal(html, '<span class="su ink2 find-hit">ab</span>');
   });
 });
@@ -188,9 +188,9 @@ describe("backup merge", () => {
       exportedAt: "2026-10-23T00:00:00.000Z",
       order: ["a", "b", "c"],
       notes: [
-        { id: "a", title: "A", wrap: true, language: "auto", eol: "lf", encoding: "utf-8", blocks: [{ kind: "text", text: "a" }] },
-        { id: "b", title: "B", wrap: true, language: "auto", eol: "lf", encoding: "utf-8", blocks: [{ kind: "text", text: "b" }] },
-        { id: "c", title: "C", wrap: true, language: "auto", eol: "lf", encoding: "utf-8", blocks: [{ kind: "text", text: "c" }] },
+        { id: "a", title: "A", wrap: true, eol: "lf", encoding: "utf-8", blocks: [{ kind: "text", text: "a" }] },
+        { id: "b", title: "B", wrap: true, eol: "lf", encoding: "utf-8", blocks: [{ kind: "text", text: "b" }] },
+        { id: "c", title: "C", wrap: true, eol: "lf", encoding: "utf-8", blocks: [{ kind: "text", text: "c" }] },
       ],
     };
     const result = mergeArchive(archive as never, new Set(["b"]));

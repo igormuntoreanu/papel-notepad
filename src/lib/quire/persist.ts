@@ -43,7 +43,8 @@ export type StoredNote = {
   sourceExt?: string;
   /** Filename in the sync folder. */
   diskName?: string;
-  language: string;
+  /** Retired: every sheet is plain text. Kept optional so old saves still load. */
+  language?: string;
   eol: string;
   encoding: string;
   blocks: StoredBlock[];
@@ -55,7 +56,7 @@ export type Persisted = {
   activeId: string | null;
 };
 
-export type SortMode = "manual" | "recent" | "title";
+export type SortMode = "recent" | "title";
 
 export type Prefs = {
   skin: SkinId;

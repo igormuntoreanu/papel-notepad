@@ -330,7 +330,7 @@ export function TextBlockCE({
         });
       }
       const lineHits = hitsOnLine(lineStart, lineEnd, lt.length);
-      const inner = lt.length === 0 ? "<br>" : paint(lt, [], local, lineHits);
+      const inner = lt.length === 0 ? "<br>" : paint(lt, local, lineHits);
       const align = ALIGN_ATTR[aligns[i] ?? 0] ?? "left";
       const styleId = CODE_STYLES[styles[i] ?? 0] ?? "body";
       const fontId = CODE_FONTS[fonts[i] ?? 0];
@@ -476,7 +476,7 @@ export function TextBlockCE({
     renderedMarks.current = session.marks(blockId).join(",");
     let caret = d.start + d.inserted.length;
     // Autocorrect: after typing one character in plain text, fix the word at the caret.
-    if (autocorrect && inputType === "insertText" && data && data.length === 1 && session.effective_language(blockId) === "plain") {
+    if (autocorrect && inputType === "insertText" && data && data.length === 1) {
       const fix = correctionAt(session.text_of(blockId), caret);
       if (fix) {
         session.edit(blockId, fix.start, fix.end, fix.replacement, false);

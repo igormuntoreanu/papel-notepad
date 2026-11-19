@@ -1,14 +1,22 @@
+/**
+ * Ink palette, addressed by the ids stored in marks (ids are stable; do not renumber).
+ *
+ * `bright` inks fail contrast on the light skins (roughly 1.5-2.2:1 on white or cream),
+ * so the editor only offers them while a dark skin (Blueprint, Terminal) is active.
+ * Documents that already carry them still render; the choice is just not offered.
+ * Orange and red stay dark enough to remain legible, so they are not flagged.
+ */
 export const INKS = [
-  { id: 0, name: "Black", color: "var(--ink)" },
-  { id: 1, name: "Wax red", color: "#9c3b2e" },
-  { id: 2, name: "Blue", color: "#1e4f8c" },
-  { id: 3, name: "Green", color: "#2f5a2c" },
-  { id: 4, name: "Pencil", color: "#5a544c" },
-  { id: 5, name: "Dark orange", color: "#cc5a1e" },
-  { id: 6, name: "Red", color: "#d81f26" },
-  { id: 7, name: "Matrix green", color: "#00d83d" },
-  { id: 8, name: "Silver neon", color: "#a7b0bc" },
-  { id: 9, name: "Gold", color: "#d9a521" },
+  { id: 0, name: "Black", color: "var(--ink)", bright: false },
+  { id: 1, name: "Wax red", color: "#9c3b2e", bright: false },
+  { id: 2, name: "Blue", color: "#1e4f8c", bright: false },
+  { id: 3, name: "Green", color: "#2f5a2c", bright: false },
+  { id: 4, name: "Pencil", color: "#5a544c", bright: false },
+  { id: 5, name: "Dark orange", color: "#cc5a1e", bright: true },
+  { id: 6, name: "Red", color: "#d81f26", bright: true },
+  { id: 7, name: "Matrix green", color: "#00d83d", bright: true },
+  { id: 8, name: "Silver neon", color: "#a7b0bc", bright: true },
+  { id: 9, name: "Gold", color: "#d9a521", bright: true },
 ] as const;
 
 export const HIGHLIGHTERS = [
@@ -23,8 +31,6 @@ export const FLAG = { bold: 1, italic: 2, underline: 4, strike: 8 } as const;
 export type FlagName = keyof typeof FLAG;
 
 export type Mark = { start: number; end: number; flags: number; ink: number; hl: number };
-
-const KIND = ["", "k", "t", "s", "c", "n", "f", "g", "a", "b", "m"];
 
 export function readMarks(flat: ArrayLike<number>): Mark[] {
   const out: Mark[] = [];
@@ -57,10 +63,9 @@ export function rangeHas(marks: Mark[], start: number, end: number, flag: number
   return cursor >= end;
 }
 
-/** Renders text into HTML, layering syntax spans (triples) and style marks. */
+/** Renders text into HTML, layering style marks and temporary search hits. */
 export function paint(
   text: string,
-  spans: ArrayLike<number>,
   marks: Mark[] = [],
   /**
    * Temporary highlights: the current Find match and/or every match of the strip search.
@@ -70,17 +75,6 @@ export function paint(
 ): string {
   const len = text.length;
   const points = new Set<number>([0, len]);
-  const syn: { s: number; e: number; cls: string }[] = [];
-  for (let i = 0; i + 2 < spans.length; i += 3) {
-    const s = Math.min(spans[i] ?? 0, len);
-    const e = Math.min(spans[i + 1] ?? 0, len);
-    const cls = KIND[spans[i + 2] ?? 0] ?? "";
-    if (e > s && cls) {
-      syn.push({ s, e, cls });
-      points.add(s);
-      points.add(e);
-    }
-  }
   const styled = marks
     .map((m) => ({ ...m, start: Math.min(m.start, len), end: Math.min(m.end, len) }))
     .filter((m) => m.end > m.start);
@@ -98,22 +92,18 @@ export function paint(
     points.add(h.start);
     points.add(h.end);
   }
-  if (syn.length === 0 && styled.length === 0 && found.length === 0) return esc(text);
+  if (styled.length === 0 && found.length === 0) return esc(text);
   const cuts = [...points].sort((a, b) => a - b);
   let html = "";
-  let si = 0;
   let mi = 0;
   let fi = 0;
   for (let i = 0; i + 1 < cuts.length; i += 1) {
     const a = cuts[i]!;
     const b = cuts[i + 1]!;
-    while (si < syn.length && syn[si]!.e <= a) si += 1;
     while (mi < styled.length && styled[mi]!.end <= a) mi += 1;
-    const sy = syn[si] && syn[si]!.s <= a ? syn[si] : undefined;
     const mk = styled[mi] && styled[mi]!.start <= a ? styled[mi] : undefined;
     const body = esc(text.slice(a, b));
     const classes: string[] = [];
-    if (sy) classes.push(sy.cls);
     if (mk) {
       if (mk.flags & FLAG.bold) classes.push("sb");
       if (mk.flags & FLAG.italic) classes.push("si");
