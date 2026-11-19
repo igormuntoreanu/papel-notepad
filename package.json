@@ -16,7 +16,7 @@
     "preview:restart": "node scripts/preview.mjs restart",
     "preview:stop": "node scripts/preview.mjs stop",
     "typecheck": "tsc --noEmit",
-    "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/preview-path-prefix.test.ts src/lib/quire/quire.test.ts src/lib/quire/typefaces.test.ts src/lib/quire/lists.test.ts src/lib/quire/html-paste.test.ts src/lib/quire/urls.test.ts src/lib/desktop/fs-adapter.test.ts",
+    "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/preview-path-prefix.test.ts src/lib/quire/quire.test.ts src/lib/quire/typefaces.test.ts src/lib/quire/lists.test.ts src/lib/quire/html-paste.test.ts src/lib/quire/urls.test.ts src/lib/quire/titles.test.ts src/lib/quire/tabs.test.ts src/lib/quire/carbon.test.ts src/lib/desktop/fs-adapter.test.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

@@ -3,7 +3,7 @@ import { createSession, type Session } from "@/lib/quire/engine";
 import { toggleBullets } from "@/lib/quire/blocks";
 import { findInNote, type NoteHits } from "@/lib/quire/note-search";
 import { FLAG, rangeHas, readMarks, type FlagName } from "@/lib/quire/marks";
-import { savePersisted, type Prefs, type SortMode } from "@/lib/quire/persist";
+import { savePersisted, type Prefs, type SortMode, type StoredBinNote, type StoredCarbonCopy } from "@/lib/quire/persist";
 import { ARCHIVE_EXT, archiveFileName, formatLastBackup, mergeArchive, parseArchive, zipBackupFileName } from "@/lib/quire/backup";
 import {
   canPickFolder,
@@ -31,7 +31,7 @@ import {
   type DateStampStyle,
   type SkinId,
 } from "@/lib/quire/text";
-import { copyTitle, titleFromFilename, uniqueTitle } from "@/lib/quire/titles";
+import { copyTitle, titleFromFilename, titleFromFirstLine, uniqueTitle } from "@/lib/quire/titles";
 import { buildZip } from "@/lib/quire/zip";
 import { Board, type CardActions } from "./board";
 import { HeaderStrip } from "./header-strip";
@@ -40,6 +40,8 @@ import type { CellRange, CellTarget } from "./table-block";
 import { FONT_CODES, STYLE_CODES, type BlockLook } from "@/lib/quire/typefaces";
 import { applyListStyle } from "@/lib/quire/lists";
 import type { ListKind } from "@/lib/quire/lists";
+import { isTabId, type TabId } from "@/lib/quire/tabs";
+import { pushCarbon } from "@/lib/quire/carbon";
 import {
   blankNote,
   buildArchive,
@@ -52,19 +54,32 @@ import {
   imageUrl,
   outlineOf,
   sessionFromArchiveNote,
+  sessionFromStoredNote,
   sessions,
   snapshot,
+  storedNoteFromMeta,
   toPapel,
   type NoteMeta,
   type Place,
 } from "./store";
 
-type Ask = { title: string; body: string; confirm: string; tone?: "danger"; run: () => void; hardConfirm?: boolean };
+type Ask = {
+  title: string;
+  body: string;
+  confirm: string;
+  tone?: "danger";
+  run: () => void;
+  hardConfirm?: boolean;
+  /** Text next to the tick box when `hardConfirm` is on. */
+  ackLabel?: string;
+};
 type Sel = { blockId: number; start: number; end: number };
 
 const ZOOM_MIN = 10;
 const ZOOM_MAX = 40;
 const ZOOM_DEFAULT = 16;
+/** Autosave writes at most one carbon copy per sheet in this window. */
+const CARBON_INTERVAL = 2 * 60_000;
 
 function clampZoom(size: number): number {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(size)));
@@ -92,6 +107,12 @@ export function QuireApp() {
   const [sort, setSort] = useState<SortMode>("recent");
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
+  /** Deleted sheets kept until the bin is purged. */
+  const [bin, setBin] = useState<StoredBinNote[]>([]);
+  /** Per-sheet version history ("carbon copies"). */
+  const [carbon, setCarbon] = useState<Record<string, StoredCarbonCopy[]>>({});
+  const [binOpen, setBinOpen] = useState(false);
+  const [carbonOpen, setCarbonOpen] = useState(false);
   /** Chromium: true until a sync folder is linked with write permission. */
   const [folderGate, setFolderGate] = useState(false);
   const [tick, setTick] = useState(0);
@@ -217,6 +238,8 @@ export function QuireApp() {
         setSort(data.prefs.sort);
         setLastBackup(data.prefs.lastBackup ?? null);
         setFolderName(data.prefs.folderName ?? null);
+        setBin(data.bin);
+        setCarbon(data.carbon);
         setReady(true);
         if (!canPickFolder()) {
           setFolderGate(false);
@@ -257,12 +280,14 @@ export function QuireApp() {
         lastBackup: lastBackup ?? undefined,
         folderName: folderName ?? undefined,
       };
-      void savePersisted(snapshot(notes, order, activeId), prefs).catch(() => {
+      // A version at most every two minutes while a sheet is being edited.
+      createCarbon(activeId);
+      void savePersisted(snapshot(notes, order, activeId, bin, carbon), prefs).catch(() => {
         setMessage("Could not autosave this sheet.");
       });
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, lastBackup, folderName, tick]);
+  }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, lastBackup, folderName, bin, carbon, tick]);
 
   // Ctrl + wheel zooms the sheet like a document viewer. A plain wheel keeps
   // scrolling, and the listener only swallows the gesture over the page so the board
@@ -390,7 +415,164 @@ export function QuireApp() {
 
   function edited() {
     touch(activeRef.current);
+    syncAutoTitle(activeRef.current);
     setTick((n) => n + 1);
+  }
+
+  /** While the title is automatic, it follows the first non-empty line. */
+  function syncAutoTitle(id: string | null) {
+    if (!id) return;
+    const meta = notesRef.current.find((n) => n.id === id);
+    if (!meta || meta.titleAuto === false) return;
+    const session = sessions.get(id);
+    if (!session) return;
+    const base = titleFromFirstLine(session.export_text());
+    if (!base) return;
+    const taken = notesRef.current.filter((n) => n.id !== id).map((n) => n.title);
+    const title = uniqueTitle(base, taken);
+    if (title !== meta.title) {
+      setNotes((list) => list.map((n) => (n.id === id ? { ...n, title } : n)));
+    }
+  }
+
+  function setNoteTab(id: string, tab: TabId | undefined) {
+    setNotes((list) => list.map((n) => (n.id === id ? { ...n, tab } : n)));
+    setTick((n) => n + 1);
+  }
+
+  function togglePin(id: string) {
+    setNotes((list) => list.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n)));
+    setTick((n) => n + 1);
+  }
+
+  /**
+   * Writes one version of a sheet into its carbon history. Called on an explicit Save
+   * and, at most every two minutes, by autosave.
+   */
+  function createCarbon(id: string | null, force = false) {
+    if (!id) return;
+    const session = sessions.get(id);
+    const meta = notesRef.current.find((n) => n.id === id);
+    if (!session || !meta) return;
+    // Do not fill the history with empty sheets while a new one is still blank.
+    if (!force && session.export_text().trim() === "") return;
+    const copy: StoredCarbonCopy = {
+      at: Date.now(),
+      papel: toPapel(session, meta.looks ?? {}),
+      looks: { ...(meta.looks ?? {}) },
+    };
+    setCarbon((current) => {
+      const list = current[id] ?? [];
+      const last = list[list.length - 1];
+      if (!force && last && copy.at - last.at < CARBON_INTERVAL) return current;
+      return pushCarbon(current, id, copy);
+    });
+  }
+
+  /** Replaces the open sheet with one of its carbon copies (the current state is kept). */
+  function restoreCarbon(at: number) {
+    const id = activeRef.current;
+    if (!id) return;
+    const copy = (carbon[id] ?? []).find((entry) => entry.at === at);
+    if (!copy) return;
+    createCarbon(id, true);
+    const session = createSession();
+    const looks: Record<string, BlockLook> = {};
+    if (!fromPapel(session, new TextEncoder().encode(copy.papel), looks)) {
+      showAlert("That carbon copy could not be read.");
+      return;
+    }
+    sessions.set(id, session);
+    setNotes((list) =>
+      list.map((n) =>
+        n.id === id ? { ...n, looks: Object.keys(looks).length ? looks : undefined, titleAuto: false } : n,
+      ),
+    );
+    session.mark_dirty();
+    setSel({ blockId: session.first_text_id(), start: 0, end: 0 });
+    setCarbonOpen(false);
+    setMessage("Carbon copy restored");
+    setTick((n) => n + 1);
+  }
+
+  function deleteCarbon(at: number) {
+    const id = activeRef.current;
+    if (!id) return;
+    setCarbon((current) => ({
+      ...current,
+      [id]: (current[id] ?? []).filter((entry) => entry.at !== at),
+    }));
+  }
+
+  /** Brings a binned sheet back onto the board, reusing its file name. */
+  function restoreFromBin(at: number) {
+    const entry = bin.find((item) => item.deletedAt === at);
+    if (!entry) return;
+    const { session, looks } = sessionFromStoredNote(entry.note);
+    const freshId = crypto.randomUUID();
+    sessions.set(freshId, session);
+    const titles = notesRef.current.map((n) => n.title);
+    const meta: NoteMeta = {
+      id: freshId,
+      title: uniqueTitle(entry.note.title || "Untitled", titles),
+      wrap: entry.note.wrap,
+      edited: entry.note.edited ?? Date.now(),
+      sourceExt: entry.note.sourceExt,
+      diskName: entry.note.diskName,
+      looks: Object.keys(looks).length ? looks : undefined,
+      titleAuto: entry.note.titleAuto === true,
+      tab: isTabId(entry.note.tab) ? entry.note.tab : undefined,
+      pinned: entry.note.pinned === true,
+    };
+    setNotes((list) => [...list, meta]);
+    setOrder((list) => [...list, freshId]);
+    setBin((list) => list.filter((item) => item.deletedAt !== at));
+    // The history was keyed by the old id; move it to the restored sheet's new id.
+    setCarbon((current) => {
+      const copies = current[entry.note.id];
+      if (!copies) return current;
+      const next = { ...current, [freshId]: copies };
+      delete next[entry.note.id];
+      return next;
+    });
+    if (entry.note.dirty) session.mark_dirty();
+    else session.mark_clean();
+    void writeNoteToFolder(meta, session, meta.diskName).then((disk) => {
+      if (disk) setDiskName(freshId, disk);
+    });
+    setMessage(`Restored ${meta.title}`);
+    setTick((n) => n + 1);
+  }
+
+  /** Removes a binned sheet for good, including its file in the sync folder. */
+  function purgeFromBin(at: number) {
+    const entry = bin.find((item) => item.deletedAt === at);
+    if (!entry) return;
+    const run = () => {
+      const dir = folderRef.current;
+      if (entry.note.diskName && dir && folderOkRef.current) {
+        void removeFolderFile(dir, entry.note.diskName);
+      }
+      setBin((list) => list.filter((item) => item.deletedAt !== at));
+      setCarbon((current) => {
+        if (!current[entry.note.id]) return current;
+        const next = { ...current };
+        delete next[entry.note.id];
+        return next;
+      });
+      setMessage("Sheet deleted for good");
+      setTick((n) => n + 1);
+    };
+    setAckDelete(false);
+    setAsk({
+      title: "Delete this sheet for good?",
+      body: `${entry.note.title || "This sheet"} will leave the bin${entry.note.diskName ? ` and ${entry.note.diskName} will be removed from your folder` : ""}. This cannot be undone.`,
+      confirm: "Delete for good",
+      tone: "danger",
+      hardConfirm: true,
+      ackLabel: "Yes, delete this sheet and its file for good",
+      run,
+    });
   }
 
   function activate(id: string, caretAtEnd = false) {
@@ -485,6 +667,9 @@ export function QuireApp() {
       edited: Date.now(),
       sourceExt: meta.sourceExt,
       looks: copy.looks,
+      titleAuto: false,
+      tab: meta.tab,
+      pinned: false,
     };
     setNotes((list) => [...list, fresh]);
     insertAfter(id, freshId);
@@ -498,10 +683,12 @@ export function QuireApp() {
   function closeNote(id: string) {
     const meta = notesRef.current.find((n) => n.id === id);
     const run = () => {
-      const disk = meta?.diskName;
-      const dir = folderRef.current;
-      if (disk && dir && folderOkRef.current) {
-        void removeFolderFile(dir, disk);
+      // Move to the bin instead of deleting: the file stays on disk until the bin
+      // entry is purged, and Restore brings the sheet back with its file name.
+      const snapshotNote = meta ? storedNoteFromMeta(id, meta) : null;
+      if (snapshotNote) {
+        const deletedAt = Date.now();
+        setBin((list) => [{ note: snapshotNote, deletedAt }, ...list]);
       }
       sessions.delete(id);
       dropUrls(id);
@@ -515,16 +702,16 @@ export function QuireApp() {
       }
       setTick((n) => n + 1);
     };
-    // Closing a sheet DELETES it (board entry + the file on disk), so the dialog says
-    // "delete", not "close", and demands an explicit tick before the button arms. A clean
-    // sheet used to vanish with no question at all, which cost people their files.
+    // Deleting moves the sheet to the bin, so the dialog says "move to bin" and still
+    // demands an explicit tick. Emptying it from the bin is the irreversible step.
     setAckDelete(false);
     setAsk({
-      title: "\u26A0 Delete this sheet?",
-      body: `${meta?.title ?? "This sheet"} will be permanently deleted from the board${meta?.diskName ? `, and ${meta.diskName} will be removed from your folder` : ""}. This cannot be undone.`,
-      confirm: "Delete",
+      title: "\u26A0 Move this sheet to the bin?",
+      body: `${meta?.title ?? "This sheet"} will leave the board and wait in the bin. You can restore it from Settings \u2192 Bin; deleting it there removes it for good.`,
+      confirm: "Move to bin",
       tone: "danger",
       hardConfirm: true,
+      ackLabel: "Yes, move this sheet to the bin",
       run,
     });
   }
@@ -533,7 +720,7 @@ export function QuireApp() {
     const taken = notesRef.current.filter((n) => n.id !== id).map((n) => n.title);
     const next = uniqueTitle(title.trim() || "Untitled", taken);
     const prev = notesRef.current.find((n) => n.id === id);
-    setNotes((list) => list.map((n) => (n.id === id ? { ...n, title: next } : n)));
+    setNotes((list) => list.map((n) => (n.id === id ? { ...n, title: next, titleAuto: false } : n)));
     const s = sessions.get(id);
     if (prev && s) {
       const updated = { ...prev, title: next };
@@ -600,6 +787,7 @@ export function QuireApp() {
         const name = safeName(meta.title, as);
         download(name, s.export_bytes(), mimeForExtension(as));
         s.mark_clean();
+        createCarbon(id, true);
         setMessage(`Saved ${name}`);
         setTick((n) => n + 1);
       } catch (err) {
@@ -611,6 +799,7 @@ export function QuireApp() {
       const name = safeName(meta.title, "papel");
       download(name, toPapel(s, meta.looks ?? {}), "application/json");
       s.mark_clean();
+      createCarbon(id, true);
       setMessage(`Saved ${name}`);
       setTick((n) => n + 1);
     }
@@ -663,6 +852,7 @@ export function QuireApp() {
       metas.push({
         id: note.id,
         title: uniqueTitle(note.title, taken),
+        titleAuto: false,
         wrap: note.wrap,
         edited: note.edited ?? Date.now(),
         sourceExt: note.sourceExt,
@@ -722,6 +912,7 @@ export function QuireApp() {
         edited: file.lastModified || Date.now(),
         sourceExt: plainExt,
         looks: Object.keys(importedLooks).length ? importedLooks : undefined,
+        titleAuto: false,
       };
       pending.push(meta);
       first = first ?? id;
@@ -1440,6 +1631,11 @@ export function QuireApp() {
   const visible = order.slice();
   if (sort === "recent") visible.sort((a, b) => (metaById.get(b)?.edited ?? 0) - (metaById.get(a)?.edited ?? 0));
   if (sort === "title") visible.sort((a, b) => (metaById.get(a)?.title ?? "").localeCompare(metaById.get(b)?.title ?? ""));
+  // Pinned cards float to the top of whichever order is selected. Array#sort is stable,
+  // so the selected order is preserved inside each group.
+  visible.sort(
+    (a, b) => Number(metaById.get(b)?.pinned === true) - Number(metaById.get(a)?.pinned === true),
+  );
   // The board is always sorted (Last edited or Title), so cards are not dragged
   // into a hand-kept order any more.
   const canReorder = false;
@@ -1454,6 +1650,8 @@ export function QuireApp() {
     close: closeNote,
     move: moveNote,
     reorder,
+    pin: togglePin,
+    setTab: setNoteTab,
   };
 
   const blockId = sel.blockId || session?.first_text_id() || 0;
@@ -1543,6 +1741,7 @@ export function QuireApp() {
       setMessage(mode === "lf" ? "Line endings: Unix (LF)" : "Line endings: Windows (CRLF)");
       edited();
     },
+    carbon: () => setCarbonOpen(true),
     table: insertTable,
     bullets: toggleBulletList,
     close: () => activeId && closeNote(activeId),
@@ -1703,6 +1902,10 @@ export function QuireApp() {
         message={message}
         total={order.length}
         unsaved={unsaved}
+        binCount={bin.length}
+        onOpenBin={() => setBinOpen(true)}
+        carbonCount={activeId ? (carbon[activeId]?.length ?? 0) : 0}
+        onOpenCarbon={() => setCarbonOpen(true)}
         onChanged={() => bump()}
         onMessage={setMessage}
       />
@@ -1816,6 +2019,108 @@ export function QuireApp() {
         }}
       />
 
+
+      {binOpen && (
+        <div className="modal-back" onMouseDown={() => setBinOpen(false)}>
+          <div
+            className="modal history-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bin-title"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h2 id="bin-title">Bin</h2>
+            <p className="history-lede">
+              Deleted sheets wait here. Restoring puts the sheet back on the board; deleting it
+              from the bin removes it and its file for good.
+            </p>
+            {bin.length === 0 ? (
+              <p className="history-empty">The bin is empty.</p>
+            ) : (
+              <ul className="history-list">
+                {bin.map((entry) => (
+                  <li key={entry.deletedAt} className="history-row">
+                    <div className="history-main">
+                      <strong>{entry.note.title || "Untitled"}</strong>
+                      <span className="history-meta">
+                        Deleted {new Date(entry.deletedAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="history-actions">
+                      <button type="button" className="btn" onClick={() => restoreFromBin(entry.deletedAt)}>
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        className="btn danger"
+                        onClick={() => {
+                          setBinOpen(false);
+                          purgeFromBin(entry.deletedAt);
+                        }}
+                      >
+                        Delete for good
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="btn" onClick={() => setBinOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {carbonOpen && activeId && (
+        <div className="modal-back" onMouseDown={() => setCarbonOpen(false)}>
+          <div
+            className="modal history-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="carbon-title"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h2 id="carbon-title">Carbon copies</h2>
+            <p className="history-lede">
+              Versions of {note?.title ?? "this sheet"}, newest first. Papel keeps one on every
+              save and at most one every two minutes while you type.
+            </p>
+            {(carbon[activeId] ?? []).length === 0 ? (
+              <p className="history-empty">
+                No carbon copies yet. Save the sheet, or keep editing for a couple of minutes.
+              </p>
+            ) : (
+              <ul className="history-list">
+                {[...(carbon[activeId] ?? [])].reverse().map((entry) => (
+                  <li key={entry.at} className="history-row">
+                    <div className="history-main">
+                      <strong>{new Date(entry.at).toLocaleString()}</strong>
+                      <span className="history-meta">Carbon copy</span>
+                    </div>
+                    <div className="history-actions">
+                      <button type="button" className="btn" onClick={() => restoreCarbon(entry.at)}>
+                        Restore
+                      </button>
+                      <button type="button" className="btn" onClick={() => deleteCarbon(entry.at)}>
+                        Delete copy
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="btn" onClick={() => setCarbonOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {alert && (
         <div className="toast" role="alert">
           {alert}
@@ -1886,7 +2191,7 @@ export function QuireApp() {
                   autoFocus
                   onChange={(e) => setAckDelete(e.target.checked)}
                 />
-                <span>Yes, permanently delete this sheet and its file</span>
+                <span>{ask.ackLabel ?? "Yes, permanently delete this sheet and its file"}</span>
               </label>
             )}
             <div className="modal-actions">

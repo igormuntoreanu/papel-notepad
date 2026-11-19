@@ -28,6 +28,18 @@ export function uniqueTitle(wanted: string, taken: string[]): string {
   return `${base} (${n})`;
 }
 
+/**
+ * Title taken from the sheet's own first non-empty line.
+ * Whitespace collapses so a long line becomes a single readable card title, and the
+ * result is capped so it still fits the sheet header and card.
+ */
+export function titleFromFirstLine(text: string, limit = 60): string {
+  const line = text.split("\n").find((entry) => entry.trim().length > 0);
+  if (!line) return "";
+  const collapsed = line.trim().replace(/\s+/g, " ");
+  return collapsed.slice(0, limit).trim();
+}
+
 /** Filename stem: strip a trailing extension if present. */
 export function titleFromFilename(name: string): string {
   const base = name.split(/[/\\]/).pop() ?? name;

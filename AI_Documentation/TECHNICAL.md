@@ -103,6 +103,35 @@ Papel is a **client-side single-page app** with a **Rust document core compiled 
 
 `searchNotes(query, docs)` scores each note per query word: title substring > body substring > close spelling (bounded Levenshtein, 1 edit for short words, 2 for 6+ letters) > title subsequence. Every word must match. Results are ranked and include a body snippet.
 
+### 3.6 Checklists, titles, tabs, bin and carbon copies
+
+- **Checklists are text.** `lists.ts` gains a `check` kind whose marker is `[ ] ` or
+  `[x] `. `applyListStyle` / `continueList` / `indentList` / `renumberLists` treat it
+  like any other list, so Enter continues it and Tab nests it. The contenteditable
+  renderer wraps the three marker characters in a `.check-box` span (text unchanged,
+  so core offsets still hold) and sets `data-check="1"` on a ticked line; CSS draws the
+  box and a pencil strike-through. Clicking the box flips one character through
+  `session.edit`, so a tick is a normal undo step and the state survives `.txt` saves.
+- **Titles from the first line.** `NoteMeta.titleAuto` is true for new sheets. Every
+  edit calls `syncAutoTitle`, which sets the title to `titleFromFirstLine(...)` (trim,
+  collapse whitespace, 60 chars) uniqued against the other sheets. A manual rename
+  clears `titleAuto`, so the user's name is never overwritten. Opened/imported files and
+  duplicates start with `titleAuto: false`.
+- **Tabs and pins.** `NoteMeta.tab` is a stable id from `tabs.ts` and `pinned` is a
+  boolean; both are stored in the IndexedDB snapshot. The card shows a coloured strip
+  on its top edge and a pin in the byline. The board sorts pinned cards first while
+  keeping the selected order inside each group.
+- **Bin.** Deleting a sheet serialises it with `storedNoteFromMeta` and prepends
+  `{ note, deletedAt }` to `Persisted.bin` instead of deleting the file. Restore builds
+  a session with `sessionFromStoredNote`, reuses `diskName`, and writes the file back;
+  "Delete for good" removes the entry and the folder file.
+- **Carbon copies.** Every explicit Save forces a snapshot, and autosave adds at most
+  one per sheet per two minutes while the content differs. A snapshot is
+  `{ at, papel, looks }` (the same `.papel` JSON the file format uses). `carbon.ts`
+  deduplicates identical consecutive versions and caps history at 20. Restoring keeps
+  the current state as another carbon copy first, replaces the session from the stored
+  JSON, and marks it dirty.
+
 ## 4. Folder / Project Structure
 
 ```
@@ -204,10 +233,10 @@ A **link is not a mark**: pasting http(s) text writes `ink 2` (Blue) + `underlin
 
 | Key | Shape |
 | --- | --- |
-| `doc` | `{ notes: StoredNote[], order: string[], activeId: string \| null }` |
+| `doc` | `{ notes: StoredNote[], order: string[], activeId: string \| null, bin?: StoredBinNote[], carbon?: Record<string, StoredCarbonCopy[]> }` |
 | `prefs` | `{ skin: "sulphite" \| "paper" \| "ink" \| "carbon" \| "blueprint" \| "terminal" \| "legal-pad" \| "manila" \| "newsprint" \| "washi" \| "index-card" \| "chalkboard", zoom: 10–40, autocorrect: boolean, sort: "recent" \| "title", lastBackup?, folderName? }` |
 
-`StoredNote`: `{ id, title, wrap, edited?, sourceExt?, diskName?, language?, eol, encoding, blocks }`, where a block is text (`marks?`, `aligns?`, `styles?`, `fonts?`), an image (`mime`, `bytes: ArrayBuffer`) or a table (`cols`, `cells`). `language` is retired and only read from old saves. Older prefs containing `mode: "night"` are ignored.
+`StoredNote`: `{ id, title, wrap, edited?, sourceExt?, diskName?, titleAuto?, tab?, pinned?, language?, eol, encoding, blocks }`, where a block is text (`marks?`, `aligns?`, `styles?`, `fonts?`), an image (`mime`, `bytes: ArrayBuffer`) or a table (`cols`, `cells`). `language` is retired and only read from old saves. Older prefs containing `mode: "night"` are ignored. `bin` and `carbon` are new optional arrays, so a save from an older build still loads.
 
 ### 6.4 `.papel` file (JSON)
 
@@ -270,7 +299,11 @@ display only, and the next repaint drops it. Matching is `Session::find` for bot
 | Textures as SVG turbulence, rasterized once at startup | Code-generated look without image files. | A small canvas step at boot; SVG kept as fallback. |
 | Performance containment | `contain: strict` on the side column, `will-change` on the sheet, cards memoized and refreshed after typing pauses, single paint per keystroke. | Card previews lag about 0.5 s behind typing. |
 | Round-robin card columns | Stable left-to-right reading order; uses all columns. | Columns can end at different heights. |
-| Autosave writes a full snapshot | Simple and robust recovery. | Cost grows with total notes and image size. |
+| Autosave writes a full snapshot | Simple and robust recovery. | Cost grows with total notes and image size; the bin and carbon history ride in the same snapshot. |
+| Checklists are plain text | Lists keep working in `.txt`, need no new block kind, and every tick is one undo step. | A tick is a character edit, so it is not a separate document property. |
+| Title follows the first line until renamed | The board names itself without a filing step. | A deliberately generic first line becomes a generic title until renamed. |
+| Delete moves to the bin, file included | A mistaken delete is recoverable; only emptying the bin touches the file. | The bin duplicates deleted notes in browser storage until purged. |
+| Carbon copies are periodic, not per keystroke | Bounded history (20) with a predictable cost. | Up to two minutes of work between automatic versions (explicit Save always snapshots). |
 
 ## 8. Development, Testing, and Deployment Notes
 
@@ -280,7 +313,7 @@ display only, and the next repaint drops it. Matching is `Session::find` for bot
 | --- | --- |
 | `npm run typecheck` | TypeScript check |
 | `npm run lint` | ESLint |
-| `npm test` | Node tests (scripts + `src/**`), incl. `src/lib/quire/quire.test.ts` |
+| `npm test` | Node tests (scripts + `src/**`), incl. `quire.test.ts`, `lists.test.ts`, `titles.test.ts`, `tabs.test.ts`, `carbon.test.ts` |
 | `node scripts/verify-bugs.mjs` | Playwright editor regressions (needs `npm run build:desktop`) |
 | `node scripts/qa-visual.mjs` | Screenshots into `AI_Documentation/qa/<version>/` |
 | `cargo test -p quire-core` | Core tests (editing, undo, emoji offsets, images, tables, encodings, styles) |

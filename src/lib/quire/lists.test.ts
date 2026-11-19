@@ -11,6 +11,32 @@ import {
 } from "./lists.ts";
 
 describe("lists", () => {
+  it("parses tickable checklists and keeps their state", () => {
+    assert.deepEqual(parseListItem("[ ] todo")?.item, {
+      kind: "check",
+      level: 1,
+      path: [],
+      checked: false,
+      text: "todo",
+    });
+    assert.deepEqual(parseListItem("[x] done")?.item, {
+      kind: "check",
+      level: 1,
+      path: [],
+      checked: true,
+      text: "done",
+    });
+    assert.deepEqual(parseListItem("  [X] upper")?.item, {
+      kind: "check",
+      level: 2,
+      path: [],
+      checked: true,
+      text: "upper",
+    });
+    assert.equal(listMarker("check", 1, []), "[ ] ");
+    assert.equal(listMarker("check", 1, [], undefined, true), "[x] ");
+  });
+
   it("parses the four marker styles and their nesting", () => {
     assert.deepEqual(parseListItem("1. one")?.item, { kind: "dot", level: 1, path: [1], text: "one" });
     assert.deepEqual(parseListItem("  1.2. nested")?.item, {
@@ -68,6 +94,20 @@ describe("lists", () => {
     // A different style replaces the marker instead of stacking one.
     assert.equal(applyListStyle(text, 0, text.length, "paren").insert, "1) one\n2) two");
     assert.equal(applyListStyle("• a\n• b", 0, 9, "dot").insert, "1. a\n2. b");
+  });
+
+  it("applies, continues and removes a checklist", () => {
+    const added = applyListStyle("one\ntwo", 0, 6, "check");
+    assert.equal(added.insert, "[ ] one\n[ ] two");
+    assert.equal(added.removed, false);
+    // Applying check again strips the boxes.
+    const removed = applyListStyle(added.insert, 0, added.insert.length, "check");
+    assert.equal(removed.insert, "one\ntwo");
+    assert.equal(removed.removed, true);
+    // Enter after a checked item starts a new, unchecked item.
+    assert.equal(continueList("[x] done", 8)?.insert, "\n[ ] ");
+    // Renumbering leaves the tick state alone.
+    assert.deepEqual(renumberLists(["[x] a", "[ ] b"]), ["[x] a", "[ ] b"]);
   });
 
   it("continues a list on Enter and ends it on an empty item", () => {

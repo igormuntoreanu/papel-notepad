@@ -10,7 +10,7 @@ import {
   type MutableRefObject,
 } from "react";
 import type { Session } from "@/lib/quire/engine";
-import { paint, readMarks, type Mark } from "@/lib/quire/marks";
+import { esc, paint, readMarks, type Mark } from "@/lib/quire/marks";
 import { diffText } from "@/lib/quire/text";
 import { correctionAt } from "@/lib/quire/autocorrect";
 import { parseDelimited } from "@/lib/quire/blocks";
@@ -330,12 +330,39 @@ export function TextBlockCE({
         });
       }
       const lineHits = hitsOnLine(lineStart, lineEnd, lt.length);
-      const inner = lt.length === 0 ? "<br>" : paint(lt, local, lineHits);
+      // A checklist marker at the start of the line (after indentation) is wrapped in a
+      // span so it can be drawn as a real box and clicked, without changing the text the
+      // core sees: the span's text is still "[ ]" / "[x]".
+      const check = /^([ \t]*)(\[[ xX]\])/.exec(lt);
+      let inner: string;
+      if (lt.length === 0) {
+        inner = "<br>";
+      } else if (check) {
+        const prefixLen = check[0].length;
+        const shift = (m: { start: number; end: number }) => ({
+          start: Math.max(0, m.start - prefixLen),
+          end: Math.max(0, m.end - prefixLen),
+        });
+        const restMarks = local
+          .filter((m) => m.end > prefixLen)
+          .map((m) => ({ ...m, ...shift(m) }))
+          .filter((m) => m.end > m.start);
+        const restHits = lineHits.filter((h) => h.end > prefixLen).map(shift).filter((h) => h.end > h.start);
+        inner =
+          esc(check[1] ?? "") +
+          `<span class="check-box">${esc(check[2] ?? "")}</span>` +
+          paint(lt.slice(prefixLen), restMarks, restHits);
+      } else {
+        inner = paint(lt, local, lineHits);
+      }
+      const checkAttr = check ? ` data-check="${(check[2] ?? "").toLowerCase() === "[x]" ? "1" : "0"}"` : "";
       const align = ALIGN_ATTR[aligns[i] ?? 0] ?? "left";
       const styleId = CODE_STYLES[styles[i] ?? 0] ?? "body";
       const fontId = CODE_FONTS[fonts[i] ?? 0];
       const fontAttr = fontId ? ` data-font="${fontId}"` : "";
-      html.push(`<div class="ce-line" data-align="${align}" data-style="${styleId}"${fontAttr}>${inner}</div>`);
+      html.push(
+        `<div class="ce-line" data-align="${align}" data-style="${styleId}"${fontAttr}${checkAttr}>${inner}</div>`,
+      );
       lineStart = lineEnd + 1; // +1 for the "\n"
     }
     suppress.current = true;
@@ -753,7 +780,35 @@ export function TextBlockCE({
     onEdited();
   }
 
+  /** Click on a checklist box: flip "[ ]" to "[x]" (or back), one undo step. */
+  function toggleCheckBox(boxEl: Element) {
+    const root = rootRef.current;
+    if (!root) return;
+    const line = boxEl.closest<HTMLElement>(".ce-line");
+    if (!line) return;
+    const index = lineDivs(root).indexOf(line);
+    if (index < 0) return;
+    const rows = session.text_of(blockId).split("\n");
+    const row = rows[index] ?? "";
+    const match = /^([ \t]*)\[([ xX])\]/.exec(row);
+    if (!match) return;
+    const lineStart = rows.slice(0, index).reduce((sum, text) => sum + text.length + 1, 0);
+    const at = lineStart + (match[1] ?? "").length + 1;
+    root.focus({ preventScroll: true });
+    session.edit(blockId, at, at + 1, match[2] === " " ? "x" : " ", false);
+    prev.current = session.text_of(blockId);
+    renderedMarks.current = session.marks(blockId).join(",");
+    renderLines(at, at);
+    report();
+    onEdited();
+  }
+
   function onMouseDown(e: MouseEvent<HTMLDivElement>) {
+    if (!e.altKey && (e.target as HTMLElement).closest(".check-box")) {
+      e.preventDefault();
+      toggleCheckBox((e.target as HTMLElement).closest(".check-box")!);
+      return;
+    }
     if (!e.altKey) {
       if (box) setBox(null);
       return;

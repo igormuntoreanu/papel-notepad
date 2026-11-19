@@ -6,9 +6,10 @@ import {
   type PapelArchive,
 } from "@/lib/quire/backup";
 import { bootEngine, createSession, type Session } from "@/lib/quire/engine";
-import { loadPersisted, type Persisted, type Prefs, type SortMode, type StoredBlock, type StoredNote } from "@/lib/quire/persist";
+import { loadPersisted, type Persisted, type Prefs, type SortMode, type StoredBinNote, type StoredBlock, type StoredCarbonCopy, type StoredNote } from "@/lib/quire/persist";
 import { base64ToBytes, bytesToBase64, copyBytes, SKINS, type SkinId } from "@/lib/quire/text";
 import { nextUntitled } from "@/lib/quire/titles";
+import { isTabId, type TabId } from "@/lib/quire/tabs";
 import { readLook, type BlockLook } from "@/lib/quire/typefaces";
 
 export type NoteMeta = {
@@ -22,10 +23,23 @@ export type NoteMeta = {
   diskName?: string;
   /** Per-block face and paragraph style, keyed by block id as a string. */
   looks?: Record<string, BlockLook>;
+  /** While true the title follows the first line; a manual rename turns it off. */
+  titleAuto?: boolean;
+  /** Coloured tab on the card. */
+  tab?: TabId;
+  /** Pinned cards sort before the rest of the board. */
+  pinned?: boolean;
 };
 export type OutlineItem = { id: number; kind: string; mime: string };
 export type Place = { block_id: number; start: number; end: number };
-export type Loaded = { notes: NoteMeta[]; order: string[]; activeId: string | null; prefs: Prefs };
+export type Loaded = {
+  notes: NoteMeta[];
+  order: string[];
+  activeId: string | null;
+  prefs: Prefs;
+  bin: StoredBinNote[];
+  carbon: Record<string, StoredCarbonCopy[]>;
+};
 
 export type CardInfo = {
   text: string;
@@ -69,7 +83,7 @@ export function dropUrls(noteId: string, imageId?: number) {
 export function blankNote(titles: string[]): NoteMeta {
   const id = crypto.randomUUID();
   sessions.set(id, createSession());
-  return { id, title: nextUntitled(titles), wrap: true, edited: Date.now() };
+  return { id, title: nextUntitled(titles), wrap: true, edited: Date.now(), titleAuto: true };
 }
 
 /** Deep-copies a live session plus its per-block looks (caller owns id/order/meta). */
@@ -102,46 +116,7 @@ export async function ensureLoaded(): Promise<Loaded> {
         for (const id of ids) {
           const stored = byId.get(id);
           if (!stored) continue;
-          const session = createSession();
-          session.restore_begin();
-          const pending: [number, number[]][] = [];
-          const pendingAligns: [number, number[]][] = [];
-          const pendingStyles: [number, number[]][] = [];
-          const pendingFonts: [number, number[]][] = [];
-          // Pre-0.4.0 files stored one block-level align; migrate it to per-line aligns so
-          // the contenteditable renderer (which reads the core's per-line aligns) keeps it.
-          const pendingBlockAlign: [number, number][] = [];
-          const looks: Record<string, BlockLook> = {};
-          for (const block of stored.blocks) {
-            if (block.kind === "text") {
-              const blockId = session.restore_text(block.text);
-              if (block.marks?.length) pending.push([blockId, block.marks]);
-              if (block.aligns?.length) pendingAligns.push([blockId, block.aligns]);
-              if (block.styles?.length) pendingStyles.push([blockId, block.styles]);
-              if (block.fonts?.length) pendingFonts.push([blockId, block.fonts]);
-              // The look travels inside the block, so the id this restore just handed
-              // out is the right key even when block ids were renumbered.
-              const look = readLook(block);
-              if (look.font || look.style || look.align) looks[String(blockId)] = look;
-              if (look.align && !block.aligns?.length) {
-                const code = look.align === "center" ? 1 : look.align === "right" ? 2 : 0;
-                if (code) pendingBlockAlign.push([blockId, code]);
-              }
-            } else if (block.kind === "table") {
-              const blockId = session.restore_table(JSON.stringify({ cols: block.cols, cells: block.cells }));
-              const look = readLook(block);
-              if (look.font || look.style || look.align) looks[String(blockId)] = look;
-            } else session.restore_image(block.mime, new Uint8Array(block.bytes));
-          }
-          session.restore_end(stored.eol, stored.encoding);
-          for (const [blockId, marks] of pending) session.restore_marks(blockId, Uint32Array.from(marks));
-          for (const [blockId, aligns] of pendingAligns) session.restore_aligns(blockId, Uint8Array.from(aligns));
-          for (const [blockId, styles] of pendingStyles) session.restore_styles(blockId, Uint8Array.from(styles));
-          for (const [blockId, fonts] of pendingFonts) session.restore_fonts(blockId, Uint8Array.from(fonts));
-          for (const [blockId, code] of pendingBlockAlign) {
-            const n = session.text_of(blockId).split("\n").length;
-            session.restore_aligns(blockId, new Uint8Array(n).fill(code));
-          }
+          const { session, looks } = sessionFromStoredNote(stored);
           sessions.set(id, session);
           notes.push({
             id,
@@ -151,6 +126,9 @@ export async function ensureLoaded(): Promise<Loaded> {
             sourceExt: stored.sourceExt,
             diskName: stored.diskName,
             looks: Object.keys(looks).length ? looks : undefined,
+            titleAuto: stored.titleAuto === true,
+            tab: isTabId(stored.tab) ? stored.tab : undefined,
+            pinned: stored.pinned === true,
           });
           if (stored.dirty) session.mark_dirty();
           order.push(id);
@@ -170,6 +148,8 @@ export async function ensureLoaded(): Promise<Loaded> {
           lastBackup: typeof prefs?.lastBackup === "string" ? prefs.lastBackup : undefined,
           folderName: typeof prefs?.folderName === "string" ? prefs.folderName : undefined,
         },
+        bin: doc?.bin ?? [],
+        carbon: doc?.carbon ?? {},
       };
       return loadedCache;
     })();
@@ -177,58 +157,123 @@ export async function ensureLoaded(): Promise<Loaded> {
   return loading;
 }
 
-export function snapshot(notes: NoteMeta[], order: string[], activeId: string | null): Persisted {
+/** Rebuilds one session and its block looks from a stored note. */
+export function sessionFromStoredNote(stored: StoredNote): {
+  session: Session;
+  looks: Record<string, BlockLook>;
+} {
+  const session = createSession();
+  session.restore_begin();
+  const pending: [number, number[]][] = [];
+  const pendingAligns: [number, number[]][] = [];
+  const pendingStyles: [number, number[]][] = [];
+  const pendingFonts: [number, number[]][] = [];
+  // Pre-0.4.0 files stored one block-level align; migrate it to per-line aligns so
+  // the contenteditable renderer (which reads the core's per-line aligns) keeps it.
+  const pendingBlockAlign: [number, number][] = [];
+  const looks: Record<string, BlockLook> = {};
+  for (const block of stored.blocks) {
+    if (block.kind === "text") {
+      const blockId = session.restore_text(block.text);
+      if (block.marks?.length) pending.push([blockId, block.marks]);
+      if (block.aligns?.length) pendingAligns.push([blockId, block.aligns]);
+      if (block.styles?.length) pendingStyles.push([blockId, block.styles]);
+      if (block.fonts?.length) pendingFonts.push([blockId, block.fonts]);
+      // The look travels inside the block, so the id this restore just handed
+      // out is the right key even when block ids were renumbered.
+      const look = readLook(block);
+      if (look.font || look.style || look.align) looks[String(blockId)] = look;
+      if (look.align && !block.aligns?.length) {
+        const code = look.align === "center" ? 1 : look.align === "right" ? 2 : 0;
+        if (code) pendingBlockAlign.push([blockId, code]);
+      }
+    } else if (block.kind === "table") {
+      const blockId = session.restore_table(JSON.stringify({ cols: block.cols, cells: block.cells }));
+      const look = readLook(block);
+      if (look.font || look.style || look.align) looks[String(blockId)] = look;
+    } else session.restore_image(block.mime, new Uint8Array(block.bytes));
+  }
+  session.restore_end(stored.eol, stored.encoding);
+  for (const [blockId, marks] of pending) session.restore_marks(blockId, Uint32Array.from(marks));
+  for (const [blockId, aligns] of pendingAligns) session.restore_aligns(blockId, Uint8Array.from(aligns));
+  for (const [blockId, styles] of pendingStyles) session.restore_styles(blockId, Uint8Array.from(styles));
+  for (const [blockId, fonts] of pendingFonts) session.restore_fonts(blockId, Uint8Array.from(fonts));
+  for (const [blockId, code] of pendingBlockAlign) {
+    const n = session.text_of(blockId).split("\n").length;
+    session.restore_aligns(blockId, new Uint8Array(n).fill(code));
+  }
+  return { session, looks };
+}
+
+/** One live note as the IndexedDB shape. Shared by autosave, the bin and carbon copies. */
+export function storedNoteFromMeta(id: string, meta: NoteMeta): StoredNote | null {
+  const session = sessions.get(id);
+  if (!session) return null;
+  const blocks: StoredBlock[] = outlineOf(session).map((item) => {
+    if (item.kind === "image") {
+      return { kind: "image", mime: item.mime || "image/png", bytes: copyBytes(session.image_of(item.id)) };
+    }
+    if (item.kind === "table") {
+      const table = JSON.parse(session.table_json(item.id)) as { cols: number; cells: unknown[] };
+      const look = meta.looks?.[String(item.id)] ?? {};
+      return { kind: "table", cols: table.cols, cells: table.cells, ...(look.font ? { font: look.font } : {}) };
+    }
+    const marks = session.marks(item.id);
+    const aligns = session.line_aligns(item.id);
+    const hasAligns = aligns.some((a) => a !== 0);
+    const styles = session.line_styles(item.id);
+    const hasStyles = styles.some((s) => s !== 0);
+    const fonts = session.line_fonts(item.id);
+    const hasFonts = fonts.some((f) => f !== 0);
+    const look = meta.looks?.[String(item.id)] ?? {};
+    return {
+      kind: "text" as const,
+      text: session.text_of(item.id),
+      ...(marks.length ? { marks: [...marks] } : {}),
+      ...(look.font ? { font: look.font } : {}),
+      ...(look.style ? { style: look.style } : {}),
+      ...(look.align ? { align: look.align } : {}),
+      ...(hasAligns ? { aligns: [...aligns] } : {}),
+      ...(hasStyles ? { styles: [...styles] } : {}),
+      ...(hasFonts ? { fonts: [...fonts] } : {}),
+    };
+  });
+  return {
+    id,
+    title: meta.title,
+    wrap: meta.wrap,
+    edited: meta.edited,
+    dirty: session.is_dirty(),
+    sourceExt: meta.sourceExt,
+    diskName: meta.diskName,
+    titleAuto: meta.titleAuto,
+    tab: meta.tab,
+    pinned: meta.pinned,
+    eol: session.eol(),
+    encoding: session.encoding(),
+    blocks,
+  };
+}
+
+export function snapshot(
+  notes: NoteMeta[],
+  order: string[],
+  activeId: string | null,
+  bin: StoredBinNote[] = [],
+  carbon: Record<string, StoredCarbonCopy[]> = {},
+): Persisted {
+  const byId = new Map(notes.map((note) => [note.id, note]));
   return {
     activeId,
     order,
     notes: order
       .map((id): StoredNote | null => {
-        const meta = notes.find((n) => n.id === id);
-        const session = sessions.get(id);
-        if (!meta || !session) return null;
-        const blocks: StoredBlock[] = outlineOf(session).map((item) => {
-          if (item.kind === "image") {
-            return { kind: "image", mime: item.mime || "image/png", bytes: copyBytes(session.image_of(item.id)) };
-          }
-          if (item.kind === "table") {
-            const table = JSON.parse(session.table_json(item.id)) as { cols: number; cells: unknown[] };
-            const look = meta.looks?.[String(item.id)] ?? {};
-            return { kind: "table", cols: table.cols, cells: table.cells, ...(look.font ? { font: look.font } : {}) };
-          }
-          const marks = session.marks(item.id);
-          const aligns = session.line_aligns(item.id);
-          const hasAligns = aligns.some((a) => a !== 0);
-          const styles = session.line_styles(item.id);
-          const hasStyles = styles.some((s) => s !== 0);
-          const fonts = session.line_fonts(item.id);
-          const hasFonts = fonts.some((f) => f !== 0);
-          const look = meta.looks?.[String(item.id)] ?? {};
-          return {
-            kind: "text" as const,
-            text: session.text_of(item.id),
-            ...(marks.length ? { marks: [...marks] } : {}),
-            ...(look.font ? { font: look.font } : {}),
-            ...(look.style ? { style: look.style } : {}),
-            ...(look.align ? { align: look.align } : {}),
-            ...(hasAligns ? { aligns: [...aligns] } : {}),
-            ...(hasStyles ? { styles: [...styles] } : {}),
-            ...(hasFonts ? { fonts: [...fonts] } : {}),
-          };
-        });
-        return {
-          id,
-          title: meta.title,
-          wrap: meta.wrap,
-          edited: meta.edited,
-          dirty: session.is_dirty(),
-          sourceExt: meta.sourceExt,
-          diskName: meta.diskName,
-          eol: session.eol(),
-          encoding: session.encoding(),
-          blocks,
-        };
+        const meta = byId.get(id);
+        return meta ? storedNoteFromMeta(id, meta) : null;
       })
-      .filter((n): n is StoredNote => n !== null),
+      .filter((note): note is StoredNote => note !== null),
+    bin,
+    carbon,
   };
 }
 

@@ -1,5 +1,6 @@
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Pin } from "lucide-react";
 import { memo, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { TABS, tabColor, tabName, type TabId } from "@/lib/quire/tabs";
 import { tiltOf, tornClip } from "@/lib/quire/torn";
 import { DropMenu } from "./drop-menu";
 import { relativeTime, type CardInfo, type NoteMeta } from "./store";
@@ -15,6 +16,10 @@ export type CardActions = {
   close: (id: string) => void;
   move: (id: string, delta: number) => void;
   reorder: (id: string, beforeId: string) => void;
+  /** Pins a card above the rest of the board (or unpins it). */
+  pin: (id: string) => void;
+  /** Sets (or clears) the card's coloured tab. */
+  setTab: (id: string, tab: TabId | undefined) => void;
 };
 
 type Props = {
@@ -222,6 +227,14 @@ function NoteCardView({
       {torn && <div className="card-under" style={underClip} aria-hidden="true" />}
       <article className="card" onClick={onOpen} aria-current={active ? "page" : undefined}>
         <div className="card-bg" style={clip} aria-hidden="true" />
+        {meta.tab && (
+          <span
+            className="card-tab"
+            style={{ background: tabColor(meta.tab) }}
+            title={`${tabName(meta.tab)} tab`}
+            aria-hidden="true"
+          />
+        )}
         <header className="card-head">
           <div className="card-titles">
             {renaming ? (
@@ -257,7 +270,14 @@ function NoteCardView({
                 </button>
               </h3>
             )}
-            <p className="card-sub">{edited}</p>
+            <p className="card-sub">
+              {meta.pinned && (
+                <span className="card-pin" title="Pinned" aria-label="Pinned">
+                  <Pin aria-hidden="true" />
+                </span>
+              )}
+              {edited}
+            </p>
           </div>
           {info.dirty && <span className="dirty" role="img" aria-label="Unsaved" title="Not saved to a file" />}
           <div onClick={(e) => e.stopPropagation()}>
@@ -283,6 +303,41 @@ function NoteCardView({
                   <button type="button" className="menu-item" onClick={() => actions.save(meta.id)}>
                     Save to file
                   </button>
+                  <button
+                    type="button"
+                    className="menu-item"
+                    role="menuitemcheckbox"
+                    aria-checked={meta.pinned === true}
+                    onClick={() => actions.pin(meta.id)}
+                  >
+                    {meta.pinned ? "Unpin" : "Pin to top"}
+                  </button>
+                  <p className="menu-heading">Card tab</p>
+                  <div className="menu-swatch-row">
+                    <button
+                      type="button"
+                      className="menu-swatch none"
+                      aria-label="No tab"
+                      title="No tab"
+                      aria-pressed={!meta.tab}
+                      onClick={() => actions.setTab(meta.id, undefined)}
+                    >
+                      <span />
+                    </button>
+                    {TABS.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        className="menu-swatch"
+                        aria-label={`${tab.name} tab`}
+                        title={`${tab.name} tab`}
+                        aria-pressed={meta.tab === tab.id}
+                        onClick={() => actions.setTab(meta.id, tab.id)}
+                      >
+                        <span style={{ background: tab.color }} />
+                      </button>
+                    ))}
+                  </div>
                   {canReorder && (
                     <>
                       <button type="button" className="menu-item" disabled={first} onClick={() => actions.move(meta.id, -1)}>
@@ -294,7 +349,7 @@ function NoteCardView({
                     </>
                   )}
                   <button type="button" className="menu-item danger" onClick={() => actions.close(meta.id)}>
-                    Close sheet
+                    Delete sheet…
                   </button>
                 </>
               }
