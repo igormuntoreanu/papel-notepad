@@ -205,7 +205,7 @@ A **link is not a mark**: pasting http(s) text writes `ink 2` (Blue) + `underlin
 | Key | Shape |
 | --- | --- |
 | `doc` | `{ notes: StoredNote[], order: string[], activeId: string \| null }` |
-| `prefs` | `{ skin: "sulphite" \| "ink" \| "paper" \| "carbon" \| "blueprint" \| "terminal", zoom: 10–40, autocorrect: boolean, sort: "manual" \| "recent" \| "title", lastBackup?, folderName? }` |
+| `prefs` | `{ skin: "sulphite" \| "ink" \| "paper" \| "carbon" \| "blueprint" \| "terminal", zoom: 10–40, autocorrect: boolean, sort: "recent" \| "title", lastBackup?, folderName? }` |
 
 `StoredNote`: `{ id, title, wrap, edited?, sourceExt?, diskName?, language?, eol, encoding, blocks }`, where a block is text (`marks?`, `aligns?`, `styles?`, `fonts?`), an image (`mime`, `bytes: ArrayBuffer`) or a table (`cols`, `cells`). `language` is retired and only read from old saves. Older prefs containing `mode: "night"` are ignored.
 

@@ -62,7 +62,7 @@ Candidate metrics (proposals only, not agreed): typing latency per keystroke, se
 
 - Browser notepad with board and focus views; phone layout.
 - Multiple open notes ("sheets"), reorderable.
-- Typo-tolerant search across all notes, with board order (my order / last edit / title).
+- Typo-tolerant search across all notes, with board order (Title or Last edited).
 - Plain text editing with undo/redo (200 steps).
 - Inline styles: bold, italic, underline, strikethrough, ink colors (5 on light paper, all 10 on the dark skins), 4 highlighters.
 - Lists (bullet, numbered, lettered, nested) and tables, including per-cell alignment and face.
@@ -109,13 +109,13 @@ User stories describe current behavior.
 2. As a user, I create a new note with one click or Ctrl+N, and the caret is ready to type.
 3. As a user, I open a note by clicking its card; other notes stay visible in a side column.
 4. As a user, I rename, save, move, or close a note from its card menu.
-5. As a user, I reorder notes by dragging cards (in "My order" sort).
+5. As a user, my cards are always in a predictable order, so I never have to tidy the board by hand.
 6. As a user, I am warned before closing a note with unsaved edits.
 
 **Search and filter**
 
 7. As a user, I search every sheet from the field in the status strip; small typos still match, and matches are painted yellow.
-8. As a user, I sort the board by my order, last edited, or title (in Settings).
+8. As a user, I sort the board by Title or Last edited with a dropdown in Settings.
 
 **Writing**
 

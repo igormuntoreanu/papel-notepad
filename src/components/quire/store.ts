@@ -86,7 +86,7 @@ export function duplicateSession(
   return { session, looks: copied };
 }
 
-const SORTS: SortMode[] = ["manual", "recent", "title"];
+const SORTS: SortMode[] = ["recent", "title"];
 
 export async function ensureLoaded(): Promise<Loaded> {
   if (loadedCache) return loadedCache;
@@ -166,7 +166,7 @@ export async function ensureLoaded(): Promise<Loaded> {
           skin,
           zoom: prefs?.zoom && prefs.zoom >= 12 && prefs.zoom <= 28 ? prefs.zoom : 16,
           autocorrect: prefs?.autocorrect ?? true,
-          sort: prefs?.sort && SORTS.includes(prefs.sort) ? prefs.sort : "manual",
+          sort: prefs?.sort && SORTS.includes(prefs.sort) ? prefs.sort : "recent",
           lastBackup: typeof prefs?.lastBackup === "string" ? prefs.lastBackup : undefined,
           folderName: typeof prefs?.folderName === "string" ? prefs.folderName : undefined,
         },

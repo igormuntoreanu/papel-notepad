@@ -56,7 +56,7 @@ export type Persisted = {
   activeId: string | null;
 };
 
-export type SortMode = "manual" | "recent" | "title";
+export type SortMode = "recent" | "title";
 
 export type Prefs = {
   skin: SkinId;

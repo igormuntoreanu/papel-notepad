@@ -999,9 +999,27 @@
   width: 12rem;
 }
 
-.menu-field .field-box select {
-  min-height: 30px;
+/* Board order reads as a real dropdown: boxed, a caret on the right, and the
+   whole box is the hit target (not just the text inside it). */
+.menu-field .select-box {
+  border: 1px solid rgb(60 36 12 / 0.28);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.35);
+}
+
+.menu-field .select-box select {
+  min-height: 34px;
+  padding: 0 32px 0 10px;
   font-size: 13px;
+  cursor: pointer;
+}
+
+.menu-field .select-box svg {
+  right: 9px;
+  width: 15px;
+  height: 15px;
+  color: var(--ink-soft);
 }
 
 .menu-sep {

@@ -356,12 +356,12 @@ export function HeaderStrip({
                 </button>
                 <label className="menu-field">
                   <span>Board order</span>
-                  <span className="field-box">
+                  <span className="field-box select-box">
                     <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)}>
-                      <option value="manual">My order</option>
-                      <option value="recent">Last edited</option>
                       <option value="title">Title</option>
+                      <option value="recent">Last edited</option>
                     </select>
+                    <ChevronDown aria-hidden="true" />
                   </span>
                 </label>
                 <div className="menu-sep" role="separator" />

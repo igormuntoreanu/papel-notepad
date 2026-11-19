@@ -88,7 +88,7 @@ export function QuireApp() {
   const [skin, setSkin] = useState<SkinId>("sulphite");
   const [zoom, setZoom] = useState(16);
   const [autocorrect, setAutocorrect] = useState(true);
-  const [sort, setSort] = useState<SortMode>("manual");
+  const [sort, setSort] = useState<SortMode>("recent");
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
   /** Chromium: true until a sync folder is linked with write permission. */
@@ -1439,7 +1439,9 @@ export function QuireApp() {
   const visible = order.slice();
   if (sort === "recent") visible.sort((a, b) => (metaById.get(b)?.edited ?? 0) - (metaById.get(a)?.edited ?? 0));
   if (sort === "title") visible.sort((a, b) => (metaById.get(a)?.title ?? "").localeCompare(metaById.get(b)?.title ?? ""));
-  const canReorder = sort === "manual";
+  // The board is always sorted (Last edited or Title), so cards are not dragged
+  // into a hand-kept order any more.
+  const canReorder = false;
   const unsaved = order.filter((id) => sessions.get(id)?.is_dirty()).length;
 
   const cardActions: CardActions = {
