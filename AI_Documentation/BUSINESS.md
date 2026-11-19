@@ -65,7 +65,11 @@ Candidate metrics (proposals only, not agreed): typing latency per keystroke, se
 - Typo-tolerant search across all notes, with board order (Title or Last edited).
 - Plain text editing with undo/redo (200 steps).
 - Inline styles: bold, italic, underline, strikethrough, ink colors (5 on light paper, all 10 on the dark skins), 4 highlighters.
-- Lists (bullet, numbered, lettered, nested) and tables, including per-cell alignment and face.
+- Lists (bullet, numbered, lettered, nested) and tickable checklists with a pencil strike-through.
+- Cards carry a coloured tab and can be pinned to the top of the board.
+- New sheets take their title from the first line until renamed.
+- A Bin holds deleted sheets (restore, or delete for good) and each sheet keeps a version history.
+- Tables, including per-cell alignment and face.
 - Per-line paragraph styles (Title to Body), per-line faces (four) and alignment.
 - English autocorrect of common typos on prose sheets.
 - Pasting and inserting images (up to about 12 MB each).
@@ -89,10 +93,15 @@ Candidate metrics (proposals only, not agreed): typing latency per keystroke, se
 | Feature | User value |
 | --- | --- |
 | Paper look (torn cards, kraft desk, six skins) | A calm, tactile place to write; less "software", more desk. |
-| Board of cards | See all notes at a glance: preview, word count, last edit, unsaved marker, image thumbnail. |
+| Board of cards | See all notes at a glance: preview, word count, last edit, unsaved marker, image thumbnail, coloured tab and pin. |
 | Focus sheet + side cards | Write with room, jump between notes without losing context. |
 | Typo-tolerant search | Find a note even when the word is misspelled. |
 | Text styles and highlighters | Mark what matters, like a pen and highlighter on paper. |
+| Checklists | Turn a line into `[ ]` with a click on the box; checked lines get a pencil strike-through. |
+| Titles from the first line | A new sheet names itself, so the board is readable before any filing. |
+| Tabs and pins | Colour-code cards and float the important ones to the top. |
+| Bin | A deleted sheet can be restored; emptying the bin is the only irreversible step. |
+| Version history | Restore an earlier version of a sheet after a bad edit. |
 | Paste screenshots | Keep images with the words they belong to. |
 | Autocorrect | Fewer typos in quick notes; one undo to revert. |
 | Autosave and recovery | Work survives a reload or a closed tab on the same device. |
@@ -111,6 +120,8 @@ User stories describe current behavior.
 4. As a user, I rename, save, move, or close a note from its card menu.
 5. As a user, my cards are always in a predictable order, so I never have to tidy the board by hand.
 6. As a user, I am warned before closing a note with unsaved edits.
+6a. As a user, a new sheet's title comes from its first line, and renaming it keeps my name.
+6b. As a user, I give cards a coloured tab or pin them to the top, so I can see groups at a glance.
 
 **Search and filter**
 
@@ -124,6 +135,8 @@ User stories describe current behavior.
 11. As a user, common English typos are fixed when I finish a word; Ctrl+Z reverts the fix. I can turn this off.
 12. As a user, I paste a screenshot and it appears where my caret was.
 13. As a user, I find, replace, and go to a line inside the open note (Ctrl+F).
+13a. As a user, I turn lines into a checklist and click a box to tick it; the line is struck through in pencil.
+13b. As a user, I restore an earlier saved version of a sheet after a bad edit.
 
 **Files and safety**
 
@@ -131,6 +144,7 @@ User stories describe current behavior.
 16. As a user, a note with images or styles saves as `.papel`; I can also save "text only" after a warning.
 17. As a user, I open `.txt` and other text files as plain words, plus `.papel` and old `.quire` files, by picker or drag-and-drop.
 18. As a user, my notes and settings are autosaved in this browser and restored after reload.
+19. As a user, a deleted sheet waits in the Bin and can be restored; deleting it from the Bin removes it for good.
 
 ## 7. Non-Functional Requirements
 

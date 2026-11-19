@@ -54,6 +54,10 @@ export function HeaderStrip({
   message,
   total,
   unsaved,
+  binCount,
+  onOpenBin,
+  versionCount,
+  onOpenHistory,
   onChanged,
   onMessage,
 }: {
@@ -86,6 +90,10 @@ export function HeaderStrip({
   message: string;
   total: number;
   unsaved: number;
+  binCount: number;
+  onOpenBin: () => void;
+  versionCount: number;
+  onOpenHistory: () => void;
   onChanged: () => void;
   onMessage: (m: string) => void;
 }) {
@@ -335,6 +343,16 @@ export function HeaderStrip({
                       </span>
                     </label>
                   </>
+                )}
+                <div className="menu-sep" role="separator" />
+                <p className="menu-heading">History</p>
+                <button type="button" className="menu-item" onClick={onOpenBin}>
+                  Bin… ({binCount})
+                </button>
+                {session && (
+                  <button type="button" className="menu-item" onClick={onOpenHistory}>
+                    Version history… ({versionCount})
+                  </button>
                 )}
                 <div className="menu-sep" role="separator" />
                 <p className="menu-heading">Folder & backup</p>

@@ -53,17 +53,35 @@ export function DropMenu({
     const rect = button.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+    // Measure the open popover: a card in the left column is narrower than some
+    // menus, so right-aligning against it can push the left edge off-screen (and
+    // under a browser's vertical sidebar). Clamp against the real size.
+    const width = popoverRef.current?.offsetWidth ?? 0;
+    const height = popoverRef.current?.offsetHeight ?? 0;
     const below = vh - rect.bottom - GAP - MARGIN;
     const above = rect.top - GAP - MARGIN;
-    const flipUp =
-      align === "up" || align === "up-end" || (align !== "end" && below < ESTIMATE && above > below);
+    const needed = height || ESTIMATE;
+    const flipUp = align === "up" || align === "up-end" || (below < needed && above > below);
     const toEnd = align === "end" || align === "up-end";
 
     const next: CSSProperties = { position: "fixed" };
-    if (flipUp) next.bottom = vh - rect.top + GAP;
-    else next.top = rect.bottom + GAP;
-    if (toEnd) next.right = Math.max(MARGIN, vw - rect.right);
-    else next.left = Math.max(MARGIN, rect.left);
+    if (flipUp) {
+      const bottom = vh - rect.top + GAP;
+      // Keep the top edge inside the viewport when the menu is tall.
+      next.bottom = Math.min(bottom, Math.max(MARGIN, vh - MARGIN - needed));
+    } else {
+      // Keep the bottom edge inside the viewport when the menu is tall.
+      next.top = Math.min(rect.bottom + GAP, Math.max(MARGIN, vh - MARGIN - needed));
+    }
+
+    if (width > 0) {
+      const desiredLeft = toEnd ? rect.right - width : rect.left;
+      next.left = Math.min(Math.max(MARGIN, desiredLeft), Math.max(MARGIN, vw - width - MARGIN));
+    } else if (toEnd) {
+      next.right = Math.max(MARGIN, vw - rect.right);
+    } else {
+      next.left = Math.max(MARGIN, rect.left);
+    }
     setStyle(next);
   }, [align]);
 

@@ -1,4 +1,4 @@
-import type { AlignId, FontId, StyleId } from "@/lib/quire/typefaces";
+import type { AlignId, BlockLook, FontId, StyleId } from "@/lib/quire/typefaces";
 import type { SkinId } from "@/lib/quire/text";
 
 export type StoredBlock =
@@ -43,6 +43,12 @@ export type StoredNote = {
   sourceExt?: string;
   /** Filename in the sync folder. */
   diskName?: string;
+  /** True while the title follows the first line (a manual rename turns this off). */
+  titleAuto?: boolean;
+  /** Coloured tab on the card, for the board's visual grouping. */
+  tab?: string;
+  /** Pinned cards sort before the rest of the board. */
+  pinned?: boolean;
   /** Retired: every sheet is plain text. Kept optional so old saves still load. */
   language?: string;
   eol: string;
@@ -50,10 +56,27 @@ export type StoredNote = {
   blocks: StoredBlock[];
 };
 
+/** A deleted note waiting in the bin. The file stays on disk until it is purged. */
+export type StoredBinNote = {
+  note: StoredNote;
+  deletedAt: number;
+};
+
+/** One saved version of a sheet: the .papel JSON at a point in time. */
+export type StoredVersion = {
+  at: number;
+  papel: string;
+  looks: Record<string, BlockLook>;
+};
+
 export type Persisted = {
   notes: StoredNote[];
   order: string[];
   activeId: string | null;
+  bin?: StoredBinNote[];
+  /** Per-note version history, keyed by note id. */
+  /** Version history, keyed by note id. Kept under `carbon` so older saves load. */
+  carbon?: Record<string, StoredVersion[]>;
 };
 
 export type SortMode = "recent" | "title";

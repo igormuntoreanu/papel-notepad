@@ -7,7 +7,7 @@
  * opening anywhere, one undo step per action, and no new block kind in the document.
  */
 
-export type ListKind = "bullet" | "dot" | "paren" | "letter";
+export type ListKind = "bullet" | "dot" | "paren" | "letter" | "check";
 export type TextChange = { start: number; end: number; insert: string };
 
 /** Two spaces per nesting level. */
@@ -24,11 +24,20 @@ export type ListItem = {
   path: number[];
   /** Parent letter for the letter style (level 2+). */
   letter?: string;
+  /** Checklist state; only meaningful for the `check` style. */
+  checked?: boolean;
   text: string;
 };
 
 /** Marker text for an item, without the leading indentation. */
-export function listMarker(kind: ListKind, level: number, path: number[], letter?: string): string {
+export function listMarker(
+  kind: ListKind,
+  level: number,
+  path: number[],
+  letter?: string,
+  checked = false,
+): string {
+  if (kind === "check") return checked ? "[x] " : "[ ] ";
   if (kind === "bullet") return `${BULLET_GLYPHS[Math.min(level, MAX_LEVEL) - 1] ?? "•"} `;
   if (kind === "letter") {
     if (level === 1) return `${letter ?? "a"}. `;
@@ -38,6 +47,7 @@ export function listMarker(kind: ListKind, level: number, path: number[], letter
   return kind === "dot" ? `${joined}. ` : `${joined}) `;
 }
 
+const CHECK_RE = /^\[([ xX])\]\s+(.*)$/;
 const BULLET_RE = /^([•◦▪])\s+(.*)$/;
 const DOT_RE = /^(\d+(?:\.\d+)*)\.\s+(.*)$/;
 const PAREN_RE = /^(\d+(?:\.\d+)*)\)\s+(.*)$/;
@@ -50,6 +60,14 @@ export function parseListItem(line: string): { indent: string; item: ListItem } 
   const indent = indentMatch ? indentMatch[0] : "";
   const body = line.slice(indent.length);
   const level = Math.floor(indent.length / LIST_INDENT.length) + 1;
+
+  const check = CHECK_RE.exec(body);
+  if (check) {
+    return {
+      indent,
+      item: { kind: "check", level, path: [], checked: (check[1] ?? " ").toLowerCase() === "x", text: check[2] ?? "" },
+    };
+  }
 
   const bullet = BULLET_RE.exec(body);
   if (bullet) return { indent, item: { kind: "bullet", level, path: [], text: bullet[2] ?? "" } };
@@ -119,7 +137,9 @@ export function renumberLists(lines: string[]): string[] {
       paths.push(path);
       if (item.kind === "letter") letter = letters[level - 2];
     }
-    return parsed.indent + listMarker(item.kind, level, path, letter) + item.text;
+    return (
+      parsed.indent + listMarker(item.kind, level, path, letter, item.checked) + item.text
+    );
   });
 }
 
@@ -150,12 +170,16 @@ export function applyListStyle(
     const entry = parsed[index];
     if (entry) {
       const path = entry.item.path.length ? entry.item.path : [1];
-      return entry.indent + listMarker(kind, listLevel(entry.indent), path, entry.item.letter) + entry.item.text;
+      return (
+        entry.indent +
+        listMarker(kind, listLevel(entry.indent), path, entry.item.letter, kind === "check" ? false : undefined) +
+        entry.item.text
+      );
     }
     if (index < firstLine || index > lastLine) return line;
     // A plain line gets a placeholder marker; renumberLists gives it its number below.
     const indent = /^[ \t]*/.exec(line)?.[0] ?? "";
-    return indent + listMarker(kind, listLevel(indent), [1], "a") + line.slice(indent.length);
+    return indent + listMarker(kind, listLevel(indent), [1], "a", false) + line.slice(indent.length);
   });
   const insert = renumberLists(rewritten).join("\n");
   return { start: 0, end: text.length, insert, removed: allSame };
