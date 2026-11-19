@@ -15,3 +15,13 @@ Captured against the dev server (`npm run dev`, http://localhost:8080) in Chromi
 Automated check from the same run: 2 `<option>`s (`title`, `recent`), `recent`
 selected, caret present, `cursor: pointer`, `border-top-width: 1px`, no console
 errors.
+
+## Regression: the menu no longer dismisses itself while you use the select
+
+`DropMenu` used to close on **any** click inside the popover, so the click that
+opened the native option list (or picked a row) also tore down the Settings menu.
+The popover's click handler now ignores clicks that land on a `select`, `input`,
+`textarea`, `label` or `option`, and still closes for real menu buttons. Guard
+from the same Playwright run: opening Settings, clicking the board-order box and
+changing the value leaves `.popover` mounted (1 → 1 → 1); clicking a skin card
+still closes it (1 → 0).
