@@ -1,4 +1,4 @@
-# New features — checklists, titles, tabs/pins, bin, carbon copies
+# New features — checklists, titles, tabs/pins, bin, version history
 
 Captured against the dev server (`npm run dev`, http://localhost:8080) in
 Chromium. Each screenshot is from the run that also produced the measurements
@@ -70,19 +70,25 @@ reopening the bin showed the empty message:
 
 ![Empty bin](./05-bin-empty.png)
 
-## 5. Carbon copies (per-sheet version history)
+## 5. Version history (per sheet)
 
-![Carbon copies list](./03-carbon-copies.png)
+![Version history list](./03-version-history.png)
 
 - One copy on every explicit Save, plus at most one every two minutes while
   editing (only when the content actually changed).
-- Newest first; **Restore** replaces the sheet with that version, **Delete
-  copy** removes one entry.
+- Open it from the Save menu, Settings, or **a card's `…` menu**. The card
+  entry opens *that* sheet's history, so a note can be inspected from the board
+  without opening it, and the modal names the sheet.
+- Newest first; **Restore** replaces the sheet with that version and switches
+  focus to it, while **Delete version** removes one entry.
 - History is capped at 20 per sheet and identical consecutive versions are
   skipped.
 
 Measured: two saves with different content produced 2 rows; restoring the
 oldest row changed the sheet text back to `Version one` and closed the modal.
+From the board with Beta active, opening Alpha's card menu → Version history
+showed "Versions of Alpha version one", and Restore focused Alpha; Beta's card
+then showed Beta's own history.
 Unit tests cover append, identical-version skip and the 20-copy cap.
 
 ## Regression checks run for the whole branch
@@ -90,7 +96,7 @@ Unit tests cover append, identical-version skip and the 20-copy cap.
 | Check | Result |
 | --- | --- |
 | `cargo test -p quire-core` | 41 passed, 1 ignored |
-| `npm test` | 87 passed (added `lists` checklist cases, `titles`, `tabs`, `carbon`) |
+| `npm test` | 87 passed (added `lists` checklist cases, `titles`, `tabs`, `versions`) |
 | `npm run typecheck` | clean |
 | `npm run lint` | 0 errors |
 | `npm run build` | clean |
@@ -99,7 +105,7 @@ Unit tests cover append, identical-version skip and the 20-copy cap.
 | Playwright: tab + pin + reload | pass |
 | Playwright: delete → bin → reload → restore | pass |
 | Playwright: delete → bin → delete for good → empty | pass |
-| Playwright: save ×2 → carbon list → restore | pass |
+| Playwright: save ×2 → version list → restore | pass |
 | Console / page errors during all runs | none |
 
 ## Follow-up fix: card menus no longer clip off the left edge
@@ -121,7 +127,7 @@ way. Measured in the focus view's side column: before `left = -40`; after
 
 - The bin keeps the note in browser storage until purged; if a sync folder is
   linked, the file stays in the folder until *Delete for good*.
-- Carbon copies live in the same IndexedDB snapshot as the notes, so the
+- Saved versions live in the same IndexedDB snapshot as the notes, so the
   autosave cost grows with the number of retained copies (bounded at 20/sheet).
 - `titleAuto` is respected: old notes without the flag are treated as manually
   titled, so upgrading never renames them.

@@ -103,7 +103,7 @@ Papel is a **client-side single-page app** with a **Rust document core compiled 
 
 `searchNotes(query, docs)` scores each note per query word: title substring > body substring > close spelling (bounded Levenshtein, 1 edit for short words, 2 for 6+ letters) > title subsequence. Every word must match. Results are ranked and include a body snippet.
 
-### 3.6 Checklists, titles, tabs, bin and carbon copies
+### 3.6 Checklists, titles, tabs, bin and version history
 
 - **Checklists are text.** `lists.ts` gains a `check` kind whose marker is `[ ] ` or
   `[x] `. `applyListStyle` / `continueList` / `indentList` / `renumberLists` treat it
@@ -125,11 +125,11 @@ Papel is a **client-side single-page app** with a **Rust document core compiled 
   `{ note, deletedAt }` to `Persisted.bin` instead of deleting the file. Restore builds
   a session with `sessionFromStoredNote`, reuses `diskName`, and writes the file back;
   "Delete for good" removes the entry and the folder file.
-- **Carbon copies.** Every explicit Save forces a snapshot, and autosave adds at most
+- **Version history.** Every explicit Save forces a snapshot, and autosave adds at most
   one per sheet per two minutes while the content differs. A snapshot is
   `{ at, papel, looks }` (the same `.papel` JSON the file format uses). `carbon.ts`
   deduplicates identical consecutive versions and caps history at 20. Restoring keeps
-  the current state as another carbon copy first, replaces the session from the stored
+  the current state as another version first, replaces the session from the stored
   JSON, and marks it dirty.
 
 ## 4. Folder / Project Structure
@@ -299,11 +299,11 @@ display only, and the next repaint drops it. Matching is `Session::find` for bot
 | Textures as SVG turbulence, rasterized once at startup | Code-generated look without image files. | A small canvas step at boot; SVG kept as fallback. |
 | Performance containment | `contain: strict` on the side column, `will-change` on the sheet, cards memoized and refreshed after typing pauses, single paint per keystroke. | Card previews lag about 0.5 s behind typing. |
 | Round-robin card columns | Stable left-to-right reading order; uses all columns. | Columns can end at different heights. |
-| Autosave writes a full snapshot | Simple and robust recovery. | Cost grows with total notes and image size; the bin and carbon history ride in the same snapshot. |
+| Autosave writes a full snapshot | Simple and robust recovery. | Cost grows with total notes and image size; the bin and version history ride in the same snapshot. |
 | Checklists are plain text | Lists keep working in `.txt`, need no new block kind, and every tick is one undo step. | A tick is a character edit, so it is not a separate document property. |
 | Title follows the first line until renamed | The board names itself without a filing step. | A deliberately generic first line becomes a generic title until renamed. |
 | Delete moves to the bin, file included | A mistaken delete is recoverable; only emptying the bin touches the file. | The bin duplicates deleted notes in browser storage until purged. |
-| Carbon copies are periodic, not per keystroke | Bounded history (20) with a predictable cost. | Up to two minutes of work between automatic versions (explicit Save always snapshots). |
+| Saved versions are periodic, not per keystroke | Bounded history (20) with a predictable cost. | Up to two minutes of work between automatic versions (explicit Save always snapshots). |
 
 ## 8. Development, Testing, and Deployment Notes
 

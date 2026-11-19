@@ -68,7 +68,7 @@ Candidate metrics (proposals only, not agreed): typing latency per keystroke, se
 - Lists (bullet, numbered, lettered, nested) and tickable checklists with a pencil strike-through.
 - Cards carry a coloured tab and can be pinned to the top of the board.
 - New sheets take their title from the first line until renamed.
-- A Bin holds deleted sheets (restore, or delete for good) and each sheet keeps a carbon-copy history.
+- A Bin holds deleted sheets (restore, or delete for good) and each sheet keeps a version history.
 - Tables, including per-cell alignment and face.
 - Per-line paragraph styles (Title to Body), per-line faces (four) and alignment.
 - English autocorrect of common typos on prose sheets.
@@ -101,7 +101,7 @@ Candidate metrics (proposals only, not agreed): typing latency per keystroke, se
 | Titles from the first line | A new sheet names itself, so the board is readable before any filing. |
 | Tabs and pins | Colour-code cards and float the important ones to the top. |
 | Bin | A deleted sheet can be restored; emptying the bin is the only irreversible step. |
-| Carbon copies | Restore an earlier version of a sheet after a bad edit. |
+| Version history | Restore an earlier version of a sheet after a bad edit. |
 | Paste screenshots | Keep images with the words they belong to. |
 | Autocorrect | Fewer typos in quick notes; one undo to revert. |
 | Autosave and recovery | Work survives a reload or a closed tab on the same device. |
@@ -136,7 +136,7 @@ User stories describe current behavior.
 12. As a user, I paste a screenshot and it appears where my caret was.
 13. As a user, I find, replace, and go to a line inside the open note (Ctrl+F).
 13a. As a user, I turn lines into a checklist and click a box to tick it; the line is struck through in pencil.
-13b. As a user, I restore an earlier carbon copy of a sheet after a bad edit.
+13b. As a user, I restore an earlier saved version of a sheet after a bad edit.
 
 **Files and safety**
 

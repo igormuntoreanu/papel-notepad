@@ -56,8 +56,8 @@ export function HeaderStrip({
   unsaved,
   binCount,
   onOpenBin,
-  carbonCount,
-  onOpenCarbon,
+  versionCount,
+  onOpenHistory,
   onChanged,
   onMessage,
 }: {
@@ -92,8 +92,8 @@ export function HeaderStrip({
   unsaved: number;
   binCount: number;
   onOpenBin: () => void;
-  carbonCount: number;
-  onOpenCarbon: () => void;
+  versionCount: number;
+  onOpenHistory: () => void;
   onChanged: () => void;
   onMessage: (m: string) => void;
 }) {
@@ -350,8 +350,8 @@ export function HeaderStrip({
                   Bin… ({binCount})
                 </button>
                 {session && (
-                  <button type="button" className="menu-item" onClick={onOpenCarbon}>
-                    Carbon copies… ({carbonCount})
+                  <button type="button" className="menu-item" onClick={onOpenHistory}>
+                    Version history… ({versionCount})
                   </button>
                 )}
                 <div className="menu-sep" role="separator" />

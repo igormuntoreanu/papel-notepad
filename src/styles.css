@@ -2559,7 +2559,7 @@
   cursor: pointer;
 }
 
-/* Bin and carbon-copy history: a scrollable list of rows inside the modal. */
+/* Bin and version history: a scrollable list of rows inside the modal. */
 .history-modal {
   width: min(640px, 100%);
   max-height: min(82dvh, 680px);

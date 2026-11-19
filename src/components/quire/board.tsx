@@ -20,6 +20,8 @@ export type CardActions = {
   pin: (id: string) => void;
   /** Sets (or clears) the card's coloured tab. */
   setTab: (id: string, tab: TabId | undefined) => void;
+  /** Opens this sheet's version history. */
+  history: (id: string) => void;
 };
 
 type Props = {
@@ -348,6 +350,9 @@ function NoteCardView({
                       </button>
                     </>
                   )}
+                  <button type="button" className="menu-item" onClick={() => actions.history(meta.id)}>
+                    Version history…
+                  </button>
                   <button type="button" className="menu-item danger" onClick={() => actions.close(meta.id)}>
                     Delete sheet…
                   </button>

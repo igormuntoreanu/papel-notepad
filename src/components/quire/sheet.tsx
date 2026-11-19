@@ -134,8 +134,8 @@ export type SheetActions = {
   encoding: (id: string) => void;
   /** Changes the open sheet's line endings. */
   eol: (mode: "lf" | "crlf") => void;
-  /** Opens the sheet's carbon-copy (version) history. */
-  carbon: () => void;
+  /** Opens the sheet's version history. */
+  history: () => void;
   close: () => void;
   deleteImage: (id: number) => void;
   /** Removes a table block; one undo brings it back. */
@@ -661,8 +661,8 @@ export function Sheet({
                     );
                   })}
                   <div className="menu-sep" role="separator" />
-                  <button type="button" className="menu-item" onClick={actions.carbon}>
-                    Carbon copies…
+                  <button type="button" className="menu-item" onClick={actions.history}>
+                    Version history…
                   </button>
                   <div className="menu-sep" role="separator" />
                   <button type="button" className="menu-item danger" onClick={actions.close}>

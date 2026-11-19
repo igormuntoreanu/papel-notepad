@@ -62,8 +62,8 @@ export type StoredBinNote = {
   deletedAt: number;
 };
 
-/** One "carbon copy" of a sheet: the .papel JSON at a point in time. */
-export type StoredCarbonCopy = {
+/** One saved version of a sheet: the .papel JSON at a point in time. */
+export type StoredVersion = {
   at: number;
   papel: string;
   looks: Record<string, BlockLook>;
@@ -75,7 +75,8 @@ export type Persisted = {
   activeId: string | null;
   bin?: StoredBinNote[];
   /** Per-note version history, keyed by note id. */
-  carbon?: Record<string, StoredCarbonCopy[]>;
+  /** Version history, keyed by note id. Kept under `carbon` so older saves load. */
+  carbon?: Record<string, StoredVersion[]>;
 };
 
 export type SortMode = "recent" | "title";

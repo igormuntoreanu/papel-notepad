@@ -3,7 +3,7 @@ import { createSession, type Session } from "@/lib/quire/engine";
 import { toggleBullets } from "@/lib/quire/blocks";
 import { findInNote, type NoteHits } from "@/lib/quire/note-search";
 import { FLAG, rangeHas, readMarks, type FlagName } from "@/lib/quire/marks";
-import { savePersisted, type Prefs, type SortMode, type StoredBinNote, type StoredCarbonCopy } from "@/lib/quire/persist";
+import { savePersisted, type Prefs, type SortMode, type StoredBinNote, type StoredVersion } from "@/lib/quire/persist";
 import { ARCHIVE_EXT, archiveFileName, formatLastBackup, mergeArchive, parseArchive, zipBackupFileName } from "@/lib/quire/backup";
 import {
   canPickFolder,
@@ -41,7 +41,7 @@ import { FONT_CODES, STYLE_CODES, type BlockLook } from "@/lib/quire/typefaces";
 import { applyListStyle } from "@/lib/quire/lists";
 import type { ListKind } from "@/lib/quire/lists";
 import { isTabId, type TabId } from "@/lib/quire/tabs";
-import { pushCarbon } from "@/lib/quire/carbon";
+import { pushVersion } from "@/lib/quire/versions";
 import {
   blankNote,
   buildArchive,
@@ -78,8 +78,8 @@ type Sel = { blockId: number; start: number; end: number };
 const ZOOM_MIN = 10;
 const ZOOM_MAX = 40;
 const ZOOM_DEFAULT = 16;
-/** Autosave writes at most one carbon copy per sheet in this window. */
-const CARBON_INTERVAL = 2 * 60_000;
+/** Autosave writes at most one saved version per sheet in this window. */
+const VERSION_INTERVAL = 2 * 60_000;
 
 function clampZoom(size: number): number {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(size)));
@@ -109,10 +109,10 @@ export function QuireApp() {
   const [folderName, setFolderName] = useState<string | null>(null);
   /** Deleted sheets kept until the bin is purged. */
   const [bin, setBin] = useState<StoredBinNote[]>([]);
-  /** Per-sheet version history ("carbon copies"). */
-  const [carbon, setCarbon] = useState<Record<string, StoredCarbonCopy[]>>({});
+  /** Per-sheet version history (stored in the `carbon` snapshot slot). */
+  const [versions, setVersions] = useState<Record<string, StoredVersion[]>>({});
   const [binOpen, setBinOpen] = useState(false);
-  const [carbonOpen, setCarbonOpen] = useState(false);
+  const [historyId, setHistoryId] = useState<string | null>(null);
   /** Chromium: true until a sync folder is linked with write permission. */
   const [folderGate, setFolderGate] = useState(false);
   const [tick, setTick] = useState(0);
@@ -219,6 +219,7 @@ export function QuireApp() {
 
   const session = activeId ? (sessions.get(activeId) ?? null) : null;
   const note = notes.find((n) => n.id === activeId) ?? null;
+  const historyNote = historyId ? (notes.find((n) => n.id === historyId) ?? null) : null;
   const skinMeta = SKINS.find((s) => s.id === skin) ?? SKINS[0];
   // Cards refresh once typing pauses, so the side column does not repaint on every keystroke.
   const [cardTick, setCardTick] = useState(0);
@@ -239,7 +240,7 @@ export function QuireApp() {
         setLastBackup(data.prefs.lastBackup ?? null);
         setFolderName(data.prefs.folderName ?? null);
         setBin(data.bin);
-        setCarbon(data.carbon);
+        setVersions(data.versions);
         setReady(true);
         if (!canPickFolder()) {
           setFolderGate(false);
@@ -281,13 +282,13 @@ export function QuireApp() {
         folderName: folderName ?? undefined,
       };
       // A version at most every two minutes while a sheet is being edited.
-      createCarbon(activeId);
-      void savePersisted(snapshot(notes, order, activeId, bin, carbon), prefs).catch(() => {
+      createVersion(activeId);
+      void savePersisted(snapshot(notes, order, activeId, bin, versions), prefs).catch(() => {
         setMessage("Could not autosave this sheet.");
       });
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, lastBackup, folderName, bin, carbon, tick]);
+  }, [ready, notes, order, activeId, skin, zoom, autocorrect, sort, lastBackup, folderName, bin, versions, tick]);
 
   // Ctrl + wheel zooms the sheet like a document viewer. A plain wheel keeps
   // scrolling, and the listener only swallows the gesture over the page so the board
@@ -445,41 +446,50 @@ export function QuireApp() {
     setTick((n) => n + 1);
   }
 
+  /** Opens the version history of one sheet (from the Save menu, Settings or a card). */
+  function openHistory(id: string | null) {
+    if (!id) return;
+    setHistoryId(id);
+  }
+
   /**
-   * Writes one version of a sheet into its carbon history. Called on an explicit Save
-   * and, at most every two minutes, by autosave.
+   * Writes one version of a sheet into its history. Called on an explicit Save and,
+   * at most every two minutes, by autosave.
    */
-  function createCarbon(id: string | null, force = false) {
+  function createVersion(id: string | null, force = false) {
     if (!id) return;
     const session = sessions.get(id);
     const meta = notesRef.current.find((n) => n.id === id);
     if (!session || !meta) return;
     // Do not fill the history with empty sheets while a new one is still blank.
     if (!force && session.export_text().trim() === "") return;
-    const copy: StoredCarbonCopy = {
+    const copy: StoredVersion = {
       at: Date.now(),
       papel: toPapel(session, meta.looks ?? {}),
       looks: { ...(meta.looks ?? {}) },
     };
-    setCarbon((current) => {
+    setVersions((current) => {
       const list = current[id] ?? [];
       const last = list[list.length - 1];
-      if (!force && last && copy.at - last.at < CARBON_INTERVAL) return current;
-      return pushCarbon(current, id, copy);
+      if (!force && last && copy.at - last.at < VERSION_INTERVAL) return current;
+      return pushVersion(current, id, copy);
     });
   }
 
-  /** Replaces the open sheet with one of its carbon copies (the current state is kept). */
-  function restoreCarbon(at: number) {
-    const id = activeRef.current;
+  /**
+   * Replaces a sheet with one of its saved versions. The current state is kept as a
+   * version first, and the restored sheet is opened so the change is visible.
+   */
+  function restoreVersion(at: number) {
+    const id = historyId;
     if (!id) return;
-    const copy = (carbon[id] ?? []).find((entry) => entry.at === at);
+    const copy = (versions[id] ?? []).find((entry) => entry.at === at);
     if (!copy) return;
-    createCarbon(id, true);
+    createVersion(id, true);
     const session = createSession();
     const looks: Record<string, BlockLook> = {};
     if (!fromPapel(session, new TextEncoder().encode(copy.papel), looks)) {
-      showAlert("That carbon copy could not be read.");
+      showAlert("That version could not be read.");
       return;
     }
     sessions.set(id, session);
@@ -490,15 +500,16 @@ export function QuireApp() {
     );
     session.mark_dirty();
     setSel({ blockId: session.first_text_id(), start: 0, end: 0 });
-    setCarbonOpen(false);
-    setMessage("Carbon copy restored");
+    setHistoryId(null);
+    setMessage("Version restored");
+    activate(id);
     setTick((n) => n + 1);
   }
 
-  function deleteCarbon(at: number) {
-    const id = activeRef.current;
+  function deleteVersion(at: number) {
+    const id = historyId;
     if (!id) return;
-    setCarbon((current) => ({
+    setVersions((current) => ({
       ...current,
       [id]: (current[id] ?? []).filter((entry) => entry.at !== at),
     }));
@@ -528,7 +539,7 @@ export function QuireApp() {
     setOrder((list) => [...list, freshId]);
     setBin((list) => list.filter((item) => item.deletedAt !== at));
     // The history was keyed by the old id; move it to the restored sheet's new id.
-    setCarbon((current) => {
+    setVersions((current) => {
       const copies = current[entry.note.id];
       if (!copies) return current;
       const next = { ...current, [freshId]: copies };
@@ -554,7 +565,7 @@ export function QuireApp() {
         void removeFolderFile(dir, entry.note.diskName);
       }
       setBin((list) => list.filter((item) => item.deletedAt !== at));
-      setCarbon((current) => {
+      setVersions((current) => {
         if (!current[entry.note.id]) return current;
         const next = { ...current };
         delete next[entry.note.id];
@@ -787,7 +798,7 @@ export function QuireApp() {
         const name = safeName(meta.title, as);
         download(name, s.export_bytes(), mimeForExtension(as));
         s.mark_clean();
-        createCarbon(id, true);
+        createVersion(id, true);
         setMessage(`Saved ${name}`);
         setTick((n) => n + 1);
       } catch (err) {
@@ -799,7 +810,7 @@ export function QuireApp() {
       const name = safeName(meta.title, "papel");
       download(name, toPapel(s, meta.looks ?? {}), "application/json");
       s.mark_clean();
-      createCarbon(id, true);
+      createVersion(id, true);
       setMessage(`Saved ${name}`);
       setTick((n) => n + 1);
     }
@@ -1652,6 +1663,7 @@ export function QuireApp() {
     reorder,
     pin: togglePin,
     setTab: setNoteTab,
+    history: (id) => openHistory(id),
   };
 
   const blockId = sel.blockId || session?.first_text_id() || 0;
@@ -1741,7 +1753,7 @@ export function QuireApp() {
       setMessage(mode === "lf" ? "Line endings: Unix (LF)" : "Line endings: Windows (CRLF)");
       edited();
     },
-    carbon: () => setCarbonOpen(true),
+    history: () => openHistory(activeId),
     table: insertTable,
     bullets: toggleBulletList,
     close: () => activeId && closeNote(activeId),
@@ -1904,8 +1916,8 @@ export function QuireApp() {
         unsaved={unsaved}
         binCount={bin.length}
         onOpenBin={() => setBinOpen(true)}
-        carbonCount={activeId ? (carbon[activeId]?.length ?? 0) : 0}
-        onOpenCarbon={() => setCarbonOpen(true)}
+        versionCount={activeId ? (versions[activeId]?.length ?? 0) : 0}
+        onOpenHistory={() => openHistory(activeId)}
         onChanged={() => bump()}
         onMessage={setMessage}
       />
@@ -2074,38 +2086,38 @@ export function QuireApp() {
         </div>
       )}
 
-      {carbonOpen && activeId && (
-        <div className="modal-back" onMouseDown={() => setCarbonOpen(false)}>
+      {historyId && (
+        <div className="modal-back" onMouseDown={() => setHistoryId(null)}>
           <div
             className="modal history-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="carbon-title"
+            aria-labelledby="version-history-title"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h2 id="carbon-title">Carbon copies</h2>
+            <h2 id="version-history-title">Version history</h2>
             <p className="history-lede">
-              Versions of {note?.title ?? "this sheet"}, newest first. Papel keeps one on every
-              save and at most one every two minutes while you type.
+              Versions of {historyNote?.title ?? "this sheet"}, newest first. Papel keeps one on
+              every save and at most one every two minutes while you type.
             </p>
-            {(carbon[activeId] ?? []).length === 0 ? (
+            {(versions[historyId] ?? []).length === 0 ? (
               <p className="history-empty">
-                No carbon copies yet. Save the sheet, or keep editing for a couple of minutes.
+                No saved versions yet. Save the sheet, or keep editing for a couple of minutes.
               </p>
             ) : (
               <ul className="history-list">
-                {[...(carbon[activeId] ?? [])].reverse().map((entry) => (
+                {[...(versions[historyId] ?? [])].reverse().map((entry) => (
                   <li key={entry.at} className="history-row">
                     <div className="history-main">
                       <strong>{new Date(entry.at).toLocaleString()}</strong>
-                      <span className="history-meta">Carbon copy</span>
+                      <span className="history-meta">Saved version</span>
                     </div>
                     <div className="history-actions">
-                      <button type="button" className="btn" onClick={() => restoreCarbon(entry.at)}>
+                      <button type="button" className="btn" onClick={() => restoreVersion(entry.at)}>
                         Restore
                       </button>
-                      <button type="button" className="btn" onClick={() => deleteCarbon(entry.at)}>
-                        Delete copy
+                      <button type="button" className="btn" onClick={() => deleteVersion(entry.at)}>
+                        Delete version
                       </button>
                     </div>
                   </li>
@@ -2113,7 +2125,7 @@ export function QuireApp() {
               </ul>
             )}
             <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setCarbonOpen(false)}>
+              <button type="button" className="btn" onClick={() => setHistoryId(null)}>
                 Close
               </button>
             </div>

@@ -6,7 +6,7 @@ import {
   type PapelArchive,
 } from "@/lib/quire/backup";
 import { bootEngine, createSession, type Session } from "@/lib/quire/engine";
-import { loadPersisted, type Persisted, type Prefs, type SortMode, type StoredBinNote, type StoredBlock, type StoredCarbonCopy, type StoredNote } from "@/lib/quire/persist";
+import { loadPersisted, type Persisted, type Prefs, type SortMode, type StoredBinNote, type StoredBlock, type StoredVersion, type StoredNote } from "@/lib/quire/persist";
 import { base64ToBytes, bytesToBase64, copyBytes, SKINS, type SkinId } from "@/lib/quire/text";
 import { nextUntitled } from "@/lib/quire/titles";
 import { isTabId, type TabId } from "@/lib/quire/tabs";
@@ -38,7 +38,7 @@ export type Loaded = {
   activeId: string | null;
   prefs: Prefs;
   bin: StoredBinNote[];
-  carbon: Record<string, StoredCarbonCopy[]>;
+  versions: Record<string, StoredVersion[]>;
 };
 
 export type CardInfo = {
@@ -149,7 +149,7 @@ export async function ensureLoaded(): Promise<Loaded> {
           folderName: typeof prefs?.folderName === "string" ? prefs.folderName : undefined,
         },
         bin: doc?.bin ?? [],
-        carbon: doc?.carbon ?? {},
+        versions: doc?.carbon ?? {},
       };
       return loadedCache;
     })();
@@ -205,7 +205,7 @@ export function sessionFromStoredNote(stored: StoredNote): {
   return { session, looks };
 }
 
-/** One live note as the IndexedDB shape. Shared by autosave, the bin and carbon copies. */
+/** One live note as the IndexedDB shape. Shared by autosave, the bin and version history. */
 export function storedNoteFromMeta(id: string, meta: NoteMeta): StoredNote | null {
   const session = sessions.get(id);
   if (!session) return null;
@@ -260,7 +260,7 @@ export function snapshot(
   order: string[],
   activeId: string | null,
   bin: StoredBinNote[] = [],
-  carbon: Record<string, StoredCarbonCopy[]> = {},
+  versions: Record<string, StoredVersion[]> = {},
 ): Persisted {
   const byId = new Map(notes.map((note) => [note.id, note]));
   return {
@@ -273,7 +273,8 @@ export function snapshot(
       })
       .filter((note): note is StoredNote => note !== null),
     bin,
-    carbon,
+    // Persisted as `carbon` so saves from the earlier name keep loading.
+    carbon: versions,
   };
 }
 
