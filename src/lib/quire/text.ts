@@ -45,6 +45,48 @@ export const SKINS = [
     pattern: "blank",
     blurb: "Phosphor green on charcoal. A CRT for your words.",
   },
+  {
+    id: "legal-pad",
+    name: "Legal Pad",
+    edge: "clean",
+    pattern: "ruled",
+    blurb: "Yellow ruled pad on an olive blotter. Wax-red accents.",
+  },
+  {
+    id: "manila",
+    name: "Manila",
+    edge: "clean",
+    pattern: "blank",
+    blurb: "Buff folder paper on a tan desk. Saddle-brown accents.",
+  },
+  {
+    id: "newsprint",
+    name: "Newsprint",
+    edge: "torn",
+    pattern: "blank",
+    blurb: "Grey newsprint, near-black ink, deep red accents.",
+  },
+  {
+    id: "washi",
+    name: "Washi",
+    edge: "torn",
+    pattern: "blank",
+    blurb: "Warm fibre paper, soft deckle edge, vermilion accents.",
+  },
+  {
+    id: "index-card",
+    name: "Index Card",
+    edge: "clean",
+    pattern: "ruled",
+    blurb: "Crisp white card on cork. Blue rules and accents.",
+  },
+  {
+    id: "chalkboard",
+    name: "Chalkboard",
+    edge: "clean",
+    pattern: "blank",
+    blurb: "Chalk on slate in an oak frame. Yellow chalk accents.",
+  },
 ] as const;
 
 export type SkinId = (typeof SKINS)[number]["id"];

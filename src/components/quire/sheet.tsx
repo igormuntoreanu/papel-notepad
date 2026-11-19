@@ -310,9 +310,9 @@ export function Sheet({
     const line = text.slice(0, start).split("\n").length - 1;
     return CODE_FONTS[fonts[line] ?? 0] ?? currentLook.font ?? DEFAULT_FONT;
   })();
-  // Bright inks fail contrast on the light skins, so they are only offered on the two
+  // Bright inks fail contrast on the light skins, so they are only offered on the
   // dark ones. Stored marks keep whatever ink they already carry (see paint()).
-  const darkSkin = skin === "blueprint" || skin === "terminal";
+  const darkSkin = skin === "blueprint" || skin === "terminal" || skin === "chalkboard";
   const inks = darkSkin ? INKS : INKS.filter((ink) => !ink.bright);
 
   return (

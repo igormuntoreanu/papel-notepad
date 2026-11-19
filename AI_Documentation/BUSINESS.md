@@ -70,7 +70,7 @@ Candidate metrics (proposals only, not agreed): typing latency per keystroke, se
 - English autocorrect of common typos on prose sheets.
 - Pasting and inserting images (up to about 12 MB each).
 - Find, replace, go to line; insert date/time; word wrap; zoom.
-- Six paper skins: Sulphite (default), Paper, Ink, Carbon, Blueprint, Terminal.
+- Twelve paper skins: Sulphite (default), Paper, Ink, Carbon, Blueprint, Terminal, Legal Pad, Manila, Newsprint, Washi, Index Card, Chalkboard. Every skin keeps body text at 11:1 contrast or better.
 - Autosave to the browser and recovery on reload.
 - Open `.txt` and other text files as plain words, `.papel`, `.quire`; save `.txt` or `.papel`.
 - Encoding (UTF-8, UTF-8 BOM, UTF-16 LE, Windows-1252) and line ending (LF, CRLF) control.

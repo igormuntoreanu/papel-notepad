@@ -1,6 +1,6 @@
 # Papel
 
-A light notepad on paper. Notes are torn-paper cards on a kraft desk; open one and it becomes the big sheet, with the other cards in a column beside it. Six paper skins (Sulphite by default, plus Paper, Ink, Carbon, Blueprint, Terminal). Every sheet is plain text: no code languages, no syntax colouring.
+A light notepad on paper. Notes are torn-paper cards on a kraft desk; open one and it becomes the big sheet, with the other cards in a column beside it. Twelve paper skins: Sulphite (default), Paper, Ink, Carbon, Blueprint, Terminal, Legal Pad, Manila, Newsprint, Washi, Index Card and Chalkboard. Every sheet is plain text: no code languages, no syntax colouring.
 
 - **Board**: every sheet is a card with a preview, word and line counts, last edit, and a dot when it is not saved to a file. Cards are ordered by *Last edited* or *Title*; use the card's `…` menu for the rest.
 - **Search**: the field in the status strip (after the zoom level) searches every sheet. Enter or the loupe finds the text and paints the matches yellow so you can see where they are, opening the first sheet that has one; nothing is written to the sheet and clearing the field takes the yellow away. Board order (Title or Last edited) lives under Settings.
