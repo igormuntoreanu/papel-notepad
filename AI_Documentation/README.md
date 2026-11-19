@@ -14,7 +14,7 @@ Handover pack for people and AI agents picking up Papel.
 - **Platform today**: web browser plus the Windows desktop build (Tauri 2 / WebView2, folder-portable zip).
 - **Former name**: Quire. Code identifiers (`QuireApp`, `quire-core`, `quire-wasm`, `src/lib/quire`) still use the old name. `.quire` files still open.
 - **Repository**: `github.com/igormuntoreanu/papel-notepad` (public).
-- **State as of 0.5.4**: released on `main`. The template scaffolding (auth, app-data, multiplayer, PGlite, migrations) and the code-language engine (syntax colouring, detection, Autoformat) were removed; every sheet is plain text.
+- **State as of 0.6.0**: released on `main`. Twelve paper skins, a quieter toolbar with Format and Save menus, tickable checklists, first-line titles, card tabs/pins, a Bin, and per-sheet version history. The template scaffolding and the code-language engine were removed; every sheet is plain text.
 
 ## Rules for an AI continuing this work
 
