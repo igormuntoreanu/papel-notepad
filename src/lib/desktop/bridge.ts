@@ -30,6 +30,12 @@ export interface DesktopBridge {
   isMaximized(): Promise<boolean>;
   close(): Promise<void>;
 
+  /**
+   * Move this window into a fraction of the monitor work area.
+   * Present on the desktop shell; absent in the browser and in older stubs.
+   */
+  snap?(zone: { x: number; y: number; w: number; h: number }): Promise<void>;
+
   /** Ask the user for a folder. `null` when they cancel. */
   pickDirectory(): Promise<DesktopDir | null>;
 
@@ -58,7 +64,10 @@ export interface DesktopBridge {
   saveFile(name: string, bytes: Uint8Array, mime: string): Promise<boolean>;
 }
 
-/** Bump when a method is added or its meaning changes. */
+/**
+ * Bump when a required method is added or its meaning changes.
+ * `snap` is optional on purpose: older stubs and the browser keep working at v2.
+ */
 export const DESKTOP_BRIDGE_VERSION = 2;
 
 declare global {

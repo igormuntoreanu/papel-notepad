@@ -304,6 +304,7 @@ display only, and the next repaint drops it. Matching is `Session::find` for bot
 | Title follows the first line until renamed | The board names itself without a filing step. | A deliberately generic first line becomes a generic title until renamed. |
 | Delete moves to the bin, file included | A mistaken delete is recoverable; only emptying the bin touches the file. | The bin duplicates deleted notes in browser storage until purged. |
 | Saved versions are periodic, not per keystroke | Bounded history (20) with a predictable cost. | Up to two minutes of work between automatic versions (explicit Save always snapshots). |
+| Custom snap flyout on the maximize button | The window is frameless, so Windows never draws its snap menu. Right-click or a short hover opens Papel's own layouts; a zone moves this window to that fraction of the monitor work area (`desktop_snap`). | Other windows stay where they are. Arranging those is the shell's job, and a frameless WebView cannot hand the maximize button back to Windows without losing the menu. |
 
 ## 8. Development, Testing, and Deployment Notes
 
@@ -317,6 +318,8 @@ display only, and the next repaint drops it. Matching is `Session::find` for bot
 | `node scripts/verify-bugs.mjs` | Playwright editor regressions (needs `npm run build:desktop`) |
 | `node scripts/qa-visual.mjs` | Screenshots into `AI_Documentation/qa/<version>/` |
 | `cargo test -p quire-core` | Core tests (editing, undo, emoji offsets, images, tables, encodings, styles) |
+| `cargo test --manifest-path shells/tauri/src-tauri/Cargo.toml` | Shell tests, including snap-zone pixel math |
+| `node scripts/qa-snap.mjs` | Snap flyout: right-click Maximize, pick a zone (needs `npm run build:desktop`) |
 | `npx vite build` | Production build to `.vercel/output` |
 
 ### Icons
@@ -338,6 +341,15 @@ In a production build, open a sheet and time 20 synthetic `input` events, waitin
 
 - `vercel.json` sets the install command. `npm run build` runs `vite build` only.
 - **Gap**: the live deployment target, URL, and pipeline are not documented.
+
+### Snap layouts (desktop)
+
+The title bar is drawn by the app (`decorations: false`), so hovering or right-clicking Maximize does not open the Windows snap flyout. Papel draws its own, in `src/lib/desktop/snap-layouts.ts`, and shows it from the maximize button in `header-strip.tsx`.
+
+- **Open:** right-click the maximize button, or rest the pointer on it for about 400 ms. Escape, a click outside, or the pointer leaving both the button and the panel closes it. A left click still maximizes or restores.
+- **Zones:** halves, a half beside a stack, three columns, a two-thirds split, quarters, and a third beside a stack. Each layout tiles the work area. The panel is portalled to `document.body` because the header's drop shadow would otherwise trap a `position: fixed` menu.
+- **What moves:** only the Papel window. `desktop_snap` unmaximizes, then sets size and position from `Monitor::work_area()` (`shells/tauri/src-tauri/src/window.rs`). Fractions are the contract; Rust rounds each edge once so neighbours meet. The bridge method is optional and the contract stays at version 2, so a stub without `snap` keeps the plain maximize button.
+- **Minimum size** is 400×280 so a quarter of a 1366×768 screen still fits.
 
 ### Known issues
 

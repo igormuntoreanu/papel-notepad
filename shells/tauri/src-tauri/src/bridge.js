@@ -42,6 +42,7 @@
     toggleMaximize: () => invoke("desktop_toggle_maximize"),
     isMaximized: () => invoke("desktop_is_maximized"),
     close: () => invoke("desktop_close"),
+    snap: (zone) => invoke("desktop_snap", { x: zone.x, y: zone.y, w: zone.w, h: zone.h }),
     pickDirectory: () => invoke("desktop_pick_directory"),
     resolveDirectory: (id) => invoke("desktop_resolve_directory", { id }),
     readFile: async (dirId, name) => {

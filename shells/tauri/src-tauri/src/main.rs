@@ -51,6 +51,7 @@ fn main() {
             window::desktop_toggle_maximize,
             window::desktop_is_maximized,
             window::desktop_close,
+            window::desktop_snap,
         ])
         .setup(move |app| {
             let mut builder = tauri::WebviewWindowBuilder::new(
@@ -60,7 +61,8 @@ fn main() {
             )
             .title("Papel")
             .inner_size(1280.0, 800.0)
-            .min_inner_size(900.0, 600.0)
+            // Low enough that a quarter of a 1366×768 screen still fits.
+            .min_inner_size(400.0, 280.0)
             .resizable(true)
             .decorations(false)
             .visible(true)

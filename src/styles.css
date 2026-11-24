@@ -769,6 +769,46 @@
   stroke-width: 2;
 }
 
+/* Snap layouts: the Windows maximize flyout, drawn for the frameless window. */
+.snap-flyout {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 128px));
+  gap: 10px;
+  width: min(566px, calc(100vw - 16px));
+  padding: 12px;
+  border: 1px solid rgb(0 0 0 / 0.12);
+  border-radius: 8px;
+  background: #f3f3f3;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.22);
+}
+
+.snap-layout {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 128 / 86;
+}
+
+.snap-zone {
+  position: absolute;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #c5c5c5;
+  border-radius: 4px;
+  background: #dedede;
+  /* Pull neighbouring tiles apart by a hair without changing the snap math. */
+  transform: scale(0.94);
+}
+
+.snap-zone:hover,
+.snap-zone:focus-visible {
+  background: #c5dff6;
+  border-color: #0067c0;
+  outline: none;
+}
+
 .variant {
   display: inline-flex;
   align-items: center;

@@ -11,8 +11,10 @@ import {
   Square,
   X,
 } from "lucide-react";
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { desktopBridge } from "@/lib/desktop/bridge";
+import { SNAP_LAYOUTS, type SnapRect } from "@/lib/desktop/snap-layouts";
 import type { Session } from "@/lib/quire/engine";
 import { tornClip } from "@/lib/quire/torn";
 import { ENCODINGS, SKINS, type SkinId } from "@/lib/quire/text";
@@ -102,6 +104,84 @@ export function HeaderStrip({
 
   const [appVersion, setAppVersion] = useState(APP_VERSION);
   const [maximized, setMaximized] = useState(false);
+  const [snapOpen, setSnapOpen] = useState(false);
+  const [snapBox, setSnapBox] = useState({ top: 0, right: 8 });
+  const maxBtnRef = useRef<HTMLButtonElement>(null);
+  const snapPanelRef = useRef<HTMLDivElement>(null);
+  const snapOpenTimer = useRef<number | null>(null);
+  const snapCloseTimer = useRef<number | null>(null);
+  const canSnap = typeof bridge?.snap === "function";
+
+  function clearSnapTimers() {
+    if (snapOpenTimer.current !== null) window.clearTimeout(snapOpenTimer.current);
+    if (snapCloseTimer.current !== null) window.clearTimeout(snapCloseTimer.current);
+    snapOpenTimer.current = null;
+    snapCloseTimer.current = null;
+  }
+
+  function placeSnap() {
+    const rect = maxBtnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const panelWidth = Math.min(566, window.innerWidth - 16);
+    const besideButton = Math.max(8, window.innerWidth - rect.right);
+    const onScreen = Math.max(8, window.innerWidth - panelWidth - 8);
+    setSnapBox({
+      top: rect.bottom + 4,
+      right: Math.min(besideButton, onScreen),
+    });
+    setSnapOpen(true);
+  }
+
+  function armSnapOpen() {
+    if (!canSnap) return;
+    if (snapCloseTimer.current !== null) window.clearTimeout(snapCloseTimer.current);
+    snapCloseTimer.current = null;
+    if (snapOpen) return;
+    if (snapOpenTimer.current !== null) window.clearTimeout(snapOpenTimer.current);
+    snapOpenTimer.current = window.setTimeout(() => {
+      snapOpenTimer.current = null;
+      placeSnap();
+    }, 400);
+  }
+
+  function armSnapClose() {
+    if (snapOpenTimer.current !== null) {
+      window.clearTimeout(snapOpenTimer.current);
+      snapOpenTimer.current = null;
+    }
+    if (snapCloseTimer.current !== null) window.clearTimeout(snapCloseTimer.current);
+    snapCloseTimer.current = window.setTimeout(() => {
+      snapCloseTimer.current = null;
+      setSnapOpen(false);
+    }, 280);
+  }
+
+  useEffect(() => {
+    if (!snapOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSnapOpen(false);
+    };
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (maxBtnRef.current?.contains(target) || snapPanelRef.current?.contains(target)) return;
+      setSnapOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onPointer);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onPointer);
+    };
+  }, [snapOpen]);
+
+  useEffect(() => () => clearSnapTimers(), []);
+
+  async function applySnap(rect: SnapRect) {
+    if (!bridge?.snap) return;
+    setSnapOpen(false);
+    await bridge.snap(rect);
+    setMaximized(await bridge.isMaximized());
+  }
 
   useEffect(() => {
     if (!bridge) return;
@@ -397,18 +477,77 @@ export function HeaderStrip({
                 <Minus />
               </button>
               <button
+                ref={maxBtnRef}
                 type="button"
                 className="win-btn"
                 aria-label={maximized ? "Restore" : "Maximize"}
-                title={maximized ? "Restore" : "Maximize"}
+                aria-haspopup={canSnap ? "menu" : undefined}
+                aria-expanded={canSnap ? snapOpen : undefined}
+                title={
+                  canSnap
+                    ? maximized
+                      ? "Restore. Right-click or hover for snap layouts."
+                      : "Maximize. Right-click or hover for snap layouts."
+                    : maximized
+                      ? "Restore"
+                      : "Maximize"
+                }
                 onClick={() => {
+                  setSnapOpen(false);
                   void bridge.toggleMaximize().then(async () => {
                     setMaximized(await bridge.isMaximized());
                   });
                 }}
+                onContextMenu={(event) => {
+                  if (!canSnap) return;
+                  event.preventDefault();
+                  clearSnapTimers();
+                  placeSnap();
+                }}
+                onMouseEnter={armSnapOpen}
+                onMouseLeave={armSnapClose}
               >
                 {maximized ? <Square /> : <Maximize2 />}
               </button>
+              {snapOpen &&
+                canSnap &&
+                createPortal(
+                  <div
+                    ref={snapPanelRef}
+                    className="snap-flyout strip-no-drag"
+                    role="menu"
+                    aria-label="Snap layouts"
+                    style={{ top: snapBox.top, right: snapBox.right }}
+                    onMouseEnter={() => {
+                      if (snapCloseTimer.current !== null) window.clearTimeout(snapCloseTimer.current);
+                      snapCloseTimer.current = null;
+                    }}
+                    onMouseLeave={armSnapClose}
+                  >
+                    {SNAP_LAYOUTS.map((layout) => (
+                      <div key={layout.id} className="snap-layout" role="group" aria-label={layout.label}>
+                        {layout.zones.map((zone) => (
+                          <button
+                            key={zone.id}
+                            type="button"
+                            className="snap-zone"
+                            role="menuitem"
+                            title={zone.label}
+                            aria-label={zone.label}
+                            style={{
+                              left: `${zone.rect.x * 100}%`,
+                              top: `${zone.rect.y * 100}%`,
+                              width: `${zone.rect.w * 100}%`,
+                              height: `${zone.rect.h * 100}%`,
+                            }}
+                            onClick={() => void applySnap(zone.rect)}
+                          />
+                        ))}
+                      </div>
+                    ))}
+                  </div>,
+                  document.body,
+                )}
               <button
                 type="button"
                 className="win-btn win-close"
