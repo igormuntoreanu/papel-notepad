@@ -4,13 +4,34 @@ import {
   FolderOpen,
   FolderSync,
   LayoutGrid,
-  Maximize2,
   Minus,
   Search,
   Settings2,
-  Square,
   X,
 } from "lucide-react";
+
+/** Windows title-bar glyphs: a hollow square, or two overlapping squares when restored. */
+function WinMaximizeIcon() {
+  return (
+    <svg className="win-glyph" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
+      <rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+function WinRestoreIcon() {
+  return (
+    <svg className="win-glyph" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
+      <path
+        d="M3 1.5h5.5v5.5H7.2V2.8H3V1.5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.15"
+      />
+      <rect x="1.5" y="3" width="5.5" height="5.5" fill="none" stroke="currentColor" strokeWidth="1.15" />
+    </svg>
+  );
+}
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { desktopBridge } from "@/lib/desktop/bridge";
@@ -507,7 +528,7 @@ export function HeaderStrip({
                 onMouseEnter={armSnapOpen}
                 onMouseLeave={armSnapClose}
               >
-                {maximized ? <Square /> : <Maximize2 />}
+                {maximized ? <WinRestoreIcon /> : <WinMaximizeIcon />}
               </button>
               {snapOpen &&
                 canSnap &&

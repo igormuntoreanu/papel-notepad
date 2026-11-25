@@ -14,7 +14,7 @@ Handover pack for people and AI agents picking up Papel.
 - **Platform today**: web browser plus the Windows desktop build (Tauri 2 / WebView2, folder-portable zip).
 - **Former name**: Quire. Code identifiers (`QuireApp`, `quire-core`, `quire-wasm`, `src/lib/quire`) still use the old name. `.quire` files still open.
 - **Repository**: `github.com/igormuntoreanu/papel-notepad` (public).
-- **State as of 0.6.1**: released on `main`. Right-click or hover the desktop maximize button for snap layouts (this window only). Twelve paper skins, a quieter toolbar with Format and Save menus, tickable checklists, first-line titles, card tabs/pins, a Bin, and per-sheet version history.
+- **State as of 0.6.2**: released on `main`. Desktop maximize/restore uses the Windows square glyphs; right-click or hover still opens snap layouts. Twelve paper skins, a quieter toolbar with Format and Save menus, tickable checklists, first-line titles, card tabs/pins, a Bin, and per-sheet version history.
 
 ## Rules for an AI continuing this work
 

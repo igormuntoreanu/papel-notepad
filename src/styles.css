@@ -769,6 +769,12 @@
   stroke-width: 2;
 }
 
+.win-btn svg.win-glyph {
+  width: 10px;
+  height: 10px;
+  stroke-width: 1.2;
+}
+
 /* Snap layouts: the Windows maximize flyout, drawn for the frameless window. */
 .snap-flyout {
   position: fixed;
